@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta content="width=device-width, initial-scale=1" name="viewport">
+
+<title>智能灯控</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0.6/dist/body-pix.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/countup.js@2.0.7/dist/countup.umd.js"></script>
+
+<style>
+     :root {
+      --primary: #409EFF;
+      --primary-hover: #66B1FF;
+      --bg: #F0F2F5;
+      --card-bg: #FFFFFF;
+      --text-color: #303133;
+      --sub-text: #606266;
+      --border-radius: 12px;
+      --transition: 0.3s ease;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text-color);
+      padding: 20px;
+    }
+    
+    /* 控制区 */
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+    #controls button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background var(--transition), transform 0.2s;
+    }
+    #controls button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+    #controls label {
+      font-size: 14px;
+      color: var(--sub-text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #controls input[type="text"] {
+      width: 140px;
+      padding: 6px 10px;
+      font-size: 14px;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      transition: border-color 0.3s;
+    }
+    #controls input[type="text"]:focus {
+      border-color: var(--primary);
+      outline: none;
+    }
+    #scanStatus {
+      margin-left: auto;
+      font-size: 13px;
+      color: var(--sub-text);
+    }
+
+    /* 设备卡片网格 */
+    #deviceContainer {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .lamp-card {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+    .lamp-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    }
+    .lamp-card h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    .lamp-card label {
+      font-size: 14px;
+      color: var(--sub-text);
+      margin-top: 12px;
+      display: block;
+    }
+    .lamp-card input[type="range"] {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #ddd;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      margin-top: 6px;
+    }
+    .lamp-card input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+      transition: background var(--transition), transform 0.2s;
+    }
+    .lamp-card input[type="range"]::-webkit-slider-thumb:hover {
+      background: var(--primary-hover);
+      transform: scale(1.2);
+    }
+    .color-box {
+      display: inline-block;
+      margin-top: 10px;
+      width: 180px; height: 40px;
+      line-height: 40px;
+      text-align: center;
+      border-radius: var(--border-radius);
+      border: 1px solid #ccc;
+      box-shadow: inset 0 0 4px rgba(0,0,0,0.08);
+      background: #888; color: #fff;
+      margin-left: 10px;
+    }
+    .upload-btn-wrapper {
+      display: inline-block;
+      padding: 8px 12px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 13px;
+      margin-top: 6px;
+      transition: background var(--transition);
+      width: auto;      
+      max-width: 80px; 
+    }
+    .upload-btn-wrapper:hover {
+      background: var(--primary-hover);
+    }
+    .upload-btn-wrapper input {
+      display: none;
+    }
+    .btn-delete {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #F56C6C;
+      color: #fff;
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 13px;
+      margin-top: 6px;
+      transition: background var(--transition);
+      width: auto;     
+      max-width: 80px; 
+    }
+    .btn-delete:hover {
+      background: #F78989;
+    }
+
+    canvas#sceneCanvas { background: #000; width: 100%;
+  height: auto;
+  max-width: 900px;     
+  border: 1px solid #333;
+  display: block;
+  margin: 20px auto; }
+    #panel {
+      position: absolute; top: 80px; left: 50%;
+      transform: translateX(-50%);
+      background: #222; padding: 20px; border: 1px solid #555;
+      display: none; z-index: 10;
+    }
+    #panel input[type="range"] { width: 200px; }
+    #panel label { display: inline-block; width: 60px; text-align: right; margin-right: 10px; }
+    #panel button { margin-top: 10px; }
+    
+    .env-wrapper {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.env-left,
+.env-right {
+  flex: 1 1 45%;
+  min-width: 300px;
+}
+
+#selectorBox select {
+  background-image: url("data:image/svg+xml;utf8,<svg fill='gray' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px 12px;
+  padding-right: 24px; 
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+#selectorBox select,
+#selectorBox button {
+  width: auto;
+  max-width: 140px;
+  min-width: 100px;
+  flex: none;
+  padding: 6px 14px;
+  font-size: 14px;
+  height: 38px;
+  white-space: nowrap;
+  border-radius: 999px; 
+  border: 1px solid #ccc;
+  background-color: #f9f9f9;
+  appearance: none; 
+}
+
+#selectorBox button {
+  background-color: #409EFF;
+  color: white;
+  border: none;
+}
+.env-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.env-card {
+  flex: 1 1 48%;
+  min-width: 300px;
+  background: #fff;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+</style></head>
+<body><div class="env-layout card-section"><div class="env-card"><h4>实时环境参数</h4><div id="inputs">
+                温度: 20.3 °C<br>
+                当前时间: 01:39:21<br>
+                实时人流量: 35 人<br>
+                店铺面积: 60㎡
+            </div><div class="calc-section" id="resultDisplay"></div></div><div class="env-card"><div id="selectorBox">
+<select id="citySelect">
+<option value="28.1894,112.9861">长沙</option>
+<option value="31.2304,121.4737">上海</option>
+<option value="39.9042,116.4074">北京</option>
+<option value="23.1291,113.2644">广州</option>
+</select>
+<select id="storeSelect">
+<option value="高端,80">高端店（80㎡）</option>
+<option value="中端,60">中端店（60㎡）</option>
+<option value="低端,40">低端店（40㎡）</option>
+</select>
+<button id="toggleMode">切换日夜模式</button>
+</div><div id="metaInfo">
+<div id="dateInfo">日期: 2025/6/13</div>
+<div id="weekInfo">星期: 五</div>
+<div id="holidayInfo">是否节假日: 否</div>
+<div id="workdayInfo">是否工作日: 是</div>
+</div></div></div>
+<h1>智能灯控</h1>
+<div id="controls">
+<button onclick="startDeviceScan()">扫描设备</button>
+<button onclick="showAddDeviceModal()">手动添加设备</button>
+<label>
+      WebSocket 服务器地址：
+      <input id="wsServerInput" placeholder="192.168.110.70" type="text">
+</label>
+<div id="scanStatus"></div>
+</div>
+<div id="addDeviceModal" style="
+  display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.4); z-index:9999; justify-content:center; align-items:center;
+  font-family: 'Helvetica Neue', sans-serif;">
+<div style="
+    background:#fff; padding:30px 25px; border-radius:18px; width:320px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.2); text-align:center; animation:fadeIn 0.3s ease;">
+<h3 style="margin-top:0; font-size:20px; color:#333;">手动添加设备</h3>
+<label style="display:block; text-align:left; margin-bottom:4px;">设备 ID：</label>
+<input id="modalId" placeholder="如 lamp2" style="
+      width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:15px;
+      font-size:14px; box-sizing:border-box;" type="text">
+<label style="display:block; text-align:left; margin-bottom:4px;">设备 IP：</label>
+<input id="modalIp" placeholder="如 192.168.1.105" style="
+      width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:20px;
+      font-size:14px; box-sizing:border-box;" type="text">
+<button onclick="confirmAddDevice()" style="
+      background:#4CAF50; color:#fff; padding:10px 20px; border:none;
+      border-radius:10px; cursor:pointer; font-size:14px; margin-right:10px;
+      transition:background 0.3s;">确认添加</button>
+<button onclick="hideAddDeviceModal()" style="
+      background:#ccc; color:#333; padding:10px 20px; border:none;
+      border-radius:10px; cursor:pointer; font-size:14px;
+      transition:background 0.3s;">取消</button>
+
+</div>
+</div>
+<canvas height="500" id="sceneCanvas" width="900"></canvas>
+<input accept="image/*" id="imageUploader" style="display:none" type="file">
+<div class="env-wrapper">
+
+<div class="env-left">
+
+</div>
+<div class="env-right">
+
+
+
+</div>
+<div id="strategyWrapper">
+<div id="strategyChartContainer">
+<h4 style="text-align:center">亮度策略实时对比图</h4>
+<canvas id="strategyChart" width="686" height="343" style="display: block; box-sizing: border-box; height: 228px; width: 650px;"></canvas>
+</div>
+<div id="energyInfo">
+<strong>节能率计算</strong><br><br>
+            公式：<br>
+            节能率 ≈ (5 – 混合策略亮度 ÷ 恒定亮度) × 100% × 舒适度系数<br>
+            对比比例 3:7<br><br>
+<span id="savingResult">节能率: 7.8% (舒适度: 94%)</span>
+</div>
+</div><div id="main">
+<div class="draggable" id="tempChartContainer">
+<canvas id="tempChart" width="600" height="200" style="display: block; box-sizing: border-box; height: 100px; width:650px;"></canvas>
+</div>
+<div class="draggable" id="distributionChartContainer">
+<canvas id="distributionChart" width="600" height="200" style="display: block; box-sizing: border-box; height: 100px; width: 650px;"></canvas>
+</div>
+<div class="draggable" id="calculationContainer">
+<div id="calculation">
+<div class="calc-section" id="inputDisplay">
+<h4>计算亮度结果</h4>
+<div id="results">
+                亮度公式: (400 + 人流量×5) × 天气因子(1.15)<br>
+                当前亮度: 661 流明/盏
+            </div>
+</div>
+</div>
+</div></div></div>
+</div>
+</div><h2>已绑定设备</h2>
+</div>
+</div>
+  <div id="deviceContainer"></div>
+<div id="controlModal" style="
+  display: none;
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5);
+  justify-content: center; align-items: center;
+  z-index: 10000;
+">
+<div id="controlModalContent" style="
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 400px;
+    width: 90%;
+    position: relative;
+  ">
+<button onclick="closeControlModal()" style="
+      position: absolute; top: 10px; right: 10px;
+      border: none; background: transparent; font-size: 20px;
+      cursor: pointer;
+    ">×</button>
+<!-- 这里会动态插入卡片 HTML -->
+</div>
+</div>
+<h3>衣物主体预览：</h3>
+<canvas height="300" id="previewCanvas" width="500"></canvas>
+<canvas id="canvas" style="display:none;"></canvas>
+<!-- 自定义确认提示框 -->
+<div id="customPrompt" style="
+  display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.4); z-index:9999; justify-content:center; align-items:center;
+  font-family: 'Helvetica Neue', sans-serif;">
+<!-- 弹出框主体 -->
+<div id="customPromptBox" style="
+    background:#fff; padding:20px 25px; border-radius:16px; width:320px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.2); text-align:center;">
+<div id="customPromptText" style="font-size:16px; color:#333; margin-bottom:20px;">
+      提示内容
+    </div>
+<button onclick="customPromptResolve(true)" style="
+    background:#4CAF50; color:#fff; padding:8px 18px; border:none;
+    border-radius:10px; cursor:pointer; font-size:14px; margin-right:10px;">确定</button>
+<button onclick="customPromptResolve(false)" style="
+    background:#ccc; color:#333; padding:8px 18px; border:none;
+    border-radius:10px; cursor:pointer; font-size:14px;">取消</button>
+</div>
+</div>
+<script>
+  let devices = [];
+  let bodyPixNet = null;
+  let ws;
+  let cardMapping = [];  
+  let deviceIdToCardIdx = {}; 
+  let lastImageMetaId = null;
+  let shirts = [];
+  const sceneCanvas = document.getElementById("sceneCanvas");
+  const uploader = document.getElementById("imageUploader");
+  let selectedCardIdx = null;
+  const DEFAULT_WS_HOST = '192.168.110.69';
+  const host = getHost();
+  document.getElementById('wsServerInput').value = window.location.hostname;
+(async () => {
+  bodyPixNet = await bodyPix.load();
+  console.log('Body-Pix 模型加载完毕');
+})();
+function openControlModal(cardIdx) {
+  const originalCard = document.getElementById(`device_card_${cardIdx}`);
+  const modalBg      = document.getElementById("controlModal");
+  const modalContent = document.getElementById("controlModalContent");
+
+  // 清空旧内容，只留下关闭按钮
+  const closeBtn = modalContent.querySelector("button");
+  modalContent.innerHTML = "";
+  modalContent.appendChild(closeBtn);
+
+  // 克隆一份卡片节点（带子节点，但不带事件）
+  const clone = originalCard.cloneNode(true);
+  // 放进 modal
+  modalContent.appendChild(clone);
+  modalBg.style.display = "flex";
+
+  // —— 重新给 modal 上的滑块绑定事件 —— 
+
+  // 亮度滑块
+  const bSl = clone.querySelector(`#brightnessSlider_${cardIdx}`);
+  const bTxt = clone.querySelector(`#currentBrightness_${cardIdx}`);
+  bSl.addEventListener("input", e => {
+    updateBrightness(cardIdx, e.target.value);
+    // 更新 modal 自身的显示
+    bTxt.innerText = e.target.value + "%";
+  });
+
+  // 色温滑块
+  const tSl = clone.querySelector(`#tempSlider_${cardIdx}`);
+  const tTxt = clone.querySelector(`#currentTemp_${cardIdx}`);
+  tSl.addEventListener("input", e => {
+    updateTemp(cardIdx, e.target.value);
+    tTxt.innerText = e.target.value + "K";
+  });
+
+  // 上传图片
+  const fileInput = clone.querySelector("input[type=file]");
+  if (fileInput) {
+    fileInput.addEventListener("change", ev => {
+      processImageFile(ev, cardIdx);
+      setTimeout(() => {
+        const box = clone.querySelector(".color-box");
+        const d   = devices[cardMapping[cardIdx]];
+        box.style.background = d.mainColorRGB;
+        box.innerText        = d.mainColorRGB;
+
+        const [r,g,b] = d.mainColorRGB.match(/\d+/g).map(Number);
+        const lum = 0.299*r + 0.587*g + 0.114*b;
+        box.style.color = lum>186 ? "#000" : "#fff";
+      }, 500);
+    });
+  }
+}
+
+function closeControlModal() {
+  document.getElementById("controlModal").style.display = "none";
+}
+
+function getHost() {
+    const input = document.getElementById('wsServerInput').value.trim();
+    if (input) return input;
+    if (window.location.hostname) return window.location.hostname;
+    return DEFAULT_WS_HOST;
+  }
+
+function handleWsMessage(evt) {
+  // —— 二进制帧 —— 
+  if (evt.data instanceof Blob) {
+    const cardIdx = deviceIdToCardIdx[lastImageMetaId];
+    if (cardIdx == null) {
+      console.warn('无法定位 cardIdx for', lastImageMetaId);
+      return;
+    }
+
+    const imgEl = document.getElementById(`preview_${cardIdx}`);
+    if (!imgEl) {
+      console.warn('没找到 preview 元素 preview_' + cardIdx);
+      return;
+    }
+
+    // 1) 先用 objectURL 快速预览
+    const objectUrl = URL.createObjectURL(evt.data);
+    imgEl.src = objectUrl;
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+
+    // 2) 再用 FileReader 转 DataURL，交给 processImageDataUrl
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = /** @type {string} */(e.target.result);
+      processImageDataUrl(dataUrl, cardIdx);
+    };
+    reader.readAsDataURL(evt.data);
+
+    return;
+  }
+
+  // —— 文本帧 —— 
+  if (typeof evt.data === 'string') {
+    let msg;
+    try { msg = JSON.parse(evt.data); }
+    catch { return; }
+
+    // —— 1) 处理 meta —— 
+    if (msg.type === 'image-meta') {
+      lastImageMetaId = msg.id;
+      return;
+    }
+
+    // —— 2) 处理 state —— 
+    if (msg.type === 'state') {
+      const cardIdx = deviceIdToCardIdx[msg.id];
+      if (cardIdx == null) return;
+      const realIdx = cardMapping[cardIdx];
+      const d = devices[realIdx];
+
+      // 更新数据模型
+      d.brightness = msg.brightness;
+      d.temp       = msg.temp;
+      d.auto       = msg.auto;
+
+      // 同步 UI
+      const bSl  = document.getElementById(`brightnessSlider_${cardIdx}`);
+      const tSl  = document.getElementById(`tempSlider_${cardIdx}`);
+      const bTxt = document.getElementById(`currentBrightness_${cardIdx}`);
+      const tTxt = document.getElementById(`currentTemp_${cardIdx}`);
+      const chk  = document.querySelector(`#device_card_${cardIdx} input[type=checkbox]`);
+
+      bSl.value      = d.brightness;
+      tSl.value      = d.temp;
+      bTxt.innerText = d.brightness + '%';
+      tTxt.innerText = d.temp + 'K';
+      chk.checked    = d.auto;
+      bSl.disabled   = d.auto;
+      tSl.disabled   = d.auto;
+
+      return;
+    }
+
+    // —— 3) 如果你依然有 image（Base64 JSON）分支——可保留或移除 —— 
+    if (msg.type === 'image') {
+      const cardIdx = deviceIdToCardIdx[msg.id];
+      const imgEl = document.getElementById(`preview_${cardIdx}`);
+      if (imgEl) imgEl.src = 'data:image/jpeg;base64,' + msg.data;
+    }
+  }
+}
+
+  function initWebSocket() {
+  const host = getHost();
+  console.log(`🚀 准备连接 WS → ws://${host}:8081`);
+  ws = new WebSocket(`ws://${host}:8081`);
+  ws.binaryType = 'blob';
+  ws.onopen    = () => console.log('✅ WS 已连接');
+  ws.onmessage = handleWsMessage;
+  ws.onerror   = e => console.error('🛑 WS 错误：', e);
+  ws.onclose   = () => {
+    console.warn('🔌 WS 断开，5 秒后重连');
+    setTimeout(initWebSocket, 5000);
+  };
+}
+
+window.addEventListener('load', () => {
+  initWebSocket();
+  loadAndRenderDevices();
+});
+  let statusTimer = null;
+  
+function renderDevices() {
+  const container = document.getElementById("deviceContainer");
+  container.innerHTML = "";
+  cardMapping = []; 
+  Object.keys(deviceIdToCardIdx).forEach(k => delete deviceIdToCardIdx[k]);
+  const sortedDevices = [...devices].sort((a, b) => {
+    const isCamA = a.id.toLowerCase().startsWith("camlamp");
+    const isCamB = b.id.toLowerCase().startsWith("camlamp");
+    if (isCamA !== isCamB) return isCamA - isCamB;
+
+    const numA = parseInt(a.id.match(/\d+/));
+    const numB = parseInt(b.id.match(/\d+/));
+    return (isNaN(numA) ? 0 : numA) - (isNaN(numB) ? 0 : numB);
+  });
+
+  sortedDevices.forEach((device, cardIdx) => {
+    const realIdx = devices.findIndex(d => d.id === device.id);
+    cardMapping[cardIdx] = realIdx;
+    deviceIdToCardIdx[device.id] = cardIdx;
+    const div = document.createElement("div");
+    div.className = "lamp-card";
+    div.id = `device_card_${cardIdx}`;
+    let uploadHtml = '';
+    if (device.id.toLowerCase().startsWith('camlamp')) {
+      uploadHtml = `
+        <div style="margin-top:12px;">
+          <div style="font-size:14px; color:#606266;">实时预览：</div>
+          <img id="preview_${cardIdx}" 
+               src="" 
+               style="width:100%; border-radius:8px; margin-top:6px;"
+          />
+        </div>`;
+    }
+    div.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">${device.id} (${device.ip})</h3>
+        <span id="status_${cardIdx}" style="font-size: 13px; color: #666;">检查中...</span>
+      </div>
+  ${uploadHtml}
+        <div style="position: relative; margin-top: 10px;">
+    <label>亮度: <span id="currentBrightness_${cardIdx}">${device.brightness}</span></label>
+    <input
+      type="range"
+      id="brightnessSlider_${cardIdx}"
+      min="0" max="100"
+      value="${device.brightness}"
+      ${device.auto ? 'disabled' : ''}
+      oninput="updateBrightness(${cardIdx}, this.value); updateDisplay(${cardIdx});"
+    >
+  </div>
+
+  <div style="position: relative; margin-top: 10px;">
+    <label>色温: <span id="currentTemp_${cardIdx}">${device.temp}</span></label>
+    <input
+      type="range"
+      id="tempSlider_${cardIdx}"
+      min="2700" max="6500" step="100"
+      value="${device.temp}"
+      ${device.auto ? 'disabled' : ''}
+      oninput="updateTemp(${cardIdx}, this.value); updateDisplay(${cardIdx});"
+    >
+  </div>
+
+  <div class="color-box" id="colorBox_${cardIdx}">
+  ${device.mainColorRGB || '未提取'}
+  </div>
+
+  <label style="display:block; margin-top: 8px;">
+    <input
+      type="checkbox"
+      ${device.auto ? 'checked' : ''}
+      onchange="toggleAuto(${cardIdx}, this.checked)"
+    > 自动模式
+  </label>
+
+   ${ device.id.toLowerCase().startsWith('lamp')
+  ? `
+    <label style="display:block; margin-top:12px; font-size:13px; color:#606266;">上传衣服图片（自动识别主色并调整）</label>
+    <label class="upload-btn-wrapper">
+      选择文件
+      <input
+        type="file"
+        accept="image/*"
+        onchange="processImageFile(event, ${cardIdx})"
+      />
+    </label>
+  `
+  : ``
+}
+<canvas
+  id="autoCanvas_${cardIdx}"
+  width="300"
+  height="200"
+  style="
+    display:block;
+    width:180px;            /* 同样限定 canvas 显示大小 */
+    height:120px;
+    margin-top:10px;
+    border:1px solid #ddd;
+  "
+></canvas>
+
+<label class="btn-delete" style="cursor:pointer;">
+        删除设备
+      </label>
+    `;
+
+    container.appendChild(div);
+    const delBtn = div.querySelector('.btn-delete');
+    delBtn.addEventListener('click', () => removeDevice(realIdx));
+
+    setTimeout(() => checkDeviceOnline(realIdx, cardIdx), 100);
+  });
+
+   if (statusTimer) clearInterval(statusTimer);
+  statusTimer = setInterval(() => {
+    cardMapping.forEach((realIdx, cardIdx) => {
+      checkDeviceOnline(realIdx, cardIdx);
+    });
+  }, 10000);
+}
+
+function addDevice(id, ip) {
+  const newDevice = { id, ip, temp: 4000, brightness: 80, auto: true, color: "rgb(0,255,0)",
+  broadcastStopped: false
+   }; const host = getHost();
+  fetch(`http://${host}:3000/devices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(newDevice)
+  })
+  .then(res => {
+    if (!res.ok) throw new Error("设备重复");
+    devices.push(newDevice);
+    renderDevices();
+  })
+  .catch(err => alert("添加失败：" + err.message));
+
+  fetch(`http://${ip}/stopBroadcast`)
+    .then(res => res.json())
+    .then(data => {
+      console.log(`已通知设备 ${id} (${ip}) 停止广播`);
+    })
+    .catch(err => {
+      console.warn(`通知 ${id} 停止广播失败：`, err);
+    });
+}
+
+function showAddDeviceModal() {
+  document.getElementById("addDeviceModal").style.display = "flex";
+}
+
+function hideAddDeviceModal() {
+  document.getElementById("addDeviceModal").style.display = "none";
+}
+
+function removeDevice(cardIdx) {
+  const realIdx = cardMapping[cardIdx];
+  const id   = devices[cardIdx].id;
+  const ip   = devices[cardIdx].ip;
+  const host = getHost();
+  fetch(`http://${host}:3000/devices/${id}`, { method: "DELETE" })
+    .then(() => {
+      // 恢复设备广播
+      fetch(`http://${ip}/resumeBroadcast`).catch(()=>{}); 
+      // 从本地数组删掉，再重渲染
+      devices.splice(cardIdx, 1);
+      renderDevices();
+    })
+    .catch(err => console.error("删除失败", err));
+}
+let scanWs;
+let scanTimer = null;
+async function startDeviceScan() {
+  document.getElementById("scanStatus").innerText = "🔍 正在扫描设备中，请稍候...";
+  await loadAndRenderDevices();
+  drawScene();
+  const hostInput = document.getElementById('wsServerInput').value.trim();
+  const host = getHost();
+  const url = `ws://${host}:8081`;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    console.log('已经在扫描中了'); 
+  
+  }
+  scanWs = new WebSocket(url)
+
+ scanWs.onopen = () => {
+   
+  console.log('已连接到UDP转发服务器（开始扫描）');
+  document.querySelector("button[onclick='startDeviceScan()']").disabled = true;
+  // 20秒后自动停止扫描
+  scanTimer = setTimeout(() => {
+    stopDeviceScan();  
+    showCustomPrompt("⏱️ 扫描超时，是否手动添加设备？").then((manual) => {
+    if (manual) {
+      showAddDeviceModal(); 
+    }
+  });
+  }, 20000);
+};
+
+  scanWs.onerror = (err) => {
+  console.error("WebSocket 连接出错：", err);
+  stopDeviceScan();
+
+  showCustomPrompt("❌ 无法连接到，请检查 UDP 服务是否开启，或手动输入IP。<br>是否手动添加设备？")
+    .then((manual) => {
+      if (manual) {
+        showAddDeviceModal(); // 打开手动添加弹窗
+      } else {
+        console.log("用户选择取消手动添加");
+      }
+    });
+};
+
+
+
+scanWs.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  console.log('发现设备：', msg);
+
+  if (msg.type === 'announce') {
+    clearTimeout(scanTimer);
+    showCustomPrompt(`发现设备：${msg.id} (${msg.ip})<br>是否添加？`)
+     .then(confirmAdd => {
+        if (confirmAdd) {
+          addDevice(msg.id, msg.ip);
+        }
+        stopDeviceScan();    // 不管选不选，都停止扫描并重置状态
+      });
+    return;
+  
+  }
+  if (msg.type === 'image') {
+    const idx = devices.findIndex(d => d.id === msg.id);
+    if (idx >= 0) {
+      const imgEl = document.getElementById(`preview_${idx}`);
+      document.getElementById(`brightnessSlider_${idx}`).value       = d.brightness;
+      
+      if (imgEl) {
+        imgEl.src = 'data:image/jpeg;base64,' + msg.data;
+      }
+    }
+    return;
+  }
+  if (msg.type === 'state') {
+    // 同步亮度／色温／auto
+    const idx = devices.findIndex(d => d.id === msg.id);
+    if (idx < 0) return;
+    const d = devices[idx];
+    d.brightness = msg.brightness;
+    d.temp       = msg.temp;
+    d.auto       = msg.auto;
+
+    // 更新滑块和显示
+    document.getElementById(`brightnessSlider_${idx}`).value      = d.brightness;
+    document.getElementById(`tempSlider_${idx}`).value            = d.temp;
+    document.getElementById(`currentBrightness_${idx}`).innerText = d.brightness + '%';
+    document.getElementById(`currentTemp_${idx}`).innerText       = d.temp + 'K';
+
+    // 自动模式切换时同步禁用状态和勾选框
+    document.getElementById(`brightnessSlider_${idx}`).disabled = d.auto;
+    document.getElementById(`tempSlider_${idx}`).disabled      = d.auto;
+    document.querySelector(`#device_card_${idx} input[type=checkbox]`).checked = d.auto;
+    return;
+  }
+  showCustomPrompt(`发现设备：${data.id} (${data.ip})<br>是否添加？`).then((confirmAdd) => {
+    if (confirmAdd) {
+      addDevice(data.id, data.ip);
+    } else {
+      console.log(`用户拒绝添加设备：${data.id}`);
+    }
+    stopDeviceScan(); 
+  });
+};
+
+scanWs.onclose = () => {
+    console.log('扫描已停止');
+    ws = null;
+    clearTimeout(scanTimer);
+    document.getElementById("scanStatus").innerText = "";
+  };
+}
+
+function debounce(fn, delay = 200) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      fn(...args);    
+      drawScene();    
+    }, delay);
+  };
+}
+
+const debouncedSend = debounce(send, 200);
+
+function stopDeviceScan() {
+  if (scanWs) {
+    scanWs.close();
+    scanWs = null;
+    clearTimeout(scanTimer);
+    console.log('手动停止扫描');
+    document.getElementById("scanStatus").innerText = "";
+    document.querySelector("button[onclick='startDeviceScan()']").disabled = false;
+  }
+}
+
+function confirmAddDevice() {
+  const id = document.getElementById("modalId").value.trim();
+  const ip = document.getElementById("modalIp").value.trim();
+
+  if (!id || !ip) {
+    alert("请填写完整的设备 ID 和 IP！");
+    return;
+  }
+
+  addDevice(id, ip);   
+  hideAddDeviceModal(); 
+}
+
+let customPromptCallback = null;
+
+function showCustomPrompt(text) {
+  return new Promise((resolve) => {
+    const box = document.getElementById("customPrompt");
+    const dialog = document.getElementById("customPromptBox"); // ✅ 动画加这里
+
+    document.getElementById("customPromptText").innerHTML = text;
+    box.style.display = "flex";
+
+    dialog.classList.remove("hide");
+    dialog.classList.add("show");
+
+    customPromptCallback = resolve;
+  });
+}
+
+function customPromptResolve(result) {
+  const box = document.getElementById("customPrompt");
+  const dialog = document.getElementById("customPromptBox");
+
+  dialog.classList.remove("show");
+  dialog.classList.add("hide");
+
+  setTimeout(() => {
+    box.style.display = "none";
+    customPromptCallback?.(result);
+    customPromptCallback = null;
+  }, 200); 
+}
+
+function checkDeviceOnline(realIdx, cardIdx) {
+  const device = devices[realIdx];
+  fetch(`http://${device.ip}/status`, { method: "GET", timeout: 3000 })
+    .then(res => {
+      if (!res.ok) throw new Error("Offline");
+      document.getElementById(`status_${cardIdx}`).innerText = "🟢 在线";
+      if (!device.broadcastStopped) {
+        fetch(`http://${device.ip}/stopBroadcast`)
+          .then(() => {
+            console.log(`已通知 ${device.id} 停止广播`);
+            device.broadcastStopped = true;
+          })
+          .catch(err => console.warn(`通知 ${device.id} 停止广播失败：`, err));
+      }
+    })
+    .catch(() => {
+      document.getElementById(`status_${cardIdx}`).innerText = "🔴 离线";
+      device.broadcastStopped = false;
+    });
+}
+  
+async function loadAndRenderDevices() {
+  const old = {};
+  devices.forEach(d => {
+    old[d.id] = { brightness: d.brightness, temp: d.temp, auto: d.auto };
+  });
+
+  const host = getHost();
+  const res  = await fetch(`http://${host}:3000/devices`);
+  const data = await res.json();
+ 
+  data.sort((a, b) => {
+    const aCam = a.id.toLowerCase().startsWith('camlamp');
+    const bCam = b.id.toLowerCase().startsWith('camlamp');
+    if (aCam !== bCam) return aCam - bCam;      
+    const na = parseInt(a.id.match(/\d+/)?.[0] || '0', 10);
+    const nb = parseInt(b.id.match(/\d+/)?.[0] || '0', 10);
+    return na - nb;
+  });
+
+  devices = data.map(d => ({
+    id:       d.id,
+    type:     d.id.toLowerCase().startsWith('camlamp') ? 'camlamp' : 'lamp',
+    idNum:    parseInt(d.id.match(/\d+/)?.[0] || '0', 10),
+    brightness: old[d.id]?.brightness  ?? d.brightness,
+    temp:       old[d.id]?.temp        ?? d.temp,
+    auto:       old[d.id]?.auto        ?? d.auto,
+  }));
+
+  // —— 4) 渲染 DOM 卡片 + 3D 场景
+  renderDevices();  // 生成卡片时也按 devices 顺序
+  drawScene();      // 场景也是按 devices 顺序绘制
+}
+
+function updateBrightness(cardIdx, value) {
+  const realIdx = cardMapping[cardIdx];
+  const d = devices[realIdx];
+
+  d.brightness = Number(value);
+  updateDisplay(cardIdx);
+  drawScene();
+  if (!d.auto) {
+    console.log('→ 调用 debouncedSend(', cardIdx, ') for', d.id);
+    debouncedSend(cardIdx);
+  }
+}
+
+function updateTemp(cardIdx, value) {
+  const realIdx = cardMapping[cardIdx];
+  const d = devices[realIdx];
+
+  d.temp = Number(value);
+  updateDisplay(cardIdx);
+  drawScene();
+  if (!d.auto) {
+    console.log('→ 调用 debouncedSend(', cardIdx, ') for', d.id);
+    debouncedSend(cardIdx);
+  }
+}
+
+
+function send(cardIdx) {
+      const realIdx = cardMapping[cardIdx];
+  const device = devices[realIdx];
+      const payload = {
+        type:       'state',
+        id:         device.id,
+        brightness: device.brightness,
+        temp:       device.temp,
+        auto:       device.auto
+      };
+
+      // HTTP 控制
+      fetch(`http://${device.ip}/setLight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const host = getHost();
+  fetch(`http://${host}:3000/devices/${device.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      brightness: device.brightness,
+      temp:       device.temp,
+      auto:       device.auto
+    })
+  })
+
+      .then(res => {
+        if (!res.ok) throw new Error(res.status);
+        console.log(`✅ [HTTP] 已发 → ${device.id}`);
+      })
+      .catch(err => console.warn(`❌ [HTTP] 错误 → ${device.id}`, err));
+
+      if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'state',
+      id: device.id,
+      brightness: device.brightness,
+      temp: device.temp,
+      auto: device.auto
+    }));
+  }
+}
+
+
+
+
+function processImageFile(event, cardIdx) {
+   const realIdx = cardMapping[cardIdx];
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    processImageDataUrl(e.target.result, cardIdx);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function processImageDataUrl(dataUrl, cardIdx) {
+  const realIdx = cardMapping[cardIdx];
+  const img = new Image();
+  img.onload = async () => {
+    // —— A. 在隐藏 canvas (this.canvas) 上绘制原图
+    const hidden = document.getElementById('canvas');
+    hidden.width = img.width;
+    hidden.height = img.height;
+    const hCtx = hidden.getContext('2d');
+    hCtx.drawImage(img, 0, 0);
+
+    // —— B. BodyPix 分割
+    const partSeg = await bodyPixNet.segmentPersonParts(img, { segmentationThreshold: 0.5 });
+    const keepParts = new Set([2,3,4,5,8,9,10,11,12,13]);
+
+    // —— C. 构造 mask
+    const maskImg = new ImageData(img.width, img.height);
+let hasPart = false;
+for (let i = 0; i < partSeg.data.length; i++) {
+  const off = i * 4;
+  const keep = keepParts.has(partSeg.data[i]);
+  maskImg.data[off+3] = keep ? 255 : 0;
+  if (keep) hasPart = true;
+}
+
+// —— D. 在 autoCanvas 上预览衣服主体 —— 
+const autoCanvas = document.getElementById(`autoCanvas_${cardIdx}`);
+autoCanvas.width  = img.width;
+autoCanvas.height = img.height;
+const pCtx = autoCanvas.getContext('2d');
+pCtx.clearRect(0, 0, autoCanvas.width, autoCanvas.height);
+
+if (hasPart) {
+  // 有检测到主体，先画遮罩再裁切
+  pCtx.putImageData(maskImg, 0, 0);
+  pCtx.globalCompositeOperation = 'source-in';
+  pCtx.drawImage(img, 0, 0);
+  pCtx.globalCompositeOperation = 'source-over';
+} else {
+  // 没检测到主体，直接显示整图
+  pCtx.drawImage(img, 0, 0);
+}
+
+      // —— E. 提取像素、kMeans 找主色 —— 
+    const imgData = hidden.getContext('2d').getImageData(0,0,hidden.width,hidden.height).data;
+    const pixels = [];
+    if (hasPart) {
+    for (let i = 0; i < partSeg.data.length; i++) {
+      if (keepParts.has(partSeg.data[i])) {
+        const off = i * 4;
+        pixels.push([imgData[off], imgData[off+1], imgData[off+2]]);
+      }
+    }}
+    else {
+  for (let off = 0; off < imgData.length; off += 4) {
+    pixels.push([imgData[off], imgData[off+1], imgData[off+2]]);
+  }
+}
+    const { centroids, counts } = kMeans(pixels, 3);
+    const maxIdx = counts.indexOf(Math.max(...counts));
+    const [r,g,b] = centroids[maxIdx];
+    // —— F. 计算推荐亮度和色温 —— 
+    const [h, s, v] = rgbToHsv(r, g, b);
+    const recTemp = Math.round(h/360*(6500-2700)+2700);
+    const recBri = Math.round((1 - v) * 60 + 40);
+    
+    // —— G. 存到 devices 并更新 UI —— 
+    const d = devices[realIdx];
+    d.mainColorRGB      = `rgb(${r|0},${g|0},${b|0})`;
+    d.recommendedTemp   = recTemp;
+    d.recommendedBright = recBri;
+
+    const shirt = shirts.find(s => s.lampIdx === realIdx);
+    if (shirt) {
+    shirt.color = d.mainColorRGB;
+    }
+      drawScene();
+    if (d.auto) applyRecommendations(cardIdx);
+    updateDisplay(cardIdx);
+    const box = document.getElementById(`colorBox_${cardIdx}`);
+    const rgbStr = `rgb(${r},${g},${b})`;
+        if (box) {
+      box.style.background = d.mainColorRGB;
+      box.innerText        = d.mainColorRGB;
+    }
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+
+    if (luminance > 186) {
+      box.style.color = '#000';
+    } else {
+      box.style.color = '#fff';
+    }
+      };
+      img.src = dataUrl;
+
+    }
+
+function kMeans(data, k = 3, maxIter = 20, tol = 1e-4) {
+  if (!data.length) return { centroids: [], counts: [] };
+  const centroids = [];
+  centroids.push(data[Math.floor(Math.random() * data.length)]);
+  for (let i = 1; i < k; i++) {
+    const dists = data.map(p => {
+      return Math.min(...centroids.map(c =>
+        (p[0]-c[0])**2 + (p[1]-c[1])**2 + (p[2]-c[2])**2
+      ));
+    });
+    const sum = dists.reduce((a,b) => a + b, 0);
+    let r = Math.random() * sum;
+    let idx = dists.findIndex(d => { r -= d; return r <= 0; });
+    centroids.push(data[idx < 0 ? 0 : idx]);
+  }
+
+  let labels = new Array(data.length);
+  let prevCentroids = centroids.map(c => [...c]);
+  let counts = new Array(k).fill(0);
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    for (let i = 0; i < data.length; i++) {
+      let best = 0, minD = Infinity;
+      for (let j = 0; j < k; j++) {
+        const d = (data[i][0] - centroids[j][0])**2
+                + (data[i][1] - centroids[j][1])**2
+                + (data[i][2] - centroids[j][2])**2;
+        if (d < minD) { minD = d; best = j; }
+      }
+      labels[i] = best;
+    }
+
+    const sums = Array.from({ length: k }, () => [0, 0, 0]);
+    counts = new Array(k).fill(0);
+    for (let i = 0; i < data.length; i++) {
+      const l = labels[i];
+      sums[l][0] += data[i][0];
+      sums[l][1] += data[i][1];
+      sums[l][2] += data[i][2];
+      counts[l]++;
+    }
+
+    prevCentroids = centroids.map(c => [...c]);
+    for (let j = 0; j < k; j++) {
+      if (counts[j] > 0) {
+        centroids[j][0] = sums[j][0] / counts[j];
+        centroids[j][1] = sums[j][1] / counts[j];
+        centroids[j][2] = sums[j][2] / counts[j];
+      }
+    }
+
+    const shift = centroids.reduce((acc, c, j) => {
+      return acc + (c[0]-prevCentroids[j][0])**2
+                 + (c[1]-prevCentroids[j][1])**2
+                 + (c[2]-prevCentroids[j][2])**2;
+    }, 0);
+    if (shift < tol) break;
+  }
+
+  return { centroids, counts };
+}
+
+function rgbToHsv(r, g, b) {
+  r/=255; g/=255; b/=255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), d = mx-mn;
+  let h = 0;
+  if (d) {
+    if (mx===r) h = ((g-b)/d)%6;
+    else if (mx===g) h = (b-r)/d + 2;
+    else h = (r-g)/d + 4;
+  }
+  h = Math.round(60 * h);
+  if (h<0) h+=360;
+  const s = mx? d/mx : 0;
+  const v = mx;
+  return [h, s, v];
+}
+
+// 1. 显示最新的数值
+function updateDisplay(cardIdx) {
+  const realIdx = cardMapping[cardIdx];
+  if (realIdx == null) return;
+  const d = devices[realIdx];
+  document.getElementById(`currentBrightness_${cardIdx}`).innerText = d.brightness + '%';
+  document.getElementById(`currentTemp_${cardIdx}`).innerText       = d.temp + 'K';
+}
+
+// 2. 应用推荐值
+function applyRecommendations(cardIdx) {
+  const realIdx = cardMapping[cardIdx];
+  if (realIdx == null) return;
+  const d = devices[realIdx];
+
+  // 更新模型
+  d.brightness = d.recommendedBright;
+  d.temp       = d.recommendedTemp;
+
+  // 更新滑条 UI（用 cardIdx 拼 id）
+  document.getElementById(`brightnessSlider_${cardIdx}`).value = d.brightness;
+  document.getElementById(`tempSlider_${cardIdx}`).value       = d.temp;
+
+  // 更新文字显示
+  updateDisplay(cardIdx);
+
+  // 发送到设备（手动或防抖）
+  debouncedSend(cardIdx);
+}
+
+
+function toggleAuto(cardIdx, isAuto) {
+   const realIdx = cardMapping[cardIdx];
+  if (realIdx == null) return;
+  const d = devices[realIdx];
+
+  d.auto = isAuto;
+
+  const bSl = document.getElementById(`brightnessSlider_${cardIdx}`);
+  const tSl = document.getElementById(`tempSlider_${cardIdx}`);
+  bSl.disabled = isAuto;
+  tSl.disabled = isAuto;
+
+  if (isAuto) {
+    applyRecommendations(cardIdx); // 这会调用 send 或 debouncedSend
+  } else {
+    send(cardIdx);
+  }
+}
+
+
+function buildLamps() {
+  const sorted = [...devices].sort((a, b) => {
+    const aCam = a.type === 'camlamp';
+    const bCam = b.type === 'camlamp';
+    if (aCam !== bCam) return aCam - bCam;      
+    return a.idNum - b.idNum;                  
+  });
+
+  const cw  = sceneCanvas.width;
+  const gap = cw / sorted.length;
+  const lampData = sorted.map((d, idx) => ({
+    x:             gap/2 + idx * gap,
+    brightness:    d.brightness,
+    temp:          d.temp,
+    originalIndex: devices.indexOf(d)
+  }));
+
+  shirts = lampData.map(l => {
+    const prev = shirts.find(s => s.lampIdx === l.originalIndex);
+    const sleeveW = 20, torsoW = 60;
+    return {
+      x: l.x - (sleeveW + torsoW/2), 
+      y:      320,
+      lampIdx: l.originalIndex,
+      color:  prev ? prev.color : "#888"
+    };
+  });
+
+
+  return lampData;
+}
+
+const ctx3 = sceneCanvas.getContext("2d");
+
+function tempToRGB(temp) {
+  let r = 255, g = 255 - (temp - 2700) * 0.05, b = 255 - (temp - 2700) * 0.1;
+  return `rgba(${r},${Math.round(g)},${Math.round(b)},`;
+}
+
+function drawRoom() {
+  const c = ctx3, W = sceneCanvas.width, H = sceneCanvas.height;
+  c.fillStyle = "#1e1e1e"; c.fillRect(0,0,W,H);
+  c.fillStyle = "#2a2a2a";
+  c.beginPath(); c.moveTo(0,400); c.lineTo(850,400);
+  c.lineTo(900,500); c.lineTo(0,500); c.closePath(); c.fill();
+  c.fillStyle = "#3a3a3a"; c.fillRect(0,0,W,30);
+}
+
+function drawVolumetricLight(x, brightness, temp) {
+  const baseY=70, bottomY=420;
+  for (let i=0;i<6;i++){
+    const alpha = brightness/100*0.1 - i*0.012;
+    const expansion = 50 + i*12;
+    const color = tempToRGB(temp) + alpha.toFixed(2) + ")";
+    const grad = ctx3.createRadialGradient(x, baseY+30, 5, x, (baseY+bottomY)/2,200);
+    grad.addColorStop(0, color); grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx3.fillStyle = grad;
+    ctx3.beginPath();
+    ctx3.moveTo(x, baseY);
+    ctx3.lineTo(x-expansion, bottomY);
+    ctx3.lineTo(x+expansion, bottomY);
+    ctx3.closePath(); ctx3.fill();
+  }
+}
+
+function drawLamps() {
+  const lamps = buildLamps();
+  lamps.forEach(l => {
+    // 光柱
+    drawVolumetricLight(l.x, l.brightness, l.temp);
+    // 吊灯
+    ctx3.beginPath();
+    ctx3.strokeStyle="#aaa"; ctx3.lineWidth=3;
+    ctx3.moveTo(l.x,30); ctx3.lineTo(l.x,60); ctx3.stroke();
+    const grad = ctx3.createRadialGradient(l.x,60,2,l.x,65,18);
+    grad.addColorStop(0,"#fff"); grad.addColorStop(1,"#555");
+    ctx3.beginPath(); ctx3.fillStyle=grad;
+    ctx3.ellipse(l.x,65,20,14,0,0,2*Math.PI); ctx3.fill();
+    ctx3.beginPath(); ctx3.fillStyle="rgba(0,0,0,0.4)";
+    ctx3.ellipse(l.x,72,14,6,0,0,2*Math.PI); ctx3.fill();
+  });
+}
+function drawShirt(s) {
+  const ctx = ctx3;
+  const x = s.x;
+  const y = s.y;
+  const torsoW = 60, torsoH = 80;
+  const sleeveW = 20, sleeveH = 40, angle = 15;
+
+  // 1. 画影子
+  ctx.beginPath();
+  ctx.ellipse(x + torsoW/2 + sleeveW, y + torsoH + sleeveH + 10, 40, 12, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fill();
+
+  // 2. 左袖
+  ctx.beginPath();
+  ctx.moveTo(x,            y + angle);
+  ctx.lineTo(x + sleeveW,  y);
+  ctx.lineTo(x + sleeveW,  y + sleeveH);
+  ctx.lineTo(x,            y + sleeveH + angle);
+  ctx.closePath();
+  ctx.fillStyle = s.color;
+  ctx.fill();
+
+  // 3. 身体
+  ctx.fillStyle = s.color;
+  ctx.fillRect(x + sleeveW, y, torsoW, torsoH);
+
+  // 4. 右袖
+  const rx = x + sleeveW + torsoW;
+  ctx.beginPath();
+  ctx.moveTo(rx,               y);
+  ctx.lineTo(rx + sleeveW,     y + angle);
+  ctx.lineTo(rx + sleeveW,     y + sleeveH + angle);
+  ctx.lineTo(rx,               y + sleeveH);
+  ctx.closePath();
+  ctx.fill();
+
+  const cx = x + sleeveW + torsoW/2;
+  ctx.beginPath();
+  ctx.fillStyle = "#ccc";
+  ctx.arc(cx, y, 15,0 , Math.PI, false);
+  ctx.fill();
+}
+
+function drawScene() {
+  ctx3.clearRect(0, 0, sceneCanvas.width, sceneCanvas.height);
+  drawRoom();
+  const lamps = buildLamps();   
+  lamps.forEach(l => drawVolumetricLight(l.x, l.brightness, l.temp));
+  drawLamps();
+  shirts.forEach(drawShirt);
+}
+
+sceneCanvas.addEventListener("click", e => {
+  // 把客户端坐标转成画布内部坐标
+  const rect = sceneCanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (sceneCanvas.width  / rect.width);
+  const y = (e.clientY - rect.top ) * (sceneCanvas.height / rect.height);
+
+  // 然后用 x,y 去检测：
+  const lamps = buildLamps();
+  for (let l of lamps) {
+    const s = shirts.find(s=>s.lampIdx===l.originalIndex);
+    if (!s) continue;
+    if (x>=s.x && x<=s.x+60 && y>=s.y && y<=s.y+80) {
+      selectedCardIdx = s.lampIdx;
+      uploader.click();
+      return;
+    }
+  }
+  lamps.forEach(l => {
+    if (Math.abs(x - l.x) < 20 && y >= 50 && y <= 100) {
+      const realIdx = l.originalIndex;
+      const cardIdx = cardMapping.findIndex(idx => idx===realIdx);
+      if (cardIdx>=0) openControlModal(cardIdx);
+    }
+  });
+});
+
+uploader.addEventListener("change", e => {
+ const file = uploader.files[0];
+  if (!file || selectedCardIdx === null) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    processImageDataUrl(ev.target.result, selectedCardIdx);
+    selectedCardIdx = null;
+    uploader.value = '';
+  };
+  reader.readAsDataURL(file);
+});
+
+
+
+        const strategyChartCtx = document.getElementById('strategyChart').getContext('2d');
+        const strategyChart = new Chart(strategyChartCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: '恒定亮度 (750)', data: [], borderColor: 'gray', borderWidth: 2, fill: false },
+                    { label: '自适应亮度', data: [], borderColor: 'blue', borderWidth: 2, fill: false },
+                    { label: '混合策略', data: [], borderColor: 'green', borderWidth: 2, fill: false }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    x: { title: { display: true, text: '时间' } },
+                    y: { title: { display: true, text: '亮度 (流明)' }, min: 300, max: 1000 }
+                }
+            }
+        });
+
+        function predictPeople(area) {
+            const base = { 40: 20, 60: 35, 80: 50 }[area] || 6;
+            return Math.round(base + 10 * Math.sin(Date.now() / 100000) + Math.random() * 10);
+        }
+
+        const tempCtx = document.getElementById('tempChart').getContext('2d');
+        const distCtx = document.getElementById('distributionChart').getContext('2d');
+
+        let storeArea = 80;
+        document.getElementById('storeSelect').addEventListener('change', e => {
+            storeArea = parseInt(e.target.value.split(',')[1]);
+        });
+
+        const tempChart = new Chart(tempCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: '温度 (°C)', data: [], borderColor: 'rgba(75, 192, 192, 1)', fill: false, yAxisID: 'y' },
+                    { label: '人流量', data: [], borderColor: 'rgba(255, 99, 132, 1)', fill: false, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: {
+                    x: { title: { display: true, text: '时间' } },
+                    y: { position: 'left', title: { display: true, text: '温度 (°C)' }, min: 0, max: 40 },
+                    y1: { position: 'right', title: { display: true, text: '人流量' }, min: 0, max: 100, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+
+        const distributionChart = new Chart(distCtx, {
+            type: 'bar',
+            data: {
+                labels: ['灯1', '灯2', '灯3', '灯4'],
+                datasets: [{ label: '每盏灯亮度 (流明)', data: [400, 400, 400, 400], backgroundColor: 'rgba(54, 162, 235, 0.6)' }]
+            },
+            options: {
+                responsive: true,
+                animation: false,
+                scales: { y: { min: 300, max: 1000 } }
+            }
+        });
+
+        // 舒适度计算函数，返回0~1
+        function comfortScore(temperature, people) {
+            // 理想温度22度，超过范围舒适度降低
+            let tempComfort = 1 - Math.min(Math.abs(temperature - 22) / 15, 1);
+
+            // 人流量理想范围20~60，中间峰值舒适度高
+            let idealMin = 20, idealMax = 60;
+            let peopleComfort = 0;
+            if (people <= idealMin) {
+                peopleComfort = people / idealMin; // 0~1
+            } else if (people >= idealMax) {
+                peopleComfort = (100 - people) / (100 - idealMax); // 递减到0
+                if(peopleComfort < 0) peopleComfort = 0;
+            } else {
+                peopleComfort = 1;
+            }
+
+            // 综合舒适度，简单算术平均
+            return Math.max(0, (tempComfort + peopleComfort) / 2);
+        }
+
+        function updateData() {
+            const now = new Date();
+            const time = now.toLocaleTimeString();
+            const temperature = (22 + 5 * Math.sin(Date.now() / 100000)).toFixed(1);
+            const people = predictPeople(storeArea);
+            const weatherFactor = 1.15;
+            const base = 400 + people * 5;
+            const adaptive = Math.round(base * weatherFactor);
+            const mixed = Math.round(0.3 * 750 + 0.7 * adaptive);
+
+            if (tempChart.data.labels.length >= 12) {
+                tempChart.data.labels.shift();
+                tempChart.data.datasets[0].data.shift();
+                tempChart.data.datasets[1].data.shift();
+            }
+            tempChart.data.labels.push(time);
+            tempChart.data.datasets[0].data.push(temperature);
+            tempChart.data.datasets[1].data.push(people);
+            tempChart.update();
+
+            distributionChart.data.datasets[0].data = [adaptive, adaptive, adaptive, adaptive];
+            distributionChart.update();
+
+            document.getElementById('dateInfo').textContent = '日期: ' + now.toLocaleDateString();
+            document.getElementById('weekInfo').textContent = '星期: ' + ['日','一','二','三','四','五','六'][now.getDay()];
+            document.getElementById('holidayInfo').textContent = '是否节假日: 否';
+            document.getElementById('workdayInfo').textContent = '是否工作日: 是';
+
+            document.getElementById('inputs').innerHTML = `
+                温度: ${temperature} °C<br>
+                当前时间: ${time}<br>
+                实时人流量: ${people} 人<br>
+                店铺面积: ${storeArea}㎡
+            `;
+
+            document.getElementById('results').innerHTML = `
+                亮度公式: (400 + 人流量×5) × 天气因子(1.15)<br>
+                当前亮度: ${adaptive} 流明/盏
+            `;
+
+            if (strategyChart.data.labels.length >= 20) {
+                strategyChart.data.labels.shift();
+                strategyChart.data.datasets.forEach(ds => ds.data.shift());
+            }
+            strategyChart.data.labels.push(time);
+            strategyChart.data.datasets[0].data.push(750);
+            strategyChart.data.datasets[1].data.push(adaptive);
+            strategyChart.data.datasets[2].data.push(mixed);
+            strategyChart.update();
+
+            const comfort = comfortScore(parseFloat(temperature), people);
+
+            // 节能率 = 最大不低于0，乘以舒适度系数
+            const savingRate = Math.max(0, (1 - mixed / 750) * 100 * comfort).toFixed(1);
+
+            document.getElementById('savingResult').textContent = `节能率: ${savingRate}% (舒适度: ${(comfort*100).toFixed(0)}%)`;
+        }
+
+        updateData();
+        setInterval(updateData, 10000);
+
+        interact('.draggable')
+            .draggable({
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+                    }
+                }
+            })
+            .resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        let x = (parseFloat(target.getAttribute('data-x')) || 0);
+                        let y = (parseFloat(target.getAttribute('data-y')) || 0);
+
+                        // 更新尺寸
+                        target.style.width = event.rect.width + 'px';
+                        target.style.height = event.rect.height + 'px';
+
+                        // 调整位置
+                        x += event.deltaRect.left;
+                        y += event.deltaRect.top;
+
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+
+                        // 调整内部canvas尺寸，重绘图表
+                        const canvas = target.querySelector('canvas');
+                        if(canvas) {
+                            canvas.width = event.rect.width;
+                            canvas.height = event.rect.height;
+                            if(canvas.id === 'tempChart') tempChart.resize();
+                            else if(canvas.id === 'distributionChart') distributionChart.resize();
+                        }
+                    }
+                },
+                modifiers: [
+                    interact.modifiers.restrictSize({
+                        min: { width: 250, height: 150 },
+                        max: { width: 700, height: 600 }
+                    })
+                ]
+            });
+
+        // 亮度策略实时对比图不允许拖拽缩放
+        const strategyWrapper = document.getElementById('strategyChartContainer');
+        strategyWrapper.style.pointerEvents = 'auto'; // 确保可交互但不被拖拽
+
+        // 日夜模式切换（简单）
+        const toggleBtn = document.getElementById('toggleMode');
+        let dayMode = true;
+        toggleBtn.onclick = () => {
+            dayMode = !dayMode;
+            if(dayMode) {
+                document.body.style.background = 'rgba(173, 216, 230, 0.3)';
+                document.body.style.color = '#333';
+            } else {
+                document.body.style.background = '#222';
+                document.body.style.color = '#eee';
+            }
+        };
+    </script></div>
+</body></html>
