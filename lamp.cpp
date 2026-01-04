@@ -13,7 +13,7 @@ Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 WebSocketsClient webSocket;
 
 unsigned long lastLightSend = 0;
-const unsigned long lightSendInterval = 300;  // 每0.3秒上传一次光照值
+const unsigned long lightSendInterval = 300;  
 
 #define LED_COLD_PIN D2  // 冷光接在 D1(GPIO5)
 #define LED_WARM_PIN D1  // 暖光接在 D2(GPIO4)
@@ -44,7 +44,6 @@ bool enableAnnounce = true;
 ESP8266WebServer server(80);
 WiFiUDP udp;
 
-// 灯光控制参数
 int brightness = 80;
 int temp = 4000;
 bool autoMode = true;
@@ -53,11 +52,11 @@ int recommendedTemp       = temp;
 char fabric[16] = "unknown";
 
 
-// ====== 设备广播 ======
+// 设备广播
 void broadcastDevice() {
   if(!enableBroadcast) return;
   static unsigned long lastBroadcast = 0;
-  if (millis() - lastBroadcast > 5000) {  // 每5秒广播
+  if (millis() - lastBroadcast > 5000) {
     lastBroadcast = millis();
     String msg = "{\"type\":\"announce\",\"device\":\"lamp\",\"id\":\"" + String(device_id) +
                  "\",\"ip\":\"" + WiFi.localIP().toString() + "\"}";
@@ -68,29 +67,26 @@ void broadcastDevice() {
   }
 }
 
-// ====== /status 接口 ======
 void handleStatus() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", "{\"status\":\"已配网\"}");
 }
 
-// ====== /setLight 接口 ======
 void handleSetLight() {
-  // 1. 通用 CORS 头
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
-  // 2. 预检请求直接返回
+
   if (server.method() == HTTP_OPTIONS) {
     server.send(204);
     return;
   }
-  // 3. 确保有 body
+
   if (!server.hasArg("plain")) {
     server.send(400, "application/json", "{\"error\":\"缺少 body\"}");
     return;
   }
-  // 4. 解析 JSON
+
   String body = server.arg("plain");
   DynamicJsonDocument doc(512);
   auto err = deserializeJson(doc, body);
@@ -98,7 +94,6 @@ void handleSetLight() {
     server.send(400, "application/json", "{\"error\":\"JSON 解析失败\"}");
     return;
   }
-  // 5. 赋值给全局变量
   brightness = doc["brightness"] | brightness;
   temp       = doc["temp"]       | temp;
   autoMode   = doc["auto"]       | autoMode;
@@ -111,7 +106,6 @@ if (newFabric && strlen(newFabric) > 0) {
   Serial.printf("收到 HTTP 控制: bri=%d, temp=%d, auto=%d, recB=%d, recT=%d, fabric=%s\n",
                 brightness, temp, autoMode,
                 recommendedBrightness, recommendedTemp, fabric);
-  // 6. 返回 OK
   server.send(200, "application/json", "{\"result\":\"OK\"}");
 
 }
@@ -180,7 +174,6 @@ void sendStayRecordToServer(unsigned long duration, const char* device_id) {
     http.begin(client, "http://110.41.81.4:3000/duration");
     http.addHeader("Content-Type", "application/json");
 
-    // 正确拼接 JSON 字符串，加上 device_id 的双引号
     String payload = "{\"id\":\"" + String(device_id) +
                  "\",\"duration\":" + duration + "}";
 
@@ -200,18 +193,15 @@ void updateLightingByToF() {
     int tp = autoMode ? recommendedTemp : temp;
     unsigned long now = millis();
 
-    // ✅ 自动模式下 && 面料为 polyester → BLUR = LOW，否则 HIGH
     if (autoMode && strcmp(fabric, "polyester") == 0) {
       digitalWrite(BLUR, LOW);
     } else {
       digitalWrite(BLUR, HIGH);
     }
 
-    // 打印当前BLUR电平
     int level = digitalRead(BLUR);
-    Serial.printf("BLUR电平 = %d (%s)\n", level, level ? "HIGH" : "LOW");
+   // Serial.printf("BLUR电平 = %d (%s)\n", level, level ? "HIGH" : "LOW");
 
-    // 定时更新灯光
     if (now - lastLightUpdate > lightUpdateInterval) {
       applyLightSettings(br, tp);
       lastLightUpdate = now;
@@ -226,8 +216,8 @@ void updateLightingByToF() {
   static bool wasNearby = false;
   static unsigned long transitionStart = 0;
 
-  static unsigned long detectedStart  = 0;  // 人靠近开始计时
-  static unsigned long leftStart     = 0;  // 人离开开始计时
+  static unsigned long detectedStart  = 0; 
+  static unsigned long leftStart     = 0; 
 
   bool currentNearby = (measure.RangeMilliMeter < 2000);
   unsigned long now = millis();
@@ -237,25 +227,24 @@ void updateLightingByToF() {
   if (autoMode) {
     if (currentNearby && !wasNearby) {
       if (detectedStart == 0) {
-        detectedStart = now;  // 第一次靠近开始计时
+        detectedStart = now; 
       } else if (now - detectedStart >= 1000) {
         transitionStart = now;
         wasNearby = true;
-        leftStart = 0;  // 重置离开时间
+        leftStart = 0; 
       }
     } else if (!currentNearby && wasNearby) {
       if (leftStart == 0) {
-        leftStart = now;  // 第一次离开开始计时
+        leftStart = now; 
       } else if (now - leftStart >= 1000) {
         transitionStart = now;
         wasNearby = false;
         unsigned long stayDurationSeconds = (now - detectedStart) / 1000;
         sendStayRecordToServer(stayDurationSeconds, device_id);
 
-        detectedStart = 0;  // 重置靠近时间
+        detectedStart = 0; 
       }
     } else {
-      // 状态稳定，重置不相关计时器
       if (currentNearby) leftStart = 0;
       else detectedStart = 0;
     }
@@ -286,7 +275,6 @@ else  {digitalWrite(BLUR, HIGH);
     }
   }
 
-  // 按最小间隔应用
   if (now - lastLightUpdate > lightUpdateInterval) {
     applyLightSettings(br, tp);
     lastLightUpdate = now;
@@ -311,7 +299,6 @@ void sendAnnounce() {
     String payload = http.getString();
     Serial.println("服务器回应: " + payload);
 
-    // ✅ 如果服务器回的是新添加的，主动停止上报
     if (payload.indexOf("\"added\":true") >= 0) {
       enableAnnounce = false;
       enableBroadcast = false;
@@ -325,15 +312,15 @@ void sendAnnounce() {
 }
 
 void sendLightLevelToServer() {
-  if (!bh1750Ready) return;  // 不执行上传
-  float lux = lightMeter.readLightLevel();  // ✅ 获取 BH1750 读数
+  if (!bh1750Ready) return;  
+  float lux = lightMeter.readLightLevel();  
   Serial.printf("📡 当前光照值：%.2f lux\n", lux);
 
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     WiFiClient client;
 
-    http.begin(client, "http://110.41.81.4:3000/lux");  // 替换为你服务器地址
+    http.begin(client, "http://110.41.81.4:3000/lux"); 
     http.addHeader("Content-Type", "application/json");
 
     String json = "{\"id\":\"" + String(device_id) + "\",\"lux\":" + String(lux, 2) + "}";
@@ -369,7 +356,6 @@ Serial.println("WiFi 已连接，IP地址: " + WiFi.localIP().toString());
   analogWriteRange(1024);
  Wire.begin(TOF_SDA_PIN, TOF_SCL_PIN);
  Wire.setClock(400000);
-   // 初始化 VL53L0X
   if (!lox.begin()) {
     Serial.println("❌ 无法初始化 VL53L0X！");
    
@@ -378,7 +364,6 @@ Serial.println("WiFi 已连接，IP地址: " + WiFi.localIP().toString());
     tofReady = true;
   }
 
-  // 初始化 BH1750（在 VL53L0X 之后）
  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
    Serial.println("✅ BH1750 初始化成功");
    bh1750Ready = true;
@@ -387,11 +372,10 @@ Serial.println("WiFi 已连接，IP地址: " + WiFi.localIP().toString());
  }
 
 
-  // 启动广播和HTTP服务
+
   udp.begin(udpPort);
   server.onNotFound([](){
     if (server.method() == HTTP_OPTIONS) {
-      // 跨域预检通用响应
       server.sendHeader("Access-Control-Allow-Origin", "*");
       server.sendHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
       server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -413,7 +397,7 @@ void loop() {
   webSocket.loop();
   broadcastDevice();
   static unsigned long lastPing = 0;
-if (millis() - lastPing > 30000) {  // 每30秒发一次心跳
+if (millis() - lastPing > 30000) {  
   lastPing = millis();
   StaticJsonDocument<64> doc;
   doc["type"] = "ping";
@@ -437,3 +421,4 @@ updateLightingByToF();
   }
 
 }
+
