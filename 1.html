@@ -1,0 +1,3358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <title>智能灯控</title>
+  <script src="tf.min.js"></script>
+  <script src="body-pix.min.js"></script>
+  <script src="chart.js"></script>
+  <script src="interact.js"></script>
+  <script src="countup.js"></script>
+  <style>
+     :root {
+      --primary: #409EFF;
+      --primary-hover: #66B1FF;
+        --bg: 
+    linear-gradient(rgba(240,242,245,0.7), rgba(240,242,245,0.5)),
+      url("./images/store-bg-blur.png")
+       no-repeat center center fixed;
+      --card-bg: #FFFFFF;
+      --text-color: #303133;
+      --sub-text: #606266;
+      --border-radius: 12px;
+      --transition: 0.3s ease;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Helvetica Neue", sans-serif;
+        background: var(--bg);
+       background-size: cover;
+      color: var(--text-color);
+      padding: 20px;
+      background-color: rgba(240,242,245,0.8);
+    }
+    
+    /* 控制区 */
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 20px;
+    }
+    #controls button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background var(--transition), transform 0.2s;
+    }
+    #controls button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+    #controls label {
+      font-size: 14px;
+      color: var(--sub-text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #controls input[type="text"] {
+      width: 140px;
+      padding: 6px 10px;
+      font-size: 14px;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      transition: border-color 0.3s;
+    }
+    #controls input[type="text"]:focus {
+      border-color: var(--primary);
+      outline: none;
+    }
+    #scanStatus {
+      margin-left: auto;
+      font-size: 13px;
+      color: var(--sub-text);
+    }
+
+    /* 设备卡片网格 */
+    #deviceContainer {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .lamp-card {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+    .lamp-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    }
+    .lamp-card h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    .lamp-card label {
+      font-size: 14px;
+      color: var(--sub-text);
+      margin-top: 12px;
+      display: block;
+    }
+    .lamp-card input[type="range"] {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #ddd;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      margin-top: 6px;
+    }
+    .lamp-card input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+      transition: background var(--transition), transform 0.2s;
+    }
+    .lamp-card input[type="range"]::-webkit-slider-thumb:hover {
+      background: var(--primary-hover);
+      transform: scale(1.2);
+    }
+    .color-box {
+      display: inline-block;
+      margin-top: 10px;
+      width: 180px; height: 40px;
+      line-height: 40px;
+      text-align: center;
+      border-radius: var(--border-radius);
+      border: 1px solid #ccc;
+      box-shadow: inset 0 0 4px rgba(0,0,0,0.08);
+      background: #888; color: #fff;
+      margin-left: 10px;
+    }
+    .upload-btn-wrapper {
+      display: inline-block;
+      padding: 8px 12px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 13px;
+      margin-top: 6px;
+      transition: background var(--transition);
+      width: auto;      
+      max-width: 80px; 
+    }
+    .upload-btn-wrapper:hover {
+      background: var(--primary-hover);
+    }
+    .upload-btn-wrapper input {
+      display: none;
+    }
+    .btn-delete {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #F56C6C;
+      color: #fff;
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 13px;
+      margin-top: 6px;
+      transition: background var(--transition);
+      width: auto;     
+      max-width: 80px; 
+    }
+    .btn-delete:hover {
+      background: #F78989;
+    }
+.flow-upload-btn {
+  display: inline-block;
+  padding: 8px 12px;
+  background: #409EFF;       /* 天蓝色，区别于主色 */
+  color: #fff;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 13px;
+  margin-top: 6px;
+  transition: background var(--transition);
+  width: auto;
+  max-width: 80px;
+  user-select: none;
+  border: none;
+  text-align: center;
+}
+
+.flow-upload-btn:hover {
+  background: #66b1ff;       /* 浅蓝色悬浮 */
+}
+
+.flow-upload-btn.active {
+  background: #2c82d8;       /* 激活时更深蓝 */
+  box-shadow: 0 0 6px rgba(44,130,216,0.8);
+}
+
+.detect-upload-btn {
+  display: inline-block;
+  padding: 8px 12px;
+  background: #67C23A;       /* 绿色，和流量按钮区别 */
+  color: #fff;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 13px;
+  margin-top: 6px;
+  transition: background var(--transition);
+  width: auto;
+  max-width: 80px;
+  user-select: none;
+  border: none;
+  text-align: center;
+}
+
+.detect-upload-btn:hover {
+  background: #85ce61;       /* 浅绿悬浮 */
+}
+
+.detect-upload-btn.active {
+  background: #4ea32f;       /* 激活时更深绿 */
+  box-shadow: 0 0 6px rgba(78,163,47,0.8);
+}
+
+       canvas#sceneCanvas {
+  background: url('./images/store-bg.jpg');
+  background-size: cover;
+  width: 100%;
+  height: auto;
+  max-width: 900px;
+  border: 1px solid #333;
+  border-radius: 12px; 
+  display: block;
+   margin: 20px 0 20px auto;
+  box-shadow: 0 12px 20px rgba(0,0,0,0.4);
+}
+    #panel {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(34, 34, 34, 0.85);  /* 改为半透明黑灰 */
+  padding: 20px;
+  border: 1px solid #888;              /* 变浅色 */
+  border-radius: 12px;                 /* 圆角优化 */
+  display: none;
+  z-index: 10;
+  color: #eee;                         /* 字体改浅色 */
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4); /* 添加柔和阴影 */
+}
+
+#panel input[type="range"] {
+  width: 200px;
+}
+
+#panel label {
+  display: inline-block;
+  width: 60px;
+  text-align: right;
+  margin-right: 10px;
+  color: #ccc;                       
+}
+
+#panel button {
+  margin-top: 10px;
+  background-color: #409EFF;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#panel button:hover {
+  background-color: #66B1FF;
+}
+ 
+  .env-wrapper {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.env-left,
+.env-right {
+  flex: 1 1 45%;
+  min-width: 300px;
+}
+
+#selectorBox {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.85);
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+/* 通用按钮和下拉框样式 */
+#selectorBox select,
+#selectorBox button {
+  width: auto;
+  max-width: 160px;
+  min-width: 100px;
+  height: 38px;
+  padding: 6px 14px 6px 14px;
+  font-size: 14px;
+  border-radius: 999px;
+  border: 1px solid #ccc;
+  white-space: nowrap;
+  background-color: #f9f9f9;
+  transition: all 0.2s ease;
+  flex: none;
+}
+
+/* 下拉箭头美化 */
+#selectorBox select {
+  background-image: url("data:image/svg+xml;utf8,<svg fill='gray' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px 12px;
+  padding-right: 30px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+}
+
+/* 鼠标悬停时样式 */
+#selectorBox select:hover,
+#selectorBox button:hover {
+  border-color: #aaa;
+  background-color: #f1f1f1;
+}
+
+/* 按钮样式覆盖 */
+#selectorBox button {
+  background-color: #409EFF;
+  color: white;
+  border: none;
+  font-weight: 500;
+}
+
+#selectorBox button:hover {
+  background-color: #66b1ff;
+}
+
+.env-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.env-card {
+  flex: 1 1 48%;
+  min-width: 300px;
+  background: #fff;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+ 
+ #metaInfo {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 30px;
+  row-gap: 6px;
+  margin-top: 12px;
+  
+}
+
+#metaInfo > div {
+  margin: 0;
+}
+
+/* 外层容器 —— 左右两栏 */
+.app-container {
+  display: flex;
+  height: 100vh;
+}
+
+/* 任务栏 */
+.sidebar {
+  width: 200px;
+  background: var(--card-bg);
+  box-shadow: 2px 0 8px rgba(0,0,0,0.04);
+  border-right: 1px solid #eee;
+  padding: 30px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: var(--border-radius);
+
+}
+
+.sidebar ul {
+  width: 100%;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar li {
+  position: relative;
+  width: 90%;
+  margin: 8px auto;
+  padding: 10px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  color: var(--text-color);
+  transition: background 0.2s, color 0.2s;
+}
+/* 左侧高亮条 */
+.sidebar li.active::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60%;
+  background: var(--primary);
+  border-radius: 2px 0 0 2px;
+}
+/* 选中态和悬停态 */
+.sidebar li.active,
+.sidebar li:hover {
+  background: rgba(64,158,255,0.1);
+  color: var(--primary);
+}
+
+.sidebar li svg,
+.sidebar li .icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* 主内容区 */
+.main-content {
+  flex: 1;
+   display: block;
+  overflow: auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+/* 通用卡片风格 */
+.chart-card,
+.info-card {
+  background: var(--card-bg);
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+/* 卡片标题 */
+.card-title {
+  font-size: 1.125rem;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 4px;
+}
+
+/* 突出高亮文字 */
+.highlight span {
+  color: var(--primary);
+  font-weight: bold;
+  font-size: 1.125rem;
+}
+
+/* 两列栅格（响应式） */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+.chart-card,
+.info-card {
+  padding: 12px;        
+  margin-bottom: 16px;  
+}
+
+
+.chart-card canvas,
+.chart-grid canvas {
+  width: 100% !important;
+  height: 280px !important;  
+}
+
+/* 栅格列间距 */
+.chart-grid {
+  gap: 16px;  
+}
+
+.canvas-layout {
+  display: flex;
+  gap: 20px;
+  height: 520px;
+}
+
+.canvas-side {
+  display: grid;
+  margin-top: 23px;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  width: 450px;
+  height: 480px;
+}
+/*总体控制按钮*/
+.side-card {
+  height: 220px;
+  background: #fff;
+  border-radius: 30px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 500;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.side-card.active {
+  background: #f0f8ff;
+  border: 2px solid var(--primary, #409EFF);
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.2);
+}
+
+.side-card:hover {
+  background: #f0f8ff;
+  transform: translateY(-2px);
+}
+
+.gear-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+  transform-origin: 50% 50%;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* 只有 .active 时，齿轮才不停旋转 */
+#autoModeCard.active .gear-icon {
+  animation: spin 1s linear infinite;
+}
+
+/* 让禁用的滑块半透明、锁手型光标 */
+input[type="range"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.env-card.entime {
+  position: relative;        /* 使内部绝对定位生效 */
+  padding: 30px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    width: 100%;
+    height: 100%;
+  box-sizing: border-box;
+}
+/* 时间/日期的容器 */
+.time-container {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  text-align: right;
+  margin-right: 30px;
+
+}
+
+.time-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+/* 当前时间：大号粗体 */
+.current-time {
+  font-size: 2rem;       /* 你可以改成 2rem 更大 */
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* 当前日期：小号灰色 */
+.current-date ,.current-week{
+  font-size: 0.9rem;     /* 比时间小一点 */
+  color: #666;
+  margin-top: 4px;
+}
+
+/* 手机端：小于 768px 时 */
+@media (max-width: 768px) {
+  /* 整个外层上下排列 */
+  .app-container {
+    flex-direction: column;
+  }
+
+  /* 把侧边栏变成固定在顶部的横条 */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 0;
+    margin: 0;
+    border-right: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    background: var(--card-bg);
+    z-index: 1000;
+  }
+  /* 横向列表 */
+  .sidebar ul {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+  .sidebar li {
+    flex: 1;
+    margin: 0;
+    border-radius: 0;
+    text-align: center;
+    padding: 12px 0;
+  }
+  .sidebar li.active::before {
+    /* 把左侧高亮条改成顶部高亮条 */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    border-radius: 0;
+  }
+
+  .main-content {
+    margin-top: 48px; /* 根据你 li 的高度调整 */
+    padding: 12px;
+  }
+
+  .canvas-layout {
+    display: flex;            /* 确保是 flex 布局 */
+    flex-direction: column;   /* 竖着排 */
+    gap: 8px;                 /* 按钮区和画布之间留点缝隙 */
+  }
+
+  /* 2) 按钮区铺满整行，并横向滚动 */
+  .canvas-side {
+    display: flex !important;    /* 横向滚动的 flex */
+    flex-wrap: nowrap;           /* 不换行 */
+    overflow-x: visible;         
+    width: 100%;                 /* 拉满宽度 */
+
+  }
+
+  /* 3) 覆盖掉原来的固定高度，按宽度自适应成正方形 */
+  .canvas-side .side-card {
+    flex: 1 1 0;             
+    max-width: none;              
+    height: auto !important;     
+    max-height: 130px;
+    aspect-ratio: auto;          
+    font-size: 14px;             
+    padding: 0 12px;               
+  }
+
+  /* 4) 画布下挪且铺满 */
+  #sceneCanvas {
+    width: 100% !important;
+    height: auto !important;
+  }
+
+}
+ </style>
+</head>
+<body>
+   <div class="app-container">
+    <!-- 左侧任务栏 -->
+    <nav class="sidebar">
+      <ul>
+        <li class="active" data-tab="main">实时灯控</li>
+        <li data-tab="flow">人流折线图</li>
+        <li data-tab="settings">设置</li>
+      </ul>
+    </nav>
+      <div class="main-content"> 
+        <section id="mainSection">
+
+  <div class="time-container">
+    <div class="current-time"div id="curtime">01:39:21</div>
+<div class="time-row">
+   <p id="weatherDisplay" style="margin-top: -8px; font-size: 14px; color: #666;">
+  天气信息加载中…
+</p>
+    <div class="current-week"  id="weekInfo">星期：五</div>
+    <div class="current-date" id="dateInfo">2025/7/08</div>
+</div>
+
+    </div>
+</br></br>
+
+  <div class="env-layout card-section">
+    <div class="env-card">
+    <h4>实时环境参数</h4>
+    <div id="inputs"></div>
+</div>
+          
+          <div class="env-card"><div id="metaInfo">
+<div id="holidayInfo">是否节假日: 否</div>
+<div id="workdayInfo">是否工作日: 是</div>
+</div>
+<div id="luxDisplay" style="margin-top: 1em; padding: 10px; background: #f9f9f9; border-radius: 8px;">
+  💡 光照值等待更新中...
+</div>
+</div>
+</div>
+
+  <h1>智能灯控</h1></br>
+  <div id="controls">
+    <button onclick="startDeviceScan()">扫描设备</button>
+    <button onclick="showAddDeviceModal()">手动添加设备</button>
+    <label>
+      WebSocket 服务器地址：
+      <input type="text" id="wsServerInput" placeholder="110.41.81.4">
+    </label>
+    <div id="scanStatus"></div>
+  </div>
+
+<div id="addDeviceModal" style="
+  display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.4); z-index:9999; justify-content:center; align-items:center;
+  font-family:'Helvetica Neue', sans-serif;">
+  <div style="
+    background:#fff; padding:30px 25px; border-radius:18px; width:320px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.2); text-align:center; animation:fadeIn 0.3s ease;">
+    <h3 style="margin-top:0; font-size:20px; color:#333;">手动添加设备</h3>
+    <label style="display:block; text-align:left; margin-bottom:4px;">设备 ID：</label>
+    <input type="text" id="modalId" placeholder="如 lamp2" style="
+      width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:15px;
+      font-size:14px; box-sizing:border-box;">
+
+    <label style="display:block; text-align:left; margin-bottom:4px;">设备 IP：</label>
+    <input type="text" id="modalIp" placeholder="如 192.168.1.105" style="
+      width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:20px;
+      font-size:14px; box-sizing:border-box;">
+
+    <button onclick="confirmAddDevice()" style="
+      background:#4CAF50; color:#fff; padding:10px 20px; border:none;
+      border-radius:10px; cursor:pointer; font-size:14px; margin-right:10px;
+      transition:background 0.3s;">确认添加</button>
+
+    <button onclick="hideAddDeviceModal()" style="
+      background:#ccc; color:#333; padding:10px 20px; border:none;
+      border-radius:10px; cursor:pointer; font-size:14px;
+      transition:background 0.3s;">取消</button>
+  </div>
+</div>
+
+<div class="canvas-layout">
+  <div class="canvas-side">
+<div class="side-card" onclick="selectSceneCard(this, 3000)">暖光</div>
+<div class="side-card" onclick="selectSceneCard(this, 4500)">中性白</div>
+<div class="side-card" onclick="toggleColorTempLoop(this)">循环</div>
+
+<div class="side-card" id="autoModeCard" onclick="selectAutoMode(this)">
+  <svg
+    class="gear-icon"
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    width="32" height="32"      
+    fill="#007bff"            
+  >
+    <path d="M19.14 12.94
+             c.04-.3.06-.61.06-.94
+             s-.02-.64-.06-.94
+             l2.03-1.58
+             c.18-.14.23-.41.12-.61
+             l-1.92-3.32
+             c-.12-.21-.37-.28-.58-.2
+             l-2.39.96
+             c-.5-.38-1.04-.7-1.64-.94
+             L14.96 2.81
+             c-.05-.22-.24-.38-.47-.38
+             h-3.78
+             c-.23 0-.42.16-.47.38
+             l-.36 2.49
+             c-.6.24-1.14.56-1.64.94
+             l-2.39-.96
+             c-.22-.09-.47-.01-.58.2
+             l-1.92 3.32
+             c-.12.21-.07.47.12.61
+             l2.03 1.58
+             c-.05.3-.06.61-.06.94
+             s.02.64.06.94
+             l-2.03 1.58
+             c-.18.14-.23.41-.12.61
+             l1.92 3.32
+             c.12.21.37.28.58.2
+             l2.39-.96
+             c.5.38 1.04.7 1.64.94
+             l.36 2.49
+             c.05.22.24.38.47.38
+             h3.78
+             c.23 0 .42-.16 .47-.38
+             l.36-2.49
+             c.6-.24 1.14-.56 1.64-.94
+             l2.39.96
+             c.22.09 .47.01 .58-.2
+             l1.92-3.32
+             c.12-.21 .07-.47-.12-.61
+             l-2.03-1.58z
+           M12 15.5
+             c-1.93 0-3.5-1.57-3.5-3.5
+             s1.57-3.5 3.5-3.5
+             3.5 1.57 3.5 3.5
+             -1.57 3.5-3.5 3.5z"/>
+  </svg>
+  自动模式</div>
+
+  </div>
+  <canvas id="sceneCanvas" width="900" height="500"></canvas>
+  <input type="file" id="uploader" accept="image/*" style="display:none;">
+ </section> 
+
+<section id="flowSection" style="display:none">
+  <h2>人流折线图</h2>
+  <!-- 策略对比卡片 -->
+  <div class="chart-grid">
+    <!--左侧热力图-->
+<div class="chart-card">
+  <canvas id="heatmapCanvas" width="500" height="260"></canvas>
+</div>
+
+    <!-- 右侧策略图 -->
+    <div class="chart-card">
+      <div class="card-title">亮度策略实时对比图</div>
+      <canvas id="strategyChart"></canvas>
+    </div>
+  </div>
+
+  <!-- 信息卡片：节能率计算 -->
+  <div class="info-card">
+    <div class="card-title">节能率计算</div>
+    <p>
+      公式：<br>
+      节能率 ≈ (5 – 混合策略亮度 ÷ 恒定亮度) × 100% × 舒适度系数<br>
+      对比比例 3:7
+    </p>
+    <p class="highlight">
+      <span id="SavingResult">节能率: 7.8%</span>
+
+    </p>
+  </div>
+
+  <!-- 两列栅格：温度&人流 + 每盏灯亮度 -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="card-title">温度 & 人流</div>
+      <canvas id="tempChart" width="600" height="200"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="card-title">每盏灯亮度（流明）</div>
+      <canvas id="distributionChart" width="600" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- 信息卡片：亮度计算结果 -->
+  <div class="info-card">
+    <div class="card-title">亮度计算结果</div>
+    <p>
+      当前亮度：<span id="currentBriDisplay">661 流明/盏</span>
+    </p>
+  </div>
+</section>
+
+<section id="settingsSection" style="display: none; padding: 10px; font-family: sans-serif; color: #333;">
+<!-- 顶部选择器区域 -->
+<div id="selectorContainer">
+  <div id="selectorBox"> <h2>⚙️ 店铺设置： </h2>
+    <select id="citySelect">
+      <option value="28.1894,112.9861" selected>长沙</option>
+      <option value="31.2304,121.4737">上海</option>
+      <option value="39.9042,116.4074">北京</option>
+      <option value="23.1291,113.2644">广州</option>
+    </select>
+
+    <select id="storeTypeSelect">
+      <option value="高端,3500">高端店（3500K）</option>
+      <option value="中端,4000">大众店（4000K）</option>
+      <option value="小型,5000">快销店（5000K）</option>
+    </select>
+
+    <select id="storeSelect">
+      <option value="小型,40">40㎡</option>
+      <option value="中端,60">60㎡</option>
+      <option value="高端,80" selected>80㎡</option>
+    </select>
+
+    <button id="toggleMode">切换日夜模式</button>
+  </div>
+</div>
+
+  <div style="display: flex; gap: 40px; flex-wrap: wrap;">
+
+    <!-- 左侧：热区时长查询 -->
+    <div style="flex: 1 1 320px; background: #f9f9f9; padding: 20px; border-radius: 8px; box-shadow: 0 0 8px rgba(0,0,0,0.1);">
+      <h2 style="margin-top: 0; border-bottom: 2px solid #ff4d4f; padding-bottom: 6px;">📅 热区时长查询</h2>
+      <div style="margin-top: 10px; margin-bottom: 12px;">
+        <label for="start-date" style="margin-right: 8px;">起始日期：</label>
+        <input type="date" id="start-date" name="start-date" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc;" />
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label for="end-date" style="margin-right: 8px;">结束日期：</label>
+        <input type="date" id="end-date" name="end-date" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc;" />
+      </div>
+      <div style="margin-bottom: 20px;">
+        <label for="recent-days" style="margin-right: 8px;">最近天数：</label>
+        <select id="recent-days" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc;">
+          <option value="">不使用</option>
+          <option value="1" selected>1 天内</option>
+          <option value="3">3 天内</option>
+          <option value="7">7 天内</option>
+          <option value="14">14 天内</option>
+          <option value="30">30 天内</option>
+        </select>
+      </div>
+      <button onclick="queryDuration()" style="background-color: #ff4d4f; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">查询</button>
+
+      <table id="duration-result" border="1" style="margin-top: 1rem; display: none; width: 100%; max-width: 500px; border-collapse: collapse; font-size: 14px;">
+        <thead style="background-color: #fff1f0; color: #a8071a;">
+          <tr>
+            <th style="padding: 8px; border: 1px solid #ffccc7;">设备ID</th>
+            <th style="padding: 8px; border: 1px solid #ffccc7;">停留时长（秒）</th>
+          </tr>
+        </thead>
+        <tbody id="duration-body"></tbody>
+      </table>
+    </div>
+
+<!-- 右侧：机械臂控制 -->
+<div style="flex: 1 1 250px; background: #e6f7ff; padding: 20px; border-radius: 8px; box-shadow: 0 0 8px rgba(0,0,0,0.1); position: relative;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2 style="margin: 0; border-bottom: 2px solid #1890ff; padding-bottom: 6px; flex: 1;">🤖 机械臂控制</h2>
+    <!-- 设备选择下拉 -->
+    <select id="deviceSelect" style="margin-left: 10px; padding: 4px 6px; border-radius: 4px; border: 1px solid #ccc;">
+      <option value="">选择设备</option>
+      <option value="camlamp1">camlamp1</option>
+      <option value="camlamp2">camlamp2</option>
+    </select>
+  </div>
+
+  <!-- 控制按钮 -->
+  <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px;">
+    <button onclick="sendArmCommand('up')" style="flex: 1 1 45%; padding: 12px 0; font-size: 18px; border: none; background-color: #1890ff; color: white; border-radius: 6px; cursor: pointer;">⬆ 上</button>
+    <button onclick="sendArmCommand('down')" style="flex: 1 1 45%; padding: 12px 0; font-size: 18px; border: none; background-color: #1890ff; color: white; border-radius: 6px; cursor: pointer;">⬇ 下</button>
+    <button onclick="sendArmCommand('left')" style="flex: 1 1 45%; padding: 12px 0; font-size: 18px; border: none; background-color: #13c2c2; color: white; border-radius: 6px; cursor: pointer;">⟲ 人流</button>
+    <button onclick="sendArmCommand('right')" style="flex: 1 1 45%; padding: 12px 0; font-size: 18px; border: none; background-color: #13c2c2; color: white; border-radius: 6px; cursor: pointer;">⟳ 服装</button>
+  </div>
+
+  <!-- 确定取消按钮 -->
+  <div style="display: flex; justify-content: center; gap: 10px; margin-top: 16px;">
+    <button onclick="confirmDevice()" style="padding: 8px 16px; background-color: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer;">确定</button>
+    <button onclick="cancelDevice()" style="padding: 8px 16px; background-color: #f5222d; color: white; border: none; border-radius: 6px; cursor: pointer;">取消</button>
+  </div>
+
+  <!-- 设备预览 -->
+   <div id="devicePreview" style="display:block; margin-top:12px;">
+  <img id="preview_arm" style="width:100%; border-radius:8px; margin-top:12px;" />
+</div>
+ </div>
+  </div>
+
+<div style="margin-top: 30px; background: #fffbe6; padding: 20px; border-radius: 8px; box-shadow: 0 0 8px rgba(0,0,0,0.1);">
+  <h2 style="margin-top: 0; border-bottom: 2px solid #faad14; padding-bottom: 6px;">🧍 人数检测结果</h2>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center;">
+    <!-- 左侧文字信息 -->
+    <div style="flex: 1 1 200px;">
+      <p id="resultCount" style="margin: 6px 0; font-size: 16px;">👥 人数: -</p>
+      <p id="resultConfidence" style="margin: 6px 0; font-size: 16px;">🎯 置信度: -</p>
+      <p id="resultTime" style="margin: 6px 0; font-size: 16px;">🕒 时间: -</p>
+    </div>
+
+    <!-- 右侧图片 -->
+    <div style="flex: 1 1 200px;">
+      <img id="resultImage" src="" alt="检测图像"
+     style="max-width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #d9d9d9; border-radius: 6px;" />
+    </div>
+  </div>
+</div>
+
+</section>
+
+
+</div>
+</div>
+</div></div></div>
+</div></div>
+  <h2>已绑定设备</h2>
+  </div>
+</div>
+  <div id="deviceContainer"></div>
+<div id="controlModal" style="
+  display: none;
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5);
+  justify-content: center; align-items: center;
+  z-index: 10000;
+">
+  <div id="controlModalContent" style="
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 400px;
+    width: 90%;
+    position: relative;
+  ">
+    <button onclick="closeControlModal()" style="
+      position: absolute; top: 10px; right: 10px;
+      border: none; background: transparent; font-size: 20px;
+      cursor: pointer;
+    ">&times;</button>
+
+  </div>
+</div>
+
+
+  <!-- 自定义确认提示框 -->
+  <div id="customPrompt" style="
+  display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.4); z-index:9999; justify-content:center; align-items:center;
+  font-family:'Helvetica Neue', sans-serif;">
+
+  <!-- 弹出框主体 -->
+  <div id="customPromptBox" style="
+    background:#fff; padding:20px 25px; border-radius:16px; width:320px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.2); text-align:center;">
+    
+    <div id="customPromptText" style="font-size:16px; color:#333; margin-bottom:20px;">
+      提示内容
+    </div>
+  <button onclick="customPromptResolve(true)" style="
+    background:#4CAF50; color:#fff; padding:8px 18px; border:none;
+    border-radius:10px; cursor:pointer; font-size:14px; margin-right:10px;">确定</button>
+  <button onclick="customPromptResolve(false)" style="
+    background:#ccc; color:#333; padding:8px 18px; border:none;
+    border-radius:10px; cursor:pointer; font-size:14px;">取消</button>
+</div>
+</div>
+
+  <script>
+  let devices = [];
+  let bodyPixNet = null;
+  let ws;
+  let cardMapping = [];  
+  let deviceIdToCardIdx = {}; 
+  let lastImageMetaId = null;
+  let shirts = [];
+  let uploader = null;
+  let selectedCardIdx = null;
+  window.durationData = {};  
+  const pendingColors = {};
+  const pendingUpdates = [];
+  const sceneCanvas = document.getElementById("sceneCanvas");
+  const DEFAULT_WS_HOST = '110.41.81.4';
+  const host = getHost();
+  const mainColorRGB = { r: 255, g: 255, b: 255 };
+  document.getElementById('wsServerInput').value = window.location.hostname;
+(async () => {
+  bodyPixNet = await bodyPix.load();
+  console.log('Body-Pix 模型加载完毕');
+})();
+
+document.getElementById('deviceSelect').addEventListener('change', function() {
+  const deviceId = this.value;
+  const idx = devices.findIndex(d => d.id === deviceId);
+  if (idx < 0) {
+    document.getElementById('preview_arm').src = '';
+    return;
+  }
+   const devicePreviewEl = document.getElementById('devicePreview');
+  if (deviceId && devicePreviewEl) {
+    devicePreviewEl.style.display = 'block';
+  } else if (devicePreviewEl) {
+    devicePreviewEl.style.display = 'none';
+  }
+  // 绑定机械臂模块的预览图到对应设备的 <img>
+  const srcImg = document.getElementById(`preview_${idx}`);
+  const armPreview = document.getElementById('preview_arm');
+
+  if (srcImg && armPreview) {
+    armPreview.src = srcImg.src; // 直接显示最新画面
+  }
+});
+
+
+function cancelDevice() {
+  document.getElementById('deviceSelect').value = '';
+
+  const devicePreviewEl = document.getElementById('devicePreview');
+  if (devicePreviewEl) {
+    devicePreviewEl.style.display = 'none';
+  }
+
+  const armPreview = document.getElementById('preview_arm');
+  if (armPreview) {
+    armPreview.src = '';
+  }
+}
+
+
+function sendClothUploadState(device) {
+  const host = getHost();
+  fetch(`http://${host}:3000/devices/${device.id}/clothUpload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      enabled: true  // ✔️ 固定 true，因为是一次性触发
+    })
+  });
+}
+
+function sendFlowUploadState(device) {
+  const host = getHost();
+  fetch(`http://${host}:3000/devices/${device.id}/flowUpload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      flowUpload: device.flowUpload || false
+    })
+  });
+}
+
+
+function triggerClothUpload(cardIdx) {
+  const device = devices[cardIdx];
+  sendClothUploadState(device);
+}
+
+function toggleFlowUpload(cardIdx, btn) {
+  const device = devices[cardIdx];
+  device.flowUpload = !device.flowUpload;
+  btn.classList.toggle('active', device.flowUpload);
+  sendFlowUploadState(device);
+}
+
+
+let cachedTempVal = 22;
+let cachedWeatherType = 'Clear'; // 默认是晴
+
+
+async function fetchCityTemperature() {
+  const select = document.getElementById('citySelect');
+  if (!select) return;
+
+  const val = select.value; // 格式 "纬度,经度"
+  const [lat, lon] = val.split(',');
+
+  const apiKey = 'bba6207687b9e63191b3a8fdf040bae4'; // 替换成自己的
+  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('天气接口请求失败');
+    const data = await res.json();
+    const iconCode = data.weather[0].icon; // 例如 "01d"
+    let iconUrl = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
+    
+    cachedTempVal = data.main.temp;
+    cachedWeatherType = data.weather[0].main; // 比如 "Rain", "Clear", "Snow", "Clouds"
+    
+      document.getElementById('weatherDisplay').innerHTML =
+    `<img src="${iconUrl}" alt="${cachedWeatherType}" style="vertical-align:middle;width:50px;height:50px;margin-right:8px;">
+    
+     当前天气：${cachedWeatherType}`;
+  } catch (e) {
+    console.error('获取天气失败，使用默认温度和天气', e);
+    cachedTempVal = 22 + 5 * Math.sin(Date.now()/100000);
+    cachedWeatherType = 'Clear'; // 默认值
+  }
+
+}
+document.getElementById('citySelect').addEventListener('change', fetchCityTemperature);
+
+function drawHeatmap(devices, durationSumMap, dateRangeText) {
+  const heatmapCanvas = document.getElementById('heatmapCanvas');
+  const ctx = heatmapCanvas.getContext('2d');
+  
+  ctx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
+
+  // 左上角显示日期范围文字
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.font = '16px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(dateRangeText, 12, 24);  // 左上角
+
+  const sorted = [...devices].sort((a, b) => {
+    const aCam = a.type === 'camlamp';
+    const bCam = b.type === 'camlamp';
+    if (aCam !== bCam) return aCam - bCam;
+    return a.idNum - b.idNum;
+  });
+
+  const cw = heatmapCanvas.width;
+  const lampCount = sorted.length;
+  const gap = Math.min(400, cw / (lampCount + 1));
+  const totalWidth = (lampCount - 1) * gap;
+  const startX = (cw - totalWidth) / 2;
+
+  const values = Object.values(durationSumMap);
+  const maxVal = values.length ? Math.max(...values) : 1;
+
+  sorted.forEach((device, i) => {
+    const x = startX + i * gap;
+    const y = 150;
+
+    const seconds = durationSumMap[device.id] ?? 0;
+
+    const minRadius = 10;
+    const maxRadius = 50;
+    const radius = minRadius + (seconds / maxVal) * (maxRadius - minRadius);
+
+    const glow = 10 + (radius / maxRadius) * 20;
+
+    ctx.beginPath();
+    ctx.shadowColor = `rgba(255, 0, 0, 0.8)`;
+    ctx.shadowBlur = glow;
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#000';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(device.id, x, y + maxRadius + 20);
+    ctx.fillText(seconds + ' 秒', x, y + maxRadius + 40);
+  });
+  //predictPeople(area, tempVal)
+}
+
+
+function refreshDurationView() {
+  const recentDaysVal = document.getElementById('recent-days').value;
+  let startDate, endDate;
+
+  if (recentDaysVal) {
+    endDate = new Date();
+    startDate = new Date();
+    startDate.setDate(endDate.getDate() - parseInt(recentDaysVal) + 1);
+  } else {
+    // 如果没有选最近N天，可以自行处理或者跳过
+    return;
+  }
+  startDate.setHours(0,0,0,0);
+  endDate.setHours(23,59,59,999);
+
+  const result = {};
+  for (const id in window.durationData) {
+    const dateMap = window.durationData[id];
+    let sum = 0;
+    for (const dateStr in dateMap) {
+      const curDate = new Date(dateStr);
+      if (curDate >= startDate && curDate <= endDate) {
+        sum += dateMap[dateStr];
+      }
+    }
+    result[id] = sum;
+  }
+
+  const dateRangeText = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+  drawHeatmap(devices, result, dateRangeText);
+  updateDurationTable(result);
+}
+
+
+function formatDate(date) {
+  return date.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+function updateDurationTable(result) {
+  const body = document.getElementById('duration-body');
+  body.innerHTML = '';
+
+  if (Object.keys(result).length === 0) {
+    body.innerHTML = '<tr><td colspan="2">无数据</td></tr>';
+  } else {
+    for (const id in result) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${id}</td><td>${result[id]}</td>`;
+      body.appendChild(tr);
+    }
+  }
+}
+
+
+function queryDuration() {
+  const startStr = document.getElementById('start-date').value;
+  const endStr = document.getElementById('end-date').value;
+  const recentDaysVal = document.getElementById('recent-days').value;
+
+  let startDate, endDate;
+
+  if (recentDaysVal) {
+  endDate = new Date();
+  startDate = new Date();
+  startDate.setDate(endDate.getDate() - parseInt(recentDaysVal) + 1);
+
+  // 把时分秒清零
+  startDate.setHours(0,0,0,0);
+  endDate.setHours(23,59,59,999);
+
+  document.getElementById('start-date').value = '';
+  document.getElementById('end-date').value = '';
+ } else {
+  if (!startStr || !endStr) {
+    alert('请选择起始和结束日期');
+    return;
+  }
+  startDate = new Date(startStr);
+  endDate = new Date(endStr);
+
+  // 同样清零时分秒
+  startDate.setHours(0,0,0,0);
+  endDate.setHours(23,59,59,999);
+
+  if (startDate > endDate) {
+    alert('起始日期不能晚于结束日期');
+    return;
+  }
+
+  document.getElementById('recent-days').value = '';
+ }
+
+  const dateRangeText = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+
+  const result = {};
+  for (const id in window.durationData) {
+    const dateMap = window.durationData[id];
+    let sum = 0;
+    for (const dateStr in dateMap) {
+      const curDate = new Date(dateStr);
+      if (curDate >= startDate && curDate <= endDate) {
+        sum += dateMap[dateStr];
+      }
+    }
+    result[id] = sum;
+  }
+
+  const table = document.getElementById('duration-result');
+  updateDurationTable(result);
+  drawHeatmap(devices, result, dateRangeText);
+}
+
+
+document.getElementById('start-date').addEventListener('change', () => {
+  document.getElementById('recent-days').value = "";
+});
+
+document.getElementById('end-date').addEventListener('change', () => {
+  document.getElementById('recent-days').value = "";
+});
+
+
+function selectSceneCard(el, tempValue) {
+  document.querySelectorAll('.side-card').forEach(card => card.classList.remove('active'));
+  el.classList.add('active');
+
+  applyScene(tempValue, { immediate: true });
+}
+
+let sceneLoopTimer = null;
+
+
+function startColorTempLoop(options = {}) {
+  clearInterval(sceneLoopTimer);
+  stopAutoLuxLoop();
+  // 初始化每个设备色温和步长，保证间隔固定
+  devices.forEach((dev, idx) => {
+    dev.temp = 2700 + idx * 0;  // 基准3500K，设备间隔400K
+    dev.tempStep = 100;            // 初始步长向上递增
+  });
+
+  sceneLoopTimer = setInterval(() => {
+    devices.forEach((dev, idx) => {
+      dev.temp += dev.tempStep;
+
+      if (dev.temp >= 6500) {
+        dev.temp = 6500;
+        dev.tempStep = -Math.abs(dev.tempStep);
+      } else if (dev.temp <= 2700) {
+        dev.temp = 2700;
+        dev.tempStep = Math.abs(dev.tempStep);
+      }
+
+      dev.auto = false;
+
+      const cardIdx = Object.keys(cardMapping).find(key => cardMapping[key] == idx);
+      if (cardIdx != null) {
+        const n = Number(cardIdx);
+        document.querySelector(`#device_card_${n} input[type="checkbox"]`).checked = false;
+        document.getElementById(`tempSlider_${n}`).disabled = false;
+        document.getElementById(`tempSlider_${n}`).value = dev.temp;
+        document.getElementById(`currentTemp_${n}`).textContent = dev.temp;
+
+        updateTemp(n, dev.temp, { immediate: true, ...options });
+      }
+    });
+  }, 100);
+}
+
+
+function stopColorTempLoop() {
+  clearInterval(sceneLoopTimer);
+  sceneLoopTimer = null;
+}
+
+function toggleColorTempLoop(cardElement) {
+  const isActive = cardElement.classList.contains("active");
+  document.querySelectorAll('.side-card').forEach(card => card.classList.remove('active'));
+  if (isActive) {
+    stopColorTempLoop();
+    cardElement.classList.remove("active");
+  } else {
+    startColorTempLoop();
+    cardElement.classList.add("active");
+  }
+}
+
+
+
+function applyScene(tempValue, options = {}) {
+    stopColorTempLoop();
+    stopAutoLuxLoop();
+  
+  devices.forEach((dev, realIdx) => {
+    dev.auto = false;
+    dev.temp = tempValue;
+
+    const cardIdx = Object.keys(cardMapping).find(
+      key => cardMapping[key] == realIdx
+    );
+
+    if (cardIdx != null) {
+      const n = Number(cardIdx);
+
+      // ✅ 同步 UI
+      document.querySelector(`#device_card_${n} input[type="checkbox"]`).checked = false;
+      document.getElementById(`tempSlider_${n}`).disabled = false;
+      document.getElementById(`tempSlider_${n}`).value = tempValue;
+      document.getElementById(`currentTemp_${n}`).textContent = tempValue;
+
+      // ✅ 传入 options（让 immediate: true 生效）
+      updateTemp(n, tempValue, options);
+    } else {
+      console.warn(`[applyScene] 跳过设备 ${dev.id}（无 cardIdx 映射）`);
+    }
+  });
+}
+
+function stopAutoLuxLoop() {
+  if (luxAutoTimer) {
+    clearInterval(luxAutoTimer);
+    luxAutoTimer = null;
+  }
+}
+
+function getBrightnessFromLux(lux) {
+  const maxLux = 5000;
+  const minBrightness = 30;
+  const maxBrightness = 100;
+
+  const clampedLux = Math.min(Math.max(lux, 0), maxLux); // 限定范围 0~7000
+  const ratio = clampedLux / maxLux;                     // 映射到 0~1
+  const brightness = maxBrightness - (maxBrightness - minBrightness) * ratio;
+  return Math.round(brightness);
+}
+let luxAutoTimer = null; // 确保在外部定义，全局可控制
+
+function selectAutoMode(el) {
+  const isActive = el.classList.contains("active");
+
+  // 先清除所有卡片激活状态
+  document.querySelectorAll('.side-card').forEach(card => card.classList.remove('active'));
+
+  if (isActive) {
+    // 如果已经激活，点击则停止自动模式
+    stopColorTempLoop();
+    if (luxAutoTimer) {
+      clearInterval(luxAutoTimer);
+      luxAutoTimer = null;
+    }
+    el.classList.remove("active");
+  } else {
+    // 激活自动模式
+    el.classList.add("active");
+    stopColorTempLoop(); // 停止其他循环
+    if (luxAutoTimer) clearInterval(luxAutoTimer); // 防止重复定时器
+
+    luxAutoTimer = setInterval(() => {
+      const lux = latestLux ?? 0;
+      const brightness = getBrightnessFromLux(lux);
+
+      // 获取店铺类型
+      const select = document.getElementById('storeTypeSelect');
+      const [storeType] = select.value.split(','); // 只取类型
+
+      let tempValue = 4000; // 默认色温
+      if (storeType === '高端') tempValue = 3500;
+      else if (storeType === '中端') tempValue = 4000;
+      else if (storeType === '小型') tempValue = 5000;
+
+      devices.forEach((dev, realIdx) => {
+        dev.auto = true;
+
+        const cardIdx = Object.keys(cardMapping).find(
+          key => cardMapping[key] === realIdx
+        );
+
+        if (cardIdx != null) {
+          const n = Number(cardIdx);
+
+          // 更新滑块显示
+          const tmpSlider = document.getElementById(`tempSlider_${n}`);
+          tmpSlider.value = dev.recommendedTemp;
+          tmpSlider.disabled = true;
+
+          const briSlider = document.getElementById(`brightnessSlider_${n}`);
+          briSlider.value = dev.recommendedBrightness;
+          briSlider.disabled = true;
+
+          // 实际设备赋值
+          dev.temp = tempValue;
+          dev.brightness = brightness;
+
+          // 更新显示文本
+          document.getElementById(`currentTemp_${n}`).textContent = dev.recommendedTemp;
+          document.getElementById(`currentBrightness_${n}`).textContent = dev.recommendedBrightness;
+
+          // 立即发送更新
+          updateTemp(n, tempValue, {});
+          updateBrightness(n, brightness, { immediate: true });
+        } else {
+          console.warn(`[selectAutoMode] 跳过设备 ${dev.id}（无 cardIdx 映射）`);
+        }
+      });
+    }, 300);
+  }
+}
+
+
+
+function openControlModal(cardIdx) {
+  const originalCard = document.getElementById(`device_card_${cardIdx}`);
+  const modalBg      = document.getElementById("controlModal");
+  const modalContent = document.getElementById("controlModalContent");
+  const closeBtn = modalContent.querySelector("button");
+
+  modalContent.innerHTML = "";
+  modalContent.appendChild(closeBtn);
+
+  const clone = originalCard.cloneNode(true);
+  modalContent.appendChild(clone);
+  modalBg.style.display = "flex";
+
+
+  const bSl = clone.querySelector(`#brightnessSlider_${cardIdx}`);
+  const bTxt = clone.querySelector(`#currentBrightness_${cardIdx}`);
+  bSl.addEventListener("input", e => {
+    updateBrightness(cardIdx, e.target.value);
+    bTxt.innerText = e.target.value + "%";
+  });
+
+  const tSl = clone.querySelector(`#tempSlider_${cardIdx}`);
+  const tTxt = clone.querySelector(`#currentTemp_${cardIdx}`);
+  tSl.addEventListener("input", e => {
+    updateTemp(cardIdx, e.target.value);
+    tTxt.innerText = e.target.value + "K";
+  });
+
+ const chk = clone.querySelector(`input[type=checkbox]`);
+  if (chk) {
+    chk.addEventListener("change", e => {
+      const isAuto = e.target.checked;
+      // 先同步到数据和原卡片
+      toggleAuto(cardIdx, isAuto);
+      // 再禁/启用 modal 里的滑块
+      bSl.disabled = isAuto;
+      tSl.disabled = isAuto;
+    });
+  }
+  const fileInput = clone.querySelector("input[type=file]");
+if (fileInput) {
+  const newInput = fileInput.cloneNode();  
+  fileInput.replaceWith(newInput);      
+
+  newInput.addEventListener("change", ev => {
+    processImageFile(ev, cardIdx);
+    setTimeout(() => {
+      const box = clone.querySelector(".color-box");
+      const d   = devices[cardMapping[cardIdx]];
+      box.style.background = d.mainColorRGB;
+      box.innerText        = d.mainColorRGB;
+      const [r,g,b] = d.mainColorRGB.match(/\d+/g).map(Number);
+      const lum = 0.299*r + 0.587*g + 0.114*b;
+      box.style.color = lum>186 ? "#000" : "#fff";
+    }, 500);
+  });
+}
+}
+
+function closeControlModal() {
+  document.getElementById("controlModal").style.display = "none";
+}
+
+function getHost() {
+    const input = document.getElementById('wsServerInput').value.trim();
+    if (input) return input;
+    if (window.location.hostname) return window.location.hostname;
+    return DEFAULT_WS_HOST;
+  }
+
+function handleWsMessage(evt) {
+  if (evt.data instanceof Blob) {
+    const cardIdx = deviceIdToCardIdx[lastImageMetaId];
+    if (cardIdx == null) {
+      console.warn('无法定位 cardIdx for', lastImageMetaId);
+      return;
+    }
+
+    const imgEl = document.getElementById(`preview_${cardIdx}`);
+    if (!imgEl) {
+      console.warn('没找到 preview 元素 preview_' + cardIdx);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(evt.data);
+    imgEl.src = objectUrl;
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+    return;
+  }
+  
+  if (typeof evt.data === 'string') {
+    let msg;
+    try { msg = JSON.parse(evt.data); }
+    catch { return; }
+    if (msg.type === 'image/jpeg') {
+      lastImageMetaId = msg.id;
+      return;
+    }
+
+    if (msg.type === 'state') {
+      // console.log('收到 state 消息:', msg);
+  updateDeviceUI(msg);
+
+  return;
+ }
+
+ if (msg.type === 'personDetection') {
+  console.log('收到人数检测结果:', msg.data);
+
+  const count = msg.data.count;
+  const confidence = msg.data.confidence;
+  const timestamp = msg.data.timestamp;
+  const imgBase64 = msg.data.annotated_image_base64;
+
+  console.log(`人数: ${count}, 置信度: ${confidence}, 时间: ${timestamp}`);
+
+  // 显示人数、置信度、时间
+  document.getElementById('resultCount').innerText = `人数: ${count}`;
+  document.getElementById('resultConfidence').innerText = `置信度: ${confidence}`;
+  document.getElementById('resultTime').innerText = `时间: ${timestamp}`;
+
+  // 如果有 base64 图像，更新图片
+  if (imgBase64) {
+    const imgElem = document.getElementById('resultImage');
+    if (imgElem) {
+      imgElem.src = 'data:image/jpeg;base64,' + imgBase64;
+    }
+  }
+}
+
+  if (msg.type === "lux") {
+   latestLux = msg.value;
+      const luxContainer = document.getElementById("luxDisplay");
+      if (luxContainer) {
+        luxContainer.innerHTML = `
+          <strong>💡 光照值：</strong> ${msg.value} lux <br>
+          <span style="color:gray;font-size:0.9em;">更新时间：${new Date(msg.time).toLocaleString()}</span>
+        `;
+      }
+    }
+    if (msg.type === 'image') {
+      const cardIdx = deviceIdToCardIdx[msg.id];
+      const imgEl = document.getElementById(`preview_${cardIdx}`);
+      if (imgEl) imgEl.src = 'data:image/jpeg;base64,' + msg.data;
+    }
+    if (msg.type === 'durationUpdate') {
+  window.durationData = msg.data || {};
+  // 根据最近N天选择，重新计算并更新显示
+  const recentDaysVal = document.getElementById('recent-days').value;
+  if (recentDaysVal) {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - parseInt(recentDaysVal) + 1);
+    startDate.setHours(0,0,0,0);
+    endDate.setHours(23,59,59,999);
+
+    const result = {};
+    for (const id in window.durationData) {
+      const dateMap = window.durationData[id];
+      let sum = 0;
+      for (const dateStr in dateMap) {
+        const curDate = new Date(dateStr);
+        if (curDate >= startDate && curDate <= endDate) {
+          sum += dateMap[dateStr];
+        }
+      }
+      result[id] = sum;
+    }
+
+    const dateRangeText = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+    drawHeatmap(devices, result, dateRangeText);
+    updateDurationTable(result);
+  }
+    }}
+  
+}
+
+
+
+function initWebSocket() {
+  const host = getHost();
+  console.log(`🚀 准备连接 WS → ws://${host}:8081`);
+  ws = new WebSocket(`ws://${host}:8081`);
+  ws.binaryType = 'blob';
+  ws.onopen    = () => console.log('✅ WS 已连接');
+  ws.onmessage = handleWsMessage;
+  ws.onerror   = e => console.error('🛑 WS 错误：', e);
+  ws.onclose   = () => {
+    console.warn('🔌 WS 断开，5 秒后重连');
+    setTimeout(initWebSocket, 5000);
+  };
+}
+
+
+function updateDeviceUI(msg) {
+  const cardIdx = deviceIdToCardIdx[msg.id];
+  if (cardIdx == null || !document.getElementById(`device_card_${cardIdx}`)) {
+    pendingUpdates.push(msg);
+    return;
+  }
+
+  const realIdx = cardMapping[cardIdx];
+  const d = devices[realIdx];
+
+  // 2. 同步所有字段——包括当前值和推荐值
+  d.brightness             = Number(msg.brightness ?? d.brightness);
+  d.temp                   = Number(msg.temp       ?? d.temp);
+  d.recommendedBrightness  = Number(msg.recommendedBrightness  ?? d.recommendedBrightness);
+  d.recommendedTemp        = Number(msg.recommendedTemp        ?? d.recommendedTemp);
+  d.auto                   = Boolean(msg.auto);
+  if (msg.mainColorRGB)    d.mainColorRGB = msg.mainColorRGB;
+  if (msg.fabric)          d.fabric       = msg.fabric;
+
+  // 3. 同步 UI 控件
+  const bSl  = document.getElementById(`brightnessSlider_${cardIdx}`);
+  const tSl  = document.getElementById(`tempSlider_${cardIdx}`);
+  const chk  = document.querySelector(`#device_card_${cardIdx} input[type=checkbox]`);
+  if (chk) chk.checked = d.auto;
+
+  if (bSl) {
+    bSl.disabled = d.auto;
+    // 自动模式显示推荐值，否则显示当前值
+    bSl.value    = d.auto ? d.recommendedBrightness : d.brightness;
+  }
+  if (tSl) {
+    tSl.disabled = d.auto;
+    tSl.value    = d.auto ? d.recommendedTemp : d.temp;
+  }
+
+  // 4. 更新文字显示（自动由 updateDisplay 选值）
+  updateDisplay(cardIdx);
+
+  // 5. 更新面料标签
+  const fabricBox = document.getElementById(`fabricLabel_${cardIdx}`);
+  if (fabricBox) {
+    fabricBox.innerText = `面料: ${d.fabric ?? '未知'}`;
+  }
+
+  // 6. 更新主色块
+  const colorBox = document.getElementById(`colorBox_${cardIdx}`);
+  if (colorBox && d.mainColorRGB) {
+    const { r, g, b } = d.mainColorRGB;
+    const rgbStr = `rgb(${r},${g},${b})`;
+    colorBox.style.background = rgbStr;
+    colorBox.innerText        = rgbStr;
+    const lum = 0.299*r + 0.587*g + 0.114*b;
+    colorBox.style.color = lum > 186 ? '#000' : '#fff';
+  }
+  // 7. 重绘光效
+  if (msg.mainColorRGB) {
+  d.mainColorRGB = msg.mainColorRGB;
+  // 主色也写入 shirts
+   if (shirts && shirts[realIdx]) {
+    shirts[realIdx].color = msg.mainColorRGB;
+  }
+  drawScene();
+}
+}
+
+
+window.addEventListener('load', async () => {
+  initWebSocket();
+  fetchCityTemperature();
+  setInterval(fetchCityTemperature, 10 * 60 * 1000);           
+  await loadAndRenderDevices();  
+  for (const msg of pendingUpdates) {
+    updateDeviceUI(msg);         
+  }
+  pendingUpdates.length = 0;
+});
+
+  let statusTimer = null;
+  
+function renderDevices() {
+  const container = document.getElementById("deviceContainer");
+  container.innerHTML = "";
+  cardMapping = []; 
+  Object.keys(deviceIdToCardIdx).forEach(k => delete deviceIdToCardIdx[k]);
+  const sortedDevices = [...devices].sort((a, b) => {
+    const isCamA = a.id.toLowerCase().startsWith("camlamp");
+    const isCamB = b.id.toLowerCase().startsWith("camlamp");
+    if (isCamA !== isCamB) return isCamA - isCamB;
+
+    const numA = parseInt(a.id.match(/\d+/));
+    const numB = parseInt(b.id.match(/\d+/));
+    return (isNaN(numA) ? 0 : numA) - (isNaN(numB) ? 0 : numB);
+  });
+
+  sortedDevices.forEach((device, cardIdx) => {
+    const realIdx = devices.findIndex(d => d.id === device.id);
+    cardMapping[cardIdx] = realIdx;
+    deviceIdToCardIdx[device.id] = cardIdx;
+    const div = document.createElement("div");
+    div.className = "lamp-card";
+    div.id = `device_card_${cardIdx}`;
+    let uploadHtml = '';
+    if (device.id.toLowerCase().startsWith('camlamp')) {
+      uploadHtml = `
+        <div style="margin-top:12px;">
+          <div style="font-size:14px; color:#606266;">实时预览：</div>
+          <img id="preview_${cardIdx}" 
+               src="" 
+               style="width:100%; border-radius:8px; margin-top:6px;"
+          />
+        </div>`;
+    }
+    div.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">${device.id} (${device.ip})</h3>
+        <span id="status_${cardIdx}" style="font-size: 13px; color: #666;">🟡 检查中...</span>
+      </div>
+      <div class="status-line">
+  <span id="lastseen_${cardIdx}" style="margin-left: 12px; font-size: 0.9em; color: gray;"></span>
+</div>
+
+
+  ${uploadHtml}
+        <div style="position: relative; margin-top: 10px;">
+    <label>亮度: <span id="currentBrightness_${cardIdx}">${device.brightness}</span></label>
+    <input
+      type="range"
+      id="brightnessSlider_${cardIdx}"
+      min="0" max="100"
+      value="${device.brightness}"
+      ${device.auto ? 'disabled' : ''}
+      oninput="updateBrightness(${cardIdx}, this.value); updateDisplay(${cardIdx});"
+    >
+  </div>
+
+  <div style="position: relative; margin-top: 10px;">
+    <label>色温: <span id="currentTemp_${cardIdx}">${device.temp}</span></label>
+    <input
+      type="range"
+      id="tempSlider_${cardIdx}"
+      min="2700" max="6500" step="100"
+      value="${device.temp}"
+      ${device.auto ? 'disabled' : ''}
+      oninput="updateTemp(${cardIdx}, this.value); updateDisplay(${cardIdx});"
+    >
+  </div>
+
+<div class="color-box" id="colorBox_${cardIdx}">
+  ${
+    device.mainColorRGB
+      ? `rgb(${device.mainColorRGB.r},${device.mainColorRGB.g},${device.mainColorRGB.b})`
+      : '未提取'
+  }
+</div>
+
+<div class="fabric-label" id="fabricLabel_${cardIdx}">
+  面料: ${device.fabric || '未知'}
+</div>
+  <label style="display:block; margin-top: 8px;">
+    <input
+      type="checkbox"
+      ${device.auto ? 'checked' : ''}
+      onchange="toggleAuto(${cardIdx}, this.checked)"
+    > 自动模式
+  </label>
+
+   ${ device.id.toLowerCase().startsWith('lamp')
+  ? `
+    <label style="display:block; margin-top:12px; font-size:13px; color:#606266;">上传衣服图片（自动识别主色并调整）</label>
+    <label class="upload-btn-wrapper">
+      选择文件
+      <input
+        type="file"
+        accept="image/*"
+        onchange="processImageFile(event, ${cardIdx})"
+      />
+    </label>
+  `
+  : ``
+}
+
+${
+  device.id.toLowerCase().startsWith('camlamp')
+  ? `
+    <div style="margin-top:12px; display:flex; gap:8px;">
+      <button
+        class="detect-upload-btn"
+        onclick="triggerClothUpload(${cardIdx})"
+      >服装分析</button>
+
+      <button
+        id="flowUploadBtn_${cardIdx}"
+        class="flow-upload-btn"
+        onclick="toggleFlowUpload(${cardIdx}, this)"
+      >人流监测</button>
+    </div>
+  `
+  : ``
+}
+
+
+<label class="btn-delete" style="cursor:pointer;">
+        删除设备
+      </label>
+    `;
+
+  container.appendChild(div);
+
+  const delBtn = div.querySelector('.btn-delete');
+  delBtn.addEventListener('click', () => removeDevice(realIdx));
+});
+devices.forEach(msg => {
+  updateDeviceUI(msg);
+});
+
+checkAllDevicesOnline();
+
+/*
+if (statusTimer) clearInterval(statusTimer);
+statusTimer = setInterval(() => {
+  cardMapping.forEach((realIdx, cardIdx) => {
+    checkDeviceOnline(realIdx, cardIdx);
+  });
+}, 10000);*/
+if (statusTimer) clearInterval(statusTimer);
+statusTimer = setInterval(() => {
+  checkAllDevicesOnline(); // 替换原forEach循环调用
+}, 10000);
+}
+
+function addDevice(id, ip) {
+  const newDevice = {
+    id, ip, temp: 4000, brightness: 80, auto: true};
+  const host = getHost();
+
+fetch(`http://${host}:3000/devices`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(newDevice)
+})
+.then(res => {
+  if (!res.ok) throw new Error("设备重复");
+  return res.json();
+})
+.then(({ device }) => {
+  devices.push(device);
+  renderDevices();
+  drawScene();
+})
+.catch(err => alert("添加失败：" + err.message));
+
+}
+
+
+function showAddDeviceModal() {
+  document.getElementById("addDeviceModal").style.display = "flex";
+}
+
+function hideAddDeviceModal() {
+  document.getElementById("addDeviceModal").style.display = "none";
+}
+
+function removeDevice(cardIdx) {
+  const realIdx = cardMapping[cardIdx];
+  const device = devices[cardIdx];
+  const id   = device.id;
+  const ip   = device.ip;
+  const host = getHost();
+
+  // 向服务器发送 DELETE 请求
+  fetch(`http://${host}:3000/devices/${id}`, { method: "DELETE" })
+    .then(res => {
+      if (!res.ok) throw new Error("服务器删除失败");
+
+      console.log(`✅ 设备 ${id} 已从服务器移除`);
+
+      fetch(`http://${ip}/resumeBroadcast`).catch(() => {
+        console.warn(`⚠️ 通知 ${id} 恢复广播失败`);
+      });
+
+      // 从客户端列表移除并重绘
+      devices.splice(cardIdx, 1);
+      renderDevices();
+      drawScene();
+    })
+    .catch(err => alert("❌ 删除失败：" + err.message));
+}
+
+let scanWs;
+let scanTimer = null;
+async function startDeviceScan() {
+  document.getElementById("scanStatus").innerText = "🔍 正在扫描设备中，请稍候...";
+  await loadAndRenderDevices();
+  drawScene();
+  const hostInput = document.getElementById('wsServerInput').value.trim();
+  const host = getHost();
+  const url = `ws://110.41.81.4:8081`;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+  }
+  scanWs = new WebSocket(url)
+ 
+ scanWs.onopen = () => {
+   
+  console.log('已连接到UDP转发服务器（开始扫描）');
+  document.querySelector("button[onclick='startDeviceScan()']").disabled = true;
+  // 10秒后自动停止扫描
+  scanTimer = setTimeout(() => {
+    stopDeviceScan();  
+    showCustomPrompt("⏱️ 扫描超时，是否手动添加设备？").then((manual) => {
+    if (manual) {
+      showAddDeviceModal(); 
+    }
+  });
+  }, 10000);
+};
+
+  scanWs.onerror = (err) => {
+  console.error("WebSocket 连接出错：", err);
+  stopDeviceScan();
+
+  showCustomPrompt("❌ 无法连接到，请检查 UDP 服务是否开启，或手动输入IP。<br>是否手动添加设备？")
+    .then((manual) => {
+      if (manual) {
+        showAddDeviceModal(); 
+      } 
+    });
+};
+
+
+
+scanWs.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  console.log('WS 收到消息：', msg);
+  // duration数据更新处理
+    if (msg.type === 'durationUpdate') {
+      window.durationData = msg.data || {};
+      console.log('收到 duration 全量数据:', window.durationData);
+    }
+  // 1) 设备广播
+  if (msg.type === 'announce') {
+    clearTimeout(scanTimer);
+    showCustomPrompt(`发现设备：${msg.id} (${msg.ip})<br>是否添加？`)
+      .then(confirmAdd => {
+        if (confirmAdd) addDevice(msg.id, msg.ip);
+        stopDeviceScan();
+      });
+    return;
+  }
+  if (msg.type === "lux") {
+      const luxContainer = document.getElementById("luxDisplay");
+      if (luxContainer) {
+        luxContainer.innerHTML = `
+          <strong>💡 光照值：</strong> ${msg.value} lux <br>
+          <span style="color:gray;font-size:0.9em;">更新时间：${new Date(msg.time).toLocaleString()}</span>
+        `;
+      }
+    }
+  // 2) 图片数据
+  if (msg.type === 'image') {
+    const idx = devices.findIndex(d => d.id === msg.id);
+    if (idx < 0) return;
+    const d = devices[idx];
+    const imgEl = document.getElementById(`preview_${idx}`);
+    // 同步一下亮度/温度滑条到 d 里
+    document.getElementById(`brightnessSlider_${idx}`).value = d.brightness;
+    document.getElementById(`tempSlider_${idx}`).value       = d.temp;
+    if (imgEl) {
+      imgEl.src = 'data:image/jpeg;base64,' + msg.data;
+    }
+    return;
+  }
+
+  // 3) 状态更新
+  if (msg.type === 'state') {
+    const idx = devices.findIndex(d => d.id === msg.id);
+    if (idx < 0) return;
+    const d = devices[idx];
+
+    // —— 更新数据模型 ——  
+    d.brightness            = Number(msg.brightness ?? d.brightness);
+    d.temp                  = Number(msg.temp       ?? d.temp);
+    d.recommendedBrightness = Number(msg.recommendedBrightness ?? d.recommendedBrightness);
+    d.recommendedTemp       = Number(msg.recommendedTemp       ?? d.recommendedTemp);
+    d.auto                  = Boolean(msg.auto);
+    d.fabric                = msg.fabric;
+    if (msg.mainColorRGB) {
+      d.mainColorRGB = msg.mainColorRGB;
+      pendingColors[idx] = d.mainColorRGB;
+      if (shirts && shirts[idx]) {
+        shirts[idx].color = d.mainColorRGB;
+      }
+    }
+    if (msg.fabric) {
+      d.fabric = msg.fabric;
+    }
+
+    // —— 同步 UI ——  
+    const bSl     = document.getElementById(`brightnessSlider_${idx}`);
+    const tSl     = document.getElementById(`tempSlider_${idx}`);
+    const autoChk = document.getElementById(`autoCheckbox_${idx}`);
+    if (autoChk) autoChk.checked = d.auto;
+
+    if (bSl) {
+      bSl.disabled = d.auto;
+      bSl.value    = d.auto ? d.recommendedBrightness : d.brightness;
+    }
+    if (tSl) {
+      tSl.disabled = d.auto;
+      tSl.value    = d.auto ? d.recommendedTemp : d.temp;
+    }
+
+    // 文本显示 自动/手动 自动选择推荐值或当前值
+    updateDisplay(idx);
+
+    // 面料标签
+    const fabricBox = document.getElementById(`fabricLabel_${idx}`);
+    if (fabricBox && d.fabric) {
+      fabricBox.innerText = `面料: ${d.fabric}`;
+    }
+
+    // 颜色框
+    const box = document.getElementById(`colorBox_${idx}`);
+    if (box && d.mainColorRGB) {
+      const { r, g, b } = d.mainColorRGB;
+      const rgbStr = `rgb(${r},${g},${b})`;
+      box.style.background = rgbStr;
+      box.innerText        = rgbStr;
+      const lum = 0.299*r + 0.587*g + 0.114*b;
+      box.style.color = lum > 186 ? '#000' : '#fff';
+    }
+    drawScene();
+    return;
+  }
+
+};
+
+
+scanWs.onclose = () => {
+    ws = null;
+    clearTimeout(scanTimer);
+    document.getElementById("scanStatus").innerText = "";
+  };
+}
+
+function debounce(fn, delay = 200) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      fn(...args);    
+      drawScene();    
+    }, delay);
+  };
+}
+
+const debouncedSend = debounce(send, 200);
+
+function stopDeviceScan() {
+  if (scanWs) {
+    scanWs.close();
+    scanWs = null;
+    clearTimeout(scanTimer);
+    document.getElementById("scanStatus").innerText = "";
+    document.querySelector("button[onclick='startDeviceScan()']").disabled = false;
+  }
+}
+
+function confirmAddDevice() {
+  const id = document.getElementById("modalId").value.trim();
+  const ip = document.getElementById("modalIp").value.trim();
+
+  if (!id || !ip) {
+    alert("请填写完整的设备 ID 和 IP！");
+    return;
+  }
+
+  addDevice(id, ip);   
+  hideAddDeviceModal(); 
+  drawScene();
+}
+
+let customPromptCallback = null;
+
+function showCustomPrompt(text) {
+  return new Promise((resolve) => {
+    const box = document.getElementById("customPrompt");
+    const dialog = document.getElementById("customPromptBox"); 
+
+    document.getElementById("customPromptText").innerHTML = text;
+    box.style.display = "flex";
+
+    dialog.classList.remove("hide");
+    dialog.classList.add("show");
+
+    customPromptCallback = resolve;
+  });
+}
+
+function customPromptResolve(result) {
+  const box = document.getElementById("customPrompt");
+  const dialog = document.getElementById("customPromptBox");
+
+  dialog.classList.remove("show");
+  dialog.classList.add("hide");
+
+  setTimeout(() => {
+    box.style.display = "none";
+    customPromptCallback?.(result);
+    customPromptCallback = null;
+  }, 200); 
+}
+
+function formatTimestamp(ts) {
+  const d = new Date(ts);
+  return d.toLocaleString();
+
+
+}
+
+function checkDeviceOnline(realIdx, cardIdx) {
+  const device = devices[realIdx];
+  const serverHost = "110.41.81.4";
+
+  fetch(`http://${serverHost}:3000/onlineDevices`)
+    .then(res => res.json())
+    .then(data => {
+      const entry = data[device.id];
+      const isOnline = entry && entry.online;
+      const timeStr = entry && entry.lastSeen ? formatTimestamp(entry.lastSeen) : "未知";
+
+      if (isOnline) {
+        document.getElementById(`status_${cardIdx}`).innerText = "🟢 在线";
+        document.getElementById(`lastseen_${cardIdx}`).innerText = ``;
+      } else {
+        document.getElementById(`status_${cardIdx}`).innerText = "🔴 离线";
+        document.getElementById(`lastseen_${cardIdx}`).innerText = `上次在线：${timeStr}`;
+      }
+    })
+    .catch(() => {
+      document.getElementById(`status_${cardIdx}`).innerText = "⚠️ 网络错误";
+      document.getElementById(`lastseen_${cardIdx}`).innerText = "";
+    });
+}
+
+function checkAllDevicesOnline() {
+  const serverHost = "110.41.81.4";
+  
+  // 只发起1次请求，获取所有设备状态
+  fetch(`http://${serverHost}:3000/onlineDevices`)
+    .then(res => res.json())
+    .then(allDevicesData => {
+      // 遍历所有设备卡片，批量更新UI
+      cardMapping.forEach((realIdx, cardIdx) => {
+        const device = devices[realIdx]; // 当前设备信息
+        const entry = allDevicesData[device.id]; // 从全局数据中匹配当前设备
+        const isOnline = entry && entry.online;
+        const timeStr = entry && entry.lastSeen ? formatTimestamp(entry.lastSeen) : "未知";
+
+        // 更新当前卡片的状态显示
+        if (isOnline) {
+          document.getElementById(`status_${cardIdx}`).innerText = "🟢 在线";
+          document.getElementById(`lastseen_${cardIdx}`).innerText = "";
+        } else {
+          document.getElementById(`status_${cardIdx}`).innerText = "🔴 离线";
+          document.getElementById(`lastseen_${cardIdx}`).innerText = `上次在线：${timeStr}`;
+        }
+      });
+    })
+    .catch(() => {
+      // 网络错误时，批量更新所有卡片的错误状态
+      cardMapping.forEach((_, cardIdx) => {
+        document.getElementById(`status_${cardIdx}`).innerText = "⚠️ 网络错误";
+        document.getElementById(`lastseen_${cardIdx}`).innerText = "";
+      });
+    });
+}
+
+  
+async function loadAndRenderDevices() {
+  const old = {};
+  devices.forEach(d => {
+    old[d.id] = {
+    brightness:            d.brightness,
+    temp:                  d.temp,
+    auto:                  d.auto,
+    mainColorRGB:          d.mainColorRGB,
+    fabric:                d.fabric
+  };
+});
+
+  const host = getHost();
+  const res  = await fetch(`http://${host}:3000/devices`);
+  const data = await res.json();
+ 
+  data.sort((a, b) => {
+    const aCam = a.id.toLowerCase().startsWith('camlamp');
+    const bCam = b.id.toLowerCase().startsWith('camlamp');
+    if (aCam !== bCam) return aCam - bCam;      
+    const na = parseInt(a.id.match(/\d+/)?.[0] || '0', 10);
+    const nb = parseInt(b.id.match(/\d+/)?.[0] || '0', 10);
+    return na - nb;
+  });
+
+  devices = data.map(d => ({
+    id:       d.id,
+    type:     d.id.toLowerCase().startsWith('camlamp') ? 'camlamp' : 'lamp',
+    idNum:    parseInt(d.id.match(/\d+/)?.[0] || '0', 10),
+    ip:       d.ip,
+    brightness: old[d.id]?.brightness  ?? d.brightness,
+    temp:       old[d.id]?.temp        ?? d.temp,
+    auto:       old[d.id]?.auto        ?? d.auto,
+     recommendedBrightness: d.recommendedBrightness,
+    recommendedTemp:       d.recommendedTemp,
+    mainColorRGB:  old[d.id]?.mainColorRGB   ?? d.mainColorRGB,
+    fabric:      old[d.id]?.fabric         ?? d.fabric 
+    
+  }));
+  renderDevices(); 
+  drawScene();      
+}
+
+
+function updateBrightness(cardIdx, value, options = {}) {
+  const realIdx = cardMapping[cardIdx];
+  if (realIdx == null) return;
+  const d = devices[realIdx];
+
+  d.brightness = Number(value);
+  updateDisplay(cardIdx);
+  drawScene();
+
+if (options.immediate) {
+  send(cardIdx);
+} else if (!d.auto) {
+  console.log('→ 调用 debouncedSend(', cardIdx, ') for', d.id);
+  debouncedSend(cardIdx);
+}
+
+}
+
+
+function updateTemp(cardIdx, value, options = {}) {
+  const realIdx = cardMapping[cardIdx];
+  if (realIdx == null) return;
+  const d = devices[realIdx];
+
+  d.temp = Number(value);
+  updateDisplay(cardIdx);
+  drawScene();
+
+if (options.immediate) {
+  send(cardIdx);
+} else if (!d.auto) {
+  console.log('→ 调用 debouncedSend(', cardIdx, ') for', d.id);
+  debouncedSend(cardIdx);
+}
+
+}
+
+
+
+function send(cardIdx) {
+  const realIdx = cardMapping[cardIdx];
+  if (realIdx == null) return;
+  const device = devices[realIdx];
+
+  const payload = {
+    type:                   'state',
+    id:                     device.id,
+    brightness:             device.brightness,
+    temp:                   device.temp,
+    recommendedBrightness:  device.recommendedBrightness,
+    recommendedTemp:        device.recommendedTemp,
+    auto:                   device.auto,
+    mainColorRGB:           device.mainColorRGB
+  };
+
+  // 发到设备自身
+  /*fetch(`http://${device.ip}/setLight`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload)
+  })
+  .then(res => {
+    if (!res.ok) throw new Error(res.status);
+    console.log(`✅ [设备] 已发 → ${device.id}`);
+  })
+  .catch(err => console.warn(`❌ [设备] 错误 → ${device.id}`, err));*/
+
+  // 更新到中心服务器
+  const host = getHost();
+  fetch(`http://${host}:3000/devices/${device.id}`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      brightness:            device.brightness,
+      temp:                  device.temp,
+      auto:                  device.auto,
+      recommendedBrightness: device.recommendedBrightness,
+      recommendedTemp:       device.recommendedTemp,
+      mainColorRGB:          device.mainColorRGB,
+      fabric:                device.fabric
+    })
+  })
+  .then(res => {
+    if (!res.ok) throw new Error(res.status);
+    console.log(`✅ [服务器] 更新成功 → ${device.id}`);
+  })
+  .catch(err => console.warn(`❌ [服务器] 更新失败 → ${device.id}`, err));
+
+  // 3) WebSocket 同步
+  /*
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(payload));
+    console.log('→ WS 已发:', payload);
+  }*/
+}
+
+
+function processImageFile(event, cardIdx) {
+  const realIdx = cardMapping[cardIdx];
+  const file = event.target.files[0];
+  if (!file) return;
+  const host = getHost();
+  const deviceId = devices[realIdx].id;
+
+  // 先上传图片到 /uploadImage
+  fetch(`http://${host}:3000/uploadImage?device=${deviceId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg' },
+    body: file
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('上传图片失败');
+    return res.json();
+  })
+  .then(data => {
+    console.log('✅ 图片上传完成:', data.filename);
+/*
+    // 上传完成后再调用检测接口
+    return fetch(`http://${host}:3000/uploadImageDetect?device=${deviceId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: file
+    });
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('图片检测接口调用失败');
+    return res.json();
+  })
+  .then(data => {
+    console.log('✅ 图片检测完成:', data);  
+     */
+  })
+  .catch(err => {
+    console.error('❌ 过程出错:', err);
+ 
+  });
+}
+
+
+
+/*async function processImageDataUrl(dataUrl, cardIdx) {
+fetch(dataUrl)
+    .then(res => res.blob())
+    .then(blob => {
+      const form = new FormData();
+      form.append("image", blob, "upload.jpg");
+
+      // 2. 获取设备ID
+      const deviceId = devices[idx].id;
+
+      // 3. 发起 POST 请求上传图片
+      fetch(`http://${host}:3000/uploadImage?device=${deviceId}`, {
+        method: "POST",
+        body: form
+      }).then(res => res.json()).then(data => {
+        console.log("✅ 上传成功，服务器响应：", data);
+        // 可选：弹出提示或刷新状态
+      }).catch(err => {
+        console.error("❌ 上传失败：", err);
+      });
+    });
+  const realIdx = cardMapping[cardIdx];
+  const img = new Image();
+  img.onload = async () => {
+    // —— A. 在隐藏 canvas (this.canvas) 上绘制原图
+    const hidden = document.getElementById('canvas');
+    hidden.width = img.width;
+    hidden.height = img.height;
+    const hCtx = hidden.getContext('2d');
+    hCtx.drawImage(img, 0, 0);
+
+    // —— B. BodyPix 分割
+    const partSeg = await bodyPixNet.segmentPersonParts(img, { segmentationThreshold: 0.5 });
+    const keepParts = new Set([2,3,4,5,8,9,10,11,12,13]);
+
+    // —— C. 构造 mask
+    const maskImg = new ImageData(img.width, img.height);
+let hasPart = false;
+for (let i = 0; i < partSeg.data.length; i++) {
+  const off = i * 4;
+  const keep = keepParts.has(partSeg.data[i]);
+  maskImg.data[off+3] = keep ? 255 : 0;
+  if (keep) hasPart = true;
+}
+
+// —— D. 在 autoCanvas 上预览衣服主体 —— 
+const autoCanvas = document.getElementById(`autoCanvas_${cardIdx}`);
+autoCanvas.width  = img.width;
+autoCanvas.height = img.height;
+const pCtx = autoCanvas.getContext('2d');
+pCtx.clearRect(0, 0, autoCanvas.width, autoCanvas.height);
+
+if (hasPart) {
+  // 有检测到主体，先画遮罩再裁切
+  pCtx.putImageData(maskImg, 0, 0);
+  pCtx.globalCompositeOperation = 'source-in';
+  pCtx.drawImage(img, 0, 0);
+  pCtx.globalCompositeOperation = 'source-over';
+} else {
+  // 没检测到主体，直接显示整图
+  pCtx.drawImage(img, 0, 0);
+}
+
+      // —— E. 提取像素、kMeans 找主色 —— 
+    const imgData = hidden.getContext('2d').getImageData(0,0,hidden.width,hidden.height).data;
+    const pixels = [];
+    if (hasPart) {
+    for (let i = 0; i < partSeg.data.length; i++) {
+      if (keepParts.has(partSeg.data[i])) {
+        const off = i * 4;
+        pixels.push([imgData[off], imgData[off+1], imgData[off+2]]);
+      }
+    }}
+    else {
+  for (let off = 0; off < imgData.length; off += 4) {
+    pixels.push([imgData[off], imgData[off+1], imgData[off+2]]);
+  }
+}
+    const { centroids, counts } = kMeans(pixels, 3);
+    const maxIdx = counts.indexOf(Math.max(...counts));
+    const [r,g,b] = centroids[maxIdx];
+    // —— F. 计算推荐亮度和色温 —— 
+    const [h, s, v] = rgbToHsv(r, g, b);
+    const recTemp = Math.round(h/360*(6500-2700)+2700);
+    const recBri = Math.round((1 - v) * 60 + 40);
+    
+    // —— G. 存到 devices 并更新 UI —— 
+    const d = devices[realIdx];
+    d.mainColorRGB      = `rgb(${r|0},${g|0},${b|0})`;
+    d.recommendedTemp   = recTemp;
+    d.recommendedBright = recBri;
+
+    const shirt = shirts.find(s => s.lampIdx === realIdx);
+    if (shirt) {
+    shirt.color = d.mainColorRGB;
+    }
+
+    if (d.auto) applyRecommendations(cardIdx);
+    updateDisplay(cardIdx);
+    const box = document.getElementById(`colorBox_${cardIdx}`);
+    const rgbStr = `rgb(${r},${g},${b})`;
+        if (box) {
+      box.style.background = d.mainColorRGB;
+      box.innerText        = d.mainColorRGB;
+    }
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+
+    if (luminance > 186) {
+      box.style.color = '#000';
+    } else {
+      box.style.color = '#fff';
+    }
+      };
+      img.src = dataUrl;
+
+    }*/
+
+/*function kMeans(data, k = 3, maxIter = 20, tol = 1e-4) {
+  if (!data.length) return { centroids: [], counts: [] };
+  const centroids = [];
+  centroids.push(data[Math.floor(Math.random() * data.length)]);
+  for (let i = 1; i < k; i++) {
+    const dists = data.map(p => {
+      return Math.min(...centroids.map(c =>
+        (p[0]-c[0])**2 + (p[1]-c[1])**2 + (p[2]-c[2])**2
+      ));
+    });
+    const sum = dists.reduce((a,b) => a + b, 0);
+    let r = Math.random() * sum;
+    let idx = dists.findIndex(d => { r -= d; return r <= 0; });
+    centroids.push(data[idx < 0 ? 0 : idx]);
+  }
+
+  let labels = new Array(data.length);
+  let prevCentroids = centroids.map(c => [...c]);
+  let counts = new Array(k).fill(0);
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    for (let i = 0; i < data.length; i++) {
+      let best = 0, minD = Infinity;
+      for (let j = 0; j < k; j++) {
+        const d = (data[i][0] - centroids[j][0])**2
+                + (data[i][1] - centroids[j][1])**2
+                + (data[i][2] - centroids[j][2])**2;
+        if (d < minD) { minD = d; best = j; }
+      }
+      labels[i] = best;
+    }
+
+    const sums = Array.from({ length: k }, () => [0, 0, 0]);
+    counts = new Array(k).fill(0);
+    for (let i = 0; i < data.length; i++) {
+      const l = labels[i];
+      sums[l][0] += data[i][0];
+      sums[l][1] += data[i][1];
+      sums[l][2] += data[i][2];
+      counts[l]++;
+    }
+
+    prevCentroids = centroids.map(c => [...c]);
+    for (let j = 0; j < k; j++) {
+      if (counts[j] > 0) {
+        centroids[j][0] = sums[j][0] / counts[j];
+        centroids[j][1] = sums[j][1] / counts[j];
+        centroids[j][2] = sums[j][2] / counts[j];
+      }
+    }
+
+    const shift = centroids.reduce((acc, c, j) => {
+      return acc + (c[0]-prevCentroids[j][0])**2
+                 + (c[1]-prevCentroids[j][1])**2
+                 + (c[2]-prevCentroids[j][2])**2;
+    }, 0);
+    if (shift < tol) break;
+  }
+  return { centroids, counts };
+}*/
+
+function rgbToHsv(r, g, b) {
+  r/=255; g/=255; b/=255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), d = mx-mn;
+  let h = 0;
+  if (d) {
+    if (mx===r) h = ((g-b)/d)%6;
+    else if (mx===g) h = (b-r)/d + 2;
+    else h = (r-g)/d + 4;
+  }
+  h = Math.round(60 * h);
+  if (h<0) h+=360;
+  const s = mx? d/mx : 0;
+  const v = mx;
+  return [h, s, v];
+}
+
+function updateDisplay(cardIdx) {
+  const realIdx = cardMapping[cardIdx];
+  if (realIdx == null) return;
+  const d = devices[realIdx];
+
+  // 根据模式决定用哪个值显示
+  const isAuto   = Boolean(d.auto);
+  const displayB = isAuto ? d.recommendedBrightness : d.brightness;
+  const displayT = isAuto ? d.recommendedTemp       : d.temp;
+
+  const brightEl = document.getElementById(`currentBrightness_${cardIdx}`);
+  const tempEl   = document.getElementById(`currentTemp_${cardIdx}`);
+  if (brightEl) brightEl.innerText = displayB + '%';
+  if (tempEl)   tempEl.innerText   = displayT + 'K';
+}
+
+
+function toggleAuto(cardIdx, isAuto) {
+  const realIdx = cardMapping[cardIdx];
+  if (realIdx == null) return;
+  const d = devices[realIdx];
+
+  d.auto = isAuto;
+
+  const bSl = document.getElementById(`brightnessSlider_${cardIdx}`);
+  const tSl = document.getElementById(`tempSlider_${cardIdx}`);
+
+  bSl.disabled = isAuto;
+  tSl.disabled = isAuto;
+
+  if (isAuto) {
+    bSl.classList.add('slider-disabled');
+    tSl.classList.add('slider-disabled');
+  } else {
+    bSl.classList.remove('slider-disabled');
+    tSl.classList.remove('slider-disabled');
+  }
+
+  if (isAuto) {
+    bSl.value = d.recommendedBrightness;
+    tSl.value = d.recommendedTemp;
+    updateDisplay(cardIdx);
+    debouncedSend(cardIdx);
+  } else {
+    send(cardIdx);
+  }
+
+  if (!isAuto) {
+    document.getElementById('autoModeCard').classList.remove('active');
+  }
+}
+
+
+
+function buildLamps() {
+  const sorted = [...devices].sort((a, b) => {
+    const aCam = a.type === 'camlamp';
+    const bCam = b.type === 'camlamp';
+    if (aCam !== bCam) return aCam - bCam;
+    return a.idNum - b.idNum;
+  });
+
+  const cw = sceneCanvas.width;
+  const lampCount = sorted.length;
+
+  const gap = Math.min(400, cw / (lampCount + 1)); 
+  const totalWidth = (lampCount - 1) * gap;
+  const startX = (cw - totalWidth) / 2;
+
+  const lampData = sorted.map((d, idx) => ({
+    x: startX + idx * gap,
+    recommendedBrightness: d.recommendedBrightness,
+    recommendedTemp: d.recommendedTemp,
+    idx: devices.indexOf(d),
+    originalIndex: devices.indexOf(d)
+  }));
+
+  shirts = lampData.map(l => {
+  const prev = shirts.find(s => s.lampIdx === l.originalIndex);
+  const sleeveW = 20, torsoW = 60;
+  return {
+    x: l.x - (sleeveW + torsoW/2), 
+    y: 320,
+    lampIdx: l.originalIndex,
+    color: prev?.color || pendingColors[l.originalIndex] || "#888"
+  };
+});
+
+
+  return lampData;
+}
+
+const ctx3 = sceneCanvas.getContext("2d");
+
+function tempToRGB(recommendedTemp) {
+  recommendedTemp = Math.max(1000, Math.min(40000, recommendedTemp)) / 100; 
+
+  let r, g, b;
+
+  if (recommendedTemp <= 66) {
+    r = 255;
+    g = recommendedTemp <= 19
+      ? 0
+      : 99.4708025861 * Math.log(recommendedTemp) - 161.1195681661;
+    b = recommendedTemp <= 19
+      ? 0
+      : (138.5177312231 * Math.log(recommendedTemp - 10) - 305.0447927307);
+  } else {
+    r = 329.698727446 * Math.pow(recommendedTemp - 60, -0.1332047592);
+    g = 288.1221695283 * Math.pow(recommendedTemp - 60, -0.0755148492);
+    b = 255;
+  }
+
+  r = Math.min(255, Math.max(0, r));
+  g = Math.min(255, Math.max(0, g));
+  b = Math.min(255, Math.max(0, b));
+
+  return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},`;
+}
+
+function drawRoom() {
+  const c = ctx3, W = sceneCanvas.width;
+  c.fillStyle = "#3a3a3a";
+}
+
+function drawVolumetricLight(x, recommendedBrightness, recommendedTemp) {
+  const baseY=70, bottomY=420;
+  for (let i=0;i<50;i++){
+    const alpha = Math.max(0, recommendedBrightness / 100 * 0.25 - i * 0.005);
+    const expansion = 50 + i*2;
+    const color = tempToRGB(recommendedTemp) + alpha.toFixed(2) + ")";
+    const grad = ctx3.createRadialGradient(x, baseY+30, 5, x, (baseY+bottomY)/2,200);
+    grad.addColorStop(0, color); grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx3.fillStyle = grad;
+    ctx3.beginPath();
+    ctx3.moveTo(x, baseY);
+    ctx3.lineTo(x-expansion, bottomY);
+    ctx3.lineTo(x+expansion, bottomY);
+    ctx3.closePath(); ctx3.fill();
+  }
+}
+
+function drawLamps() {
+  const lamps = buildLamps();
+  lamps.forEach(l => {
+    // 光柱
+    drawVolumetricLight(l.x, l.recommendedBrightness, l.recommendedTemp);
+    // 2. 吊杆
+    /*
+    ctx3.beginPath();
+    ctx3.strokeStyle = "#444";
+    ctx3.lineWidth = 2;
+    ctx3.moveTo(l.x, 20);  // 更靠上
+    ctx3.lineTo(l.x, 55);  // 更长，延伸到底部灯罩顶
+    ctx3.stroke();
+
+    // 3. 灯罩（更大、更厚）
+    ctx3.beginPath();
+    ctx3.fillStyle = "#6ea2ba";  // 莫兰迪蓝
+    ctx3.ellipse(l.x, 70, 28, 20, 0, 0, Math.PI, true);  // 直径更大、厚度更深
+    ctx3.fill();
+
+    // 4. 灯罩下缘边框（增强立体感）
+    ctx3.beginPath();
+    ctx3.fillStyle = "#4b6d82";  // 深色边缘
+    ctx3.ellipse(l.x, 70, 28, 5, 0, 0, 2 * Math.PI);
+    ctx3.fill();
+
+    // 5. 内部灯光口（白色发光区）
+    ctx3.beginPath();
+    ctx3.fillStyle = "#fff";
+    ctx3.ellipse(l.x, 70, 24, 4, 0, 0, 2 * Math.PI);
+    ctx3.fill();*/
+    
+
+    ctx3.beginPath();
+    ctx3.strokeStyle = "#444";
+    ctx3.lineWidth = 2;
+    ctx3.moveTo(l.x, 20);
+    ctx3.lineTo(l.x, 55);
+    ctx3.stroke();
+
+    // 3. 灯罩（更深更窄的半球体）
+    ctx3.beginPath();
+    ctx3.fillStyle = "#6ea2ba";  // 莫兰迪蓝
+    ctx3.ellipse(l.x, 70, 22, 22, 0, 0, Math.PI, true);  // 更圆更深
+    ctx3.fill();
+
+    // 4. 灯罩下沿描边（厚边缘）
+    ctx3.beginPath();
+    ctx3.fillStyle = "#3c5566";
+    ctx3.ellipse(l.x, 70, 22, 4, 0, 0, 2 * Math.PI);
+    ctx3.fill();
+
+    // 5. 灯光口（变小、更集中）
+    ctx3.beginPath();
+    ctx3.fillStyle = "#fff";
+    ctx3.ellipse(l.x, 70, 14, 2.5, 0, 0, 2 * Math.PI);
+    ctx3.fill();
+  });
+}
+
+function drawShirt(s) {
+  const ctx = ctx3;
+  const x = s.x;
+  const y = s.y;
+  const torsoW = 60, torsoH = 80;
+  const sleeveW = 20, sleeveH = 40, angle = 15;
+  const rgb = s.color;
+  const colorStr = typeof rgb === 'string' ? rgb : `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+
+  // 影子
+  ctx.beginPath();
+  ctx.ellipse(x + torsoW/2 + sleeveW, y + torsoH + sleeveH + 10, 40, 12, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fill();
+
+
+  ctx.fillStyle = colorStr;
+
+  // 左袖
+  ctx.beginPath();
+  ctx.moveTo(x, y + angle);
+  ctx.lineTo(x + sleeveW, y);
+  ctx.lineTo(x + sleeveW, y + sleeveH);
+  ctx.lineTo(x, y + sleeveH + angle);
+  ctx.closePath();
+  ctx.fill();
+
+  // 身体
+  ctx.fillRect(x + sleeveW, y, torsoW, torsoH);
+
+  // 右袖
+  const rx = x + sleeveW + torsoW;
+  ctx.beginPath();
+  ctx.moveTo(rx, y);
+  ctx.lineTo(rx + sleeveW, y + angle);
+  ctx.lineTo(rx + sleeveW, y + sleeveH + angle);
+  ctx.lineTo(rx, y + sleeveH);
+  ctx.closePath();
+  ctx.fill();
+
+  // 领口
+  const cx = x + sleeveW + torsoW / 2;
+  ctx.beginPath();
+  ctx.fillStyle = "#ccc";
+  ctx.arc(cx, y, 15, 0, Math.PI, false);
+  ctx.fill();
+
+  // 描边 
+  ctx.beginPath();
+
+  ctx.moveTo(x, y + sleeveH + angle);                         // 左袖下
+  ctx.lineTo(x + sleeveW, y + sleeveH);                      // 袖根
+  ctx.lineTo(x + sleeveW, y + torsoH);                       // 身体左下
+  ctx.lineTo(x + sleeveW + torsoW, y + torsoH);              // 身体右下
+  ctx.lineTo(x + sleeveW + torsoW, y + sleeveH);             // 袖根右
+  ctx.lineTo(x + sleeveW + torsoW + sleeveW, y + sleeveH + angle); // 右袖下
+  ctx.lineTo(x + sleeveW + torsoW + sleeveW, y + angle);     // 右袖上
+  ctx.lineTo(x + sleeveW + torsoW, y);                       // 身体右上
+  ctx.lineTo(x + sleeveW, y);                                // 身体左上
+  ctx.lineTo(x, y + angle);                                  // 左袖上
+  ctx.closePath();
+
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+}
+
+
+function drawScene() {
+  ctx3.clearRect(0, 0, sceneCanvas.width, sceneCanvas.height);
+  drawRoom();
+  const lamps = buildLamps();   
+  lamps.forEach(l => drawVolumetricLight(l.x, l.recommendedBrightness, l.recommendedTemp));
+  drawLamps();
+  shirts.forEach(drawShirt);
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  // —— 全局上传控件 & 当前选中卡片索引 —— 
+  uploader = document.getElementById('uploader')
+  
+ if (uploader) {
+    uploader.addEventListener("change", e => {
+      const file = uploader.files[0];
+      if (!file || selectedCardIdx === null) return;
+      processImageFile({ target: { files: [file] } }, selectedCardIdx);
+      selectedCardIdx = null;
+      uploader.value = '';
+    });
+  }
+sceneCanvas.addEventListener("click", e => {
+  // 把客户端坐标转成画布内部坐标
+  const rect = sceneCanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (sceneCanvas.width  / rect.width);
+  const y = (e.clientY - rect.top ) * (sceneCanvas.height / rect.height);
+
+  const lamps = buildLamps();
+  for (let l of lamps) {
+    const s = shirts.find(s=>s.lampIdx===l.originalIndex);
+    if (!s) continue;
+    if (x>=s.x && x<=s.x+60 && y>=s.y && y<=s.y+80) {
+      selectedCardIdx = s.lampIdx;
+      uploader.click();
+      return;
+    }
+  }
+  lamps.forEach(l => {
+    if (Math.abs(x - l.x) < 20 && y >= 50 && y <= 100) {
+      const realIdx = l.originalIndex;
+      const cardIdx = cardMapping.findIndex(idx => idx===realIdx);
+      if (cardIdx>=0) openControlModal(cardIdx);
+    }
+  });
+});
+  function safeText(id, txt) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  }
+  function safeHTML(id, html) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  }
+
+  // —— 人流预测 & 舒适度计算 ——  
+function predictPeople(area, tempVal) {
+  // 面积权重，0.7次方放大
+  const areaWeight = Math.pow(area, 0.7) * 4;
+
+  // 时间权重，分段更细，模拟更丰富的峰谷
+  const now = new Date();
+  const hour = now.getHours();
+  const timeWeight = (() => {
+    if (hour >= 6 && hour < 9) return 0.8;    // 早高峰前段
+    if (hour >= 9 && hour < 11) return 1.1;   // 上午活跃期
+    if (hour >= 11 && hour < 12) return 1.4;  // 午餐前准备期
+    if (hour >= 12 && hour < 14) return 1.6;  // 午餐高峰
+    if (hour >= 14 && hour < 17) return 0.9;  // 午后平稳
+    if (hour >= 17 && hour < 19) return 2.0;  // 晚饭高峰
+    if (hour >= 19 && hour < 20) return 1.7;  // 晚饭后半高峰
+    if (hour >= 20 && hour < 21) return 1.0;  // 晚间平稳
+    if (hour >= 21 && hour < 23) return 0.6;  // 夜间低谷
+    return 0.4;                               // 23-6点，夜深人静
+  })();
+
+  // 气温权重，细分更多档次，更贴合舒适度影响
+const tempWeight = (() => {
+  if (tempVal < 0) return 0.5;                  // 极冷
+  if (tempVal >= 0 && tempVal < 10) return 0.6; // 很冷（可自己调整）
+  if (tempVal >= 10 && tempVal < 13) return 0.7; // 冷
+  if (tempVal >= 13 && tempVal < 15) return 0.8; // 较冷
+  if (tempVal >= 15 && tempVal < 18) return 0.85; // 偏冷
+  if (tempVal >= 18 && tempVal < 20) return 1.0;  // 较适宜
+  if (tempVal >= 20 && tempVal < 22) return 1.2;  // 稍微凉爽
+  if (tempVal >= 22 && tempVal <= 26) return 1.4; // 最舒适区
+  if (tempVal > 26 && tempVal <= 28) return 0.9;  // 舒适偏热
+  if (tempVal > 28 && tempVal <= 30) return 0.75; // 较热
+  if (tempVal > 30 && tempVal <= 40) return 0.6;  // 很热
+  if (tempVal > 40) return 0.5;                   // 极热
+
+  return 0.75; // 默认值（可覆盖异常情况）
+})();
+
+const weekdayWeight = (() => {
+  const day = now.getDay(); // 0 是周日
+  if (day === 0 || day === 6) return 1.3; // 周末人流多
+  return 1.0; // 工作日
+})();
+
+const weatherWeight = (() => {
+  switch (cachedWeatherType) {
+    case 'Rain': return 0.6;      // 雨天人少
+    case 'Snow': return 0.5;      // 雪天更少
+    case 'Clouds': return 0.9;    // 阴天略少
+    case 'Clear': return 1.0;     // 晴天正常
+    case 'Thunderstorm': return 0.4; // 雷雨很少人出门
+    case 'Drizzle': return 0.7;
+    default: return 0.8;          // 其他默认略少
+  }
+})();
+  // 噪声调整，±1.5，模拟随机波动
+  const noise = (Math.random() - 0.5) * 3;
+
+  // 基础人数，避免太低
+  const baseCount = 0;
+
+  // 综合预测
+  const predictionRaw = baseCount + areaWeight * timeWeight * tempWeight * weekdayWeight * weatherWeight;//+ noise;
+  const prediction = predictionRaw * 0.7;
+  return Math.max(0, Math.round(prediction));
+}
+
+
+  function comfortScore(temp, people) {
+    const tC = 1 - Math.min(Math.abs(temp-22)/15,1);
+    let pC;
+    if (people <= 20) pC = people/20;
+    else if (people >= 60) pC = Math.max(0,(100-people)/(100-60));
+    else pC = 1;
+    return Math.max(0,(tC + pC)/2);
+  }
+
+  // —— 获取 canvas ——  
+  const stratCanvas = document.getElementById('strategyChart');
+  const tempCanvas  = document.getElementById('tempChart');
+  const distCanvas  = document.getElementById('distributionChart');
+  if (!stratCanvas || !tempCanvas || !distCanvas) return;
+
+  const stratCtx = stratCanvas.getContext('2d');
+  const tempCtx  = tempCanvas.getContext('2d');
+  const distCtx  = distCanvas.getContext('2d');
+
+  // —— 初始化 Chart.js ——  
+const tempChart = new Chart(tempCtx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      { label: '温度 (°C)', data: [], borderColor: 'rgba(75,192,192,1)', fill: false, yAxisID: 'y' },
+      { label: '人流量',     data: [], borderColor: 'rgba(255,99,132,1)', fill: false, yAxisID: 'y1' }
+    ]
+  },
+  options: {
+    responsive: true,
+    animation: false,
+    scales: {
+      x: { title: { display: true, text: '时间' } },
+      y: { position: 'left',  title: { display: true, text: '温度 (°C)' }, min: 0,  max: 40 },
+      y1:{ position: 'right', title: { display: true, text: '人流量' },     min: 0,  max: 100, grid:{drawOnChartArea:false} }
+    }
+  }
+});
+
+const distributionChart = new Chart(distCtx, {
+  type: 'bar',
+  data: {
+    labels: ['灯1','灯2','灯3','灯4'],
+    datasets: [
+      { label: '每盏灯亮度 (流明)', data: [400,400,400,400], backgroundColor:'rgba(54,162,235,0.6)' }
+    ]
+  },
+  options: {
+    responsive: true,
+    animation: false,
+    scales: { y: { min: 300, max: 1000 } }
+  }
+});
+
+const strategyChart = new Chart(stratCtx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      { label: '恒定亮度 (900)', data: [], borderColor:'gray',  borderWidth:2, fill:false },
+      { label: '自适应亮度',     data: [], borderColor:'blue',  borderWidth:2, fill:false },
+      { label: '混合策略',       data: [], borderColor:'green', borderWidth:2, fill:false }
+    ]
+  },
+  options: {
+    responsive: true,
+    animation: false,
+    scales: {
+      x: { title: { display: true, text: '时间' } },
+      y: { title: { display: true, text: '亮度 (流明)' }, min: 300, max: 1000 }
+    }
+  }
+});
+
+
+  // —— 交互控件 ——  
+  let storeArea = 80;
+  const storeSelect = document.getElementById('storeSelect');
+  if (storeSelect) storeSelect.addEventListener('change', e => {
+    const v = parseInt(e.target.value.split(',')[1]);
+    if (!isNaN(v)) storeArea = v;
+  });
+
+  const toggleBtn = document.getElementById('toggleMode');
+  if (toggleBtn) {
+    let day = true;
+    toggleBtn.addEventListener('click', () => {
+      day = !day;
+      document.body.style.background = day ? '#def' : '#222';
+      document.body.style.color      = day ? '#333' : '#eee';
+    });
+  }
+
+let updateCounter = 10;
+  // —— 核心更新函数 ——  
+function updateData() {
+  const now  = new Date();
+  const time = now.toLocaleTimeString();
+  updateCounter++;
+
+  // 1. 生成模拟数据
+  const tempVal = parseFloat(cachedTempVal.toFixed(1));
+  const ppl      = predictPeople(storeArea);
+  const adaptive = Math.round((400 + ppl * 5) * 1.15);
+  const mixed    = Math.round(0.3 * 900 + 0.7 * adaptive);
+
+  // —— 更新 温度&人流 折线图 ——  
+  if (tempChart.data.labels.length >= 12) {
+    tempChart.data.labels.shift();
+    tempChart.data.datasets[0].data.shift();
+    tempChart.data.datasets[1].data.shift();
+  }
+  tempChart.data.labels.push(time);
+  tempChart.data.datasets[0].data.push(tempVal);
+  tempChart.data.datasets[1].data.push(ppl);
+  tempChart.update();
+
+  // —— 更新 每盏灯亮度 柱状图 ——  
+  distributionChart.data.datasets[0].data = [adaptive, adaptive, adaptive, adaptive];
+  distributionChart.update();
+
+  // —— 更新 策略对比 折线图 ——  
+  if (strategyChart.data.labels.length >= 20) {
+    strategyChart.data.labels.shift();
+    strategyChart.data.datasets.forEach(ds => ds.data.shift());
+  }
+  strategyChart.data.labels.push(time);
+  strategyChart.data.datasets[0].data.push(900);
+  strategyChart.data.datasets[1].data.push(adaptive);
+  strategyChart.data.datasets[2].data.push(mixed);
+  strategyChart.update();
+
+  // —— 文本区更新 ——  
+  safeText('dateInfo',     now.toLocaleDateString());
+  safeText('weekInfo',    '星期' + ['日','一','二','三','四','五','六'][now.getDay()]);
+  safeText('holidayInfo', '是否节假日: 否');
+  safeText('workdayInfo', '是否工作日: 是');
+  safeText('curtime', now.toLocaleTimeString());
+
+  safeHTML('inputs', `
+    温度: ${tempVal} °C<br>
+    人流量: ${ppl} 人<br>
+    面积: ${storeArea}㎡
+  `);
+
+  safeHTML('currentBriDisplay', `
+    亮度公式: (400 + 人流量×5) × 天气因子(1.15)<br>
+    当前亮度: ${adaptive} 流明/盏
+  `);
+
+  const comfort  = comfortScore(tempVal, ppl);
+  const saveRate = Math.max(0, (1 - mixed/900) * 100 * comfort).toFixed(1);
+  safeText('SavingResult', `节能率: ${saveRate}% （舒适度: ${(comfort*100).toFixed(0)}%）`);
+}
+
+
+const tabs     = document.querySelectorAll('.sidebar li');
+const sections = {
+  main:     document.getElementById('mainSection'),
+  flow:     document.getElementById('flowSection'),
+  settings: document.getElementById('settingsSection'),
+};
+
+tabs.forEach(li => {
+  li.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    li.classList.add('active');
+
+    Object.entries(sections).forEach(([key, el]) => {
+      if (el) el.style.display = (key === li.dataset.tab) ? 'block' : 'none';
+    });
+    if (li.dataset.tab === 'flow') {
+      [strategyChart, tempChart, distributionChart].forEach(chart => {
+        chart.update();
+      });
+    }
+  });
+});
+  updateData();
+  setInterval(updateData, 1000);
+
+  interact('.draggable').draggable({/*…*/}).resizable({/*…*/});
+});
+
+// 页面加载时生成设备列表数组
+
+const selectEl = document.getElementById('deviceSelect');
+for (let i = 1; i < selectEl.options.length; i++) {
+  const id = selectEl.options[i].value;
+  devices.push({ id, socket: null });  // socket 可留空或后续赋值
+}
+console.log("初始化设备列表:", devices);
+
+// 发送机械臂控制指令
+function sendArmCommand(direction) {
+  const selectedId = selectEl.value;
+
+  if (!selectedId) {
+    console.warn("⚠️ 未选择设备");
+    return;
+  }
+
+  const selectedDevice = devices.find(d => d.id === selectedId);
+
+  if (!selectedDevice) {
+    console.warn(`⚠️ 未找到设备: ${selectedId}`);
+    return;
+  }
+
+  // 发送给服务器的 HTTP 请求
+  fetch(`http://${host}:3000/devices/${selectedDevice.id}/arm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ direction })
+  })
+  .then(res => res.json())
+  .then(data => console.log(`[${selectedDevice.id}] 服务器返回:`, data))
+  .catch(err => console.error(`[${selectedDevice.id}] 发送失败:`, err));
+
+  console.log(`📤 [${selectedDevice.id}] 发送机械臂控制：`, direction);
+}
+
+
+
+</script>
+</body>
+</html>
