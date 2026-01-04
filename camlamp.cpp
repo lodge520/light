@@ -19,16 +19,14 @@ Servo armServo;
 #define SERVO_PIN_1 4
 #define SERVO_PIN_2 2
 
-// 冷暖光 LED 引脚
 #define LED_COLD_PIN 12
 #define LED_WARM_PIN 13
 #define BLUR_PIN 16
 
-//tof引脚
 #define ENABLE_TOF 1
 #define TOF_SDA_PIN 15
 #define TOF_SCL_PIN 14
-Servo myservo1;  // 垂直方向舵机
+Servo myservo1;
 Servo myservo2;
 
 WebSocketsClient wsClient;
@@ -48,7 +46,6 @@ const int PWM_RES=10;
 const int COLD_CH=0;
 const int WARM_CH=1;
 
-// 灯光控制参数
 int brightness = 80;
 int temp       = 4000;
 bool autoMode  = true;
@@ -65,7 +62,6 @@ bool personNearby   = false;
 bool usingRecommended = false;
 unsigned long transitionStart = 0;
 
-// 定时器
 unsigned long lastLightUpdate    = 0;
 const unsigned long lightUpdateInterval = 150;
 unsigned long lastUp = 0;
@@ -73,11 +69,9 @@ bool flowAutoUpload = false;
 unsigned long lastFlowUpload = 0;
 const unsigned long flowUploadInterval = 5000; // 5秒上传一次
 
-//舵机
 int angleV = 0;
 int angleH = 180;
 
-// 函数声明
 void initCamera();
 void handleStatus();
 void handleSetLight();
@@ -152,7 +146,6 @@ s->set_brightness(s, 0);     // ✅ 默认亮度
 s->set_contrast(s, 1);       // ✅ 增加对比度
 }
 
-// HTTP 接口实现
 void handleStatus() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", "{\"status\":\"ok\"}");
@@ -241,7 +234,6 @@ void sendAnnounce() {
   http.end();
 }
 
-// WebSocket 事件
 void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
   if (type == WStype_TEXT) {
     StaticJsonDocument<512> doc;
@@ -311,7 +303,6 @@ else if (doc["type"] == "arm") {
   }
 }
 
-// 灯光应用
 void applyLightSettings(int br, int tp) {
   tp = constrain(tp, 2700, 6500);
   int tempRatio    = map(tp, 2700, 6500, 0, 255);
@@ -324,10 +315,9 @@ void applyLightSettings(int br, int tp) {
   //Serial.printf("PWM Cold=%d, Warm=%d\n", pwmCold, pwmWarm);
 }
 
-//人流
 void UploadImage() {
   camera_fb_t* fb = NULL;
-for (int i = 0; i < 2; i++) {   // 丢 1 帧，再取 1 帧
+for (int i = 0; i < 2; i++) { 
   fb = esp_camera_fb_get();
   if (fb) esp_camera_fb_return(fb);
   delay(60);
@@ -351,10 +341,10 @@ if (!fb) return;
   esp_camera_fb_return(fb);
 }
 
-//服装色温
+
 void autoUploadImage() {
   camera_fb_t* fb = NULL;
-for (int i = 0; i < 2; i++) {   // 丢 1 帧，再取 1 帧
+for (int i = 0; i < 2; i++) { 
   fb = esp_camera_fb_get();
   if (fb) esp_camera_fb_return(fb);
   delay(60);
@@ -367,7 +357,6 @@ if (!fb) return;
     String url = String("http://110.41.81.4:3000/uploadImage?device=") + device_id;
   http.begin(client, url);
   http.addHeader("Content-Type", "image/jpeg");
-  // 直接把 fb->buf 作为 body 发出去
   int httpCode = http.POST(fb->buf, fb->len);
   if (httpCode > 0) {
     Serial.printf("HTTP 上传响应：%d\n", httpCode);
@@ -386,19 +375,19 @@ void updateLightingByToF() {
   unsigned long now = millis();
   Serial.printf("测距: %d mm\n", measure.RangeMilliMeter);
 
-  static unsigned long leaveStartTime = 0;  // 记录离开开始时间
+  static unsigned long leaveStartTime = 0;  
   static unsigned long transitionStart = 0;
 
   if (autoMode) {
     if (currentNearby && !personNearby) {
-      personDetectedTime = now;    // 记录靠近开始时间
+      personDetectedTime = now; 
       personNearby = true;
       transitionStart = now;
       leaveStartTime = 0;
     } 
     else if (!currentNearby && personNearby) {
-      if (leaveStartTime == 0) leaveStartTime = now;  // 记录离开开始时间
-      if (now - leaveStartTime >= 1000) {             // 离开确认，1秒防抖
+      if (leaveStartTime == 0) leaveStartTime = now;
+      if (now - leaveStartTime >= 1000) { 
         personNearby = false;
         transitionStart = now;
 
@@ -413,7 +402,6 @@ void updateLightingByToF() {
       }
     } 
     else {
-      // 状态稳定，重置防抖计时器
       if (currentNearby) leaveStartTime = 0;
       else personDetectedTime = 0;
     }
@@ -469,7 +457,6 @@ void sendStayRecordToServer(unsigned long durationSec, const char* device_id) {
     String msg = (const char *)payload;
     Serial.printf("📥 收到控制命令: %s\n", msg.c_str());
 
-    // 解析 JSON 消息
     DynamicJsonDocument doc(128);
     DeserializationError err = deserializeJson(doc, msg);
 
@@ -511,14 +498,12 @@ void setup() {
   while (WiFi.status() != WL_CONNECTED) delay(500);
   Serial.println("WiFi connected");
   
-  myservo1.setPeriodHertz(50);  // 标准 50Hz servo
+  myservo1.setPeriodHertz(50);  
   myservo2.setPeriodHertz(50);
 
-  // 连接舵机引脚（替换为你实际接线的 GPIO）
   myservo1.attach(SERVO_PIN_1);
   myservo2.attach(SERVO_PIN_2); 
-  
-  // 初始角度
+
   myservo1.write(angleV);
   myservo2.write(angleH);
   
@@ -572,4 +557,5 @@ static unsigned long lastAnnounce = 0;
   updateLightingByToF();
 #endif
 }
+
 
