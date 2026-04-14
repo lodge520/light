@@ -1094,7 +1094,7 @@ input[type="range"]:disabled {
   const pendingUpdates = [];
   const sceneCanvas = document.getElementById("sceneCanvas");
   //const DEFAULT_WS_HOST = '110.41.81.4';
-  const DEFAULT_WS_HOST ='127.0.0.1'
+  const DEFAULT_WS_HOST ='127.0.0.1:3000/ws'
   const host = getHost();
   const mainColorRGB = { r: 255, g: 255, b: 255 };
   document.getElementById('wsServerInput').value = window.location.hostname;
@@ -1764,8 +1764,8 @@ function handleWsMessage(evt) {
 
 function initWebSocket() {
   const host = getHost();
-  console.log(`🚀 准备连接 WS → ws://${host}:8081`);
-  ws = new WebSocket(`ws://${host}:8081`);
+  console.log(`🚀 准备连接 WS → ws://${host}`);
+  ws = new WebSocket(`ws://${host}`);
   ws.binaryType = 'blob';
   ws.onopen    = () => console.log('✅ WS 已连接');
   ws.onmessage = handleWsMessage;
@@ -2073,7 +2073,7 @@ async function startDeviceScan() {
   drawScene();
   const hostInput = document.getElementById('wsServerInput').value.trim();
   const host = getHost();
-  const url = `ws://110.41.81.4:8081`;
+  const url = `ws://127.0.0.1:3000/ws`;
   if (ws && ws.readyState === WebSocket.OPEN) {
   }
   scanWs = new WebSocket(url)
@@ -2298,7 +2298,7 @@ function formatTimestamp(ts) {
 
 function checkDeviceOnline(realIdx, cardIdx) {
   const device = devices[realIdx];
-  const serverHost = "110.41.81.4";
+  const serverHost = "127.0.0.1";
 
   fetch(`http://${serverHost}:3000/admin/onlineDevice`)
     .then(res => res.json())
