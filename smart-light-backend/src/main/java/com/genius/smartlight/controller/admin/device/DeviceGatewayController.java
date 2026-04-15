@@ -6,23 +6,26 @@ import com.genius.smartlight.common.CommonResult;
 import com.genius.smartlight.common.ServiceException;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
+import com.genius.smartlight.service.device.DeviceControlService;
 import com.genius.smartlight.vo.device.DeviceAnnounceReqVO;
 import com.genius.smartlight.vo.device.DeviceAnnounceRespVO;
 import com.genius.smartlight.vo.device.DeviceArmControlReqVO;
 import com.genius.smartlight.vo.device.DeviceFlowUploadReqVO;
+import com.genius.smartlight.vo.device.DeviceRespVO;
+import com.genius.smartlight.vo.device.DeviceStateSyncReqVO;
 import com.genius.smartlight.websocket.DeviceSessionManager;
 import com.genius.smartlight.websocket.WebSocketPushService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import com.genius.smartlight.service.device.DeviceControlService;
-import com.genius.smartlight.vo.device.DeviceRespVO;
-import com.genius.smartlight.vo.device.DeviceStateSyncReqVO;
-
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Tag(name = "设备指令与网关接口")
 @RestController
 @RequestMapping("/admin/device")
 @RequiredArgsConstructor
@@ -34,8 +37,10 @@ public class DeviceGatewayController {
     private final ObjectMapper objectMapper;
     private final DeviceControlService deviceControlService;
 
+    @Operation(summary = "设备上线通告")
     @PostMapping("/announce")
-    public CommonResult<DeviceAnnounceRespVO> announce(@Valid @RequestBody DeviceAnnounceReqVO reqVO) {
+    public CommonResult<DeviceAnnounceRespVO> announce(
+            @Valid @RequestBody DeviceAnnounceReqVO reqVO) {
         DeviceDO exist = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
                         .eq(DeviceDO::getDeviceCode, reqVO.getDeviceCode())
@@ -50,9 +55,12 @@ public class DeviceGatewayController {
         return CommonResult.success(respVO);
     }
 
+    @Operation(summary = "控制设备云台方向")
     @PostMapping("/arm/{deviceCode}")
-    public CommonResult<Boolean> armControl(@PathVariable String deviceCode,
-                                            @Valid @RequestBody DeviceArmControlReqVO reqVO) {
+    public CommonResult<Boolean> armControl(
+            @Parameter(description = "设备编码", example = "device001")
+            @PathVariable String deviceCode,
+            @Valid @RequestBody DeviceArmControlReqVO reqVO) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "arm");
         payload.put("deviceCode", deviceCode);
@@ -62,8 +70,11 @@ public class DeviceGatewayController {
         return CommonResult.success(true);
     }
 
+    @Operation(summary = "下发服装图片上传指令")
     @PostMapping("/cloth-upload/{deviceCode}")
-    public CommonResult<Boolean> clothUpload(@PathVariable String deviceCode) {
+    public CommonResult<Boolean> clothUpload(
+            @Parameter(description = "设备编码", example = "device001")
+            @PathVariable String deviceCode) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "command");
         payload.put("cmd", "upload_cloth");
@@ -72,9 +83,12 @@ public class DeviceGatewayController {
         return CommonResult.success(true);
     }
 
+    @Operation(summary = "下发人流上传开关指令")
     @PostMapping("/flow-upload/{deviceCode}")
-    public CommonResult<Boolean> flowUpload(@PathVariable String deviceCode,
-                                            @Valid @RequestBody DeviceFlowUploadReqVO reqVO) {
+    public CommonResult<Boolean> flowUpload(
+            @Parameter(description = "设备编码", example = "device001")
+            @PathVariable String deviceCode,
+            @Valid @RequestBody DeviceFlowUploadReqVO reqVO) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "command");
         payload.put("cmd", "flow_upload");
@@ -83,9 +97,13 @@ public class DeviceGatewayController {
         sendToDevice(deviceCode, payload);
         return CommonResult.success(true);
     }
+
+    @Operation(summary = "同步设备状态到终端")
     @PostMapping("/state-sync/{deviceCode}")
-    public CommonResult<DeviceRespVO> stateSync(@PathVariable String deviceCode,
-                                                @RequestBody DeviceStateSyncReqVO reqVO) {
+    public CommonResult<DeviceRespVO> stateSync(
+            @Parameter(description = "设备编码", example = "device001")
+            @PathVariable String deviceCode,
+            @RequestBody DeviceStateSyncReqVO reqVO) {
         return CommonResult.success(deviceControlService.syncStateToDevice(deviceCode, reqVO));
     }
 
