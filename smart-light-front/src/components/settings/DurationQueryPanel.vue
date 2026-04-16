@@ -43,8 +43,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in rows" :key="item.deviceCode">
-            <td>{{ item.deviceCode }}</td>
+          <tr v-for="item in rows" :key="item.chipId">
+            <td>{{ item.chipId }}</td>
             <td>{{ formatSeconds(item.totalDuration) }}</td>
           </tr>
         </tbody>
