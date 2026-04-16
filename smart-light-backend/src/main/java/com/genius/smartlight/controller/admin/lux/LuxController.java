@@ -23,6 +23,7 @@ public class LuxController {
 
     private final LuxService luxService;
     private final MultiLuxService multiLuxService;
+
     @Operation(summary = "新增光照记录")
     @PostMapping("/create")
     public CommonResult<Long> createLuxRecord(@Valid @RequestBody LuxCreateReqVO reqVO) {
@@ -32,17 +33,17 @@ public class LuxController {
     @Operation(summary = "查询设备最新光照")
     @GetMapping("/get-latest")
     public CommonResult<LuxRespVO> getLatestLuxRecord(
-            @Parameter(description = "设备编码", example = "device001")
-            @RequestParam String deviceCode) {
-        return CommonResult.success(luxService.getLatestLuxRecord(deviceCode));
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @RequestParam String chipId) {
+        return CommonResult.success(luxService.getLatestLuxRecord(chipId));
     }
 
     @Operation(summary = "查询设备光照记录列表")
     @GetMapping("/list")
     public CommonResult<List<LuxRespVO>> getLuxRecordList(
-            @Parameter(description = "设备编码", example = "device001")
-            @RequestParam String deviceCode) {
-        return CommonResult.success(luxService.getLuxRecordList(deviceCode));
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @RequestParam String chipId) {
+        return CommonResult.success(luxService.getLuxRecordList(chipId));
     }
 
     @Operation(summary = "查询多设备光照趋势")

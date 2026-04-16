@@ -25,38 +25,38 @@ public class DeviceOnlinePushService {
      */
     private final Map<String, Boolean> lastPushedStatusMap = new ConcurrentHashMap<>();
 
-    public void pushIfChanged(String deviceCode) {
-        if (deviceCode == null || deviceCode.isBlank()) {
+    public void pushIfChanged(String chipId) {
+        if (chipId == null || chipId.isBlank()) {
             return;
         }
 
-        boolean currentOnline = deviceSessionManager.isOnline(deviceCode);
-        Boolean lastPushed = lastPushedStatusMap.get(deviceCode);
+        boolean currentOnline = deviceSessionManager.isOnline(chipId);
+        Boolean lastPushed = lastPushedStatusMap.get(chipId);
 
         if (lastPushed == null || lastPushed != currentOnline) {
-            DeviceOnlineStatusRespVO respVO = buildOnlineStatus(deviceCode);
+            DeviceOnlineStatusRespVO respVO = buildOnlineStatus(chipId);
             webSocketPushService.pushOnlineStatus(respVO);
-            lastPushedStatusMap.put(deviceCode, currentOnline);
+            lastPushedStatusMap.put(chipId, currentOnline);
         }
     }
 
     public void scanAndPushOfflineChanges() {
-        for (String deviceCode : deviceSessionManager.getTrackedDeviceCodes()) {
-            pushIfChanged(deviceCode);
+        for (String chipId : deviceSessionManager.getTrackedChipIds()) {
+            pushIfChanged(chipId);
         }
     }
 
-    private DeviceOnlineStatusRespVO buildOnlineStatus(String deviceCode) {
+    private DeviceOnlineStatusRespVO buildOnlineStatus(String chipId) {
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getDeviceCode, deviceCode)
+                        .eq(DeviceDO::getChipId, chipId)
         );
 
         DeviceOnlineStatusRespVO respVO = new DeviceOnlineStatusRespVO();
-        respVO.setDeviceCode(deviceCode);
+        respVO.setChipId(chipId);
         respVO.setIp(device != null ? device.getIp() : null);
-        respVO.setOnline(deviceSessionManager.isOnline(deviceCode));
-        respVO.setLastSeen(deviceSessionManager.getLastSeen(deviceCode));
+        respVO.setOnline(deviceSessionManager.isOnline(chipId));
+        respVO.setLastSeen(deviceSessionManager.getLastSeen(chipId));
         return respVO;
     }
 }

@@ -27,7 +27,7 @@ public class DeviceReportServiceImpl implements DeviceReportService {
     public void reportState(DeviceStateReportReqVO reqVO) {
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getDeviceCode, reqVO.getDeviceCode())
+                        .eq(DeviceDO::getChipId, reqVO.getChipId())
         );
 
         if (device == null) {
@@ -36,6 +36,9 @@ public class DeviceReportServiceImpl implements DeviceReportService {
 
         if (reqVO.getIp() != null) {
             device.setIp(reqVO.getIp());
+        }
+        if (reqVO.getDeviceType() != null) {
+            device.setDeviceType(reqVO.getDeviceType());
         }
         if (reqVO.getBrightness() != null) {
             device.setBrightness(reqVO.getBrightness());
@@ -62,8 +65,8 @@ public class DeviceReportServiceImpl implements DeviceReportService {
         device.setUpdateTime(LocalDateTime.now());
         deviceMapper.updateById(device);
 
-        // 如果设备已经走 ws/device 注册过，这里顺手刷新一下 lastSeen
-        deviceSessionManager.touch(reqVO.getDeviceCode());
+        // 设备已经走 ws/device 注册过，这里刷新 lastSeen
+        deviceSessionManager.touch(reqVO.getChipId());
 
         DeviceRespVO respVO = DeviceConvert.convert(device);
         webSocketPushService.pushState(respVO);

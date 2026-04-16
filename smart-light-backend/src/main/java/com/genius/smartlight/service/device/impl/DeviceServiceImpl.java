@@ -8,17 +8,17 @@ import com.genius.smartlight.dal.mysql.DeviceMapper;
 import com.genius.smartlight.service.device.DeviceService;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
+import com.genius.smartlight.websocket.WebSocketPushService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import com.genius.smartlight.websocket.WebSocketPushService;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-
 @Service
 @RequiredArgsConstructor
 public class DeviceServiceImpl implements DeviceService {
+
     private final WebSocketPushService webSocketPushService;
     private final DeviceMapper deviceMapper;
 
@@ -26,10 +26,10 @@ public class DeviceServiceImpl implements DeviceService {
     public Long createDevice(DeviceSaveReqVO reqVO) {
         DeviceDO exist = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getDeviceCode, reqVO.getDeviceCode())
+                        .eq(DeviceDO::getChipId, reqVO.getChipId())
         );
         if (exist != null) {
-            throw new ServiceException("设备编码已存在");
+            throw new ServiceException("芯片ID已存在");
         }
 
         DeviceDO device = DeviceConvert.convert(reqVO);
@@ -49,6 +49,17 @@ public class DeviceServiceImpl implements DeviceService {
         DeviceDO device = deviceMapper.selectById(id);
         if (device == null) {
             throw new ServiceException("设备不存在");
+        }
+
+        // 如果芯片ID被修改，需要检查唯一性
+        if (!device.getChipId().equals(reqVO.getChipId())) {
+            DeviceDO exist = deviceMapper.selectOne(
+                    new LambdaQueryWrapper<DeviceDO>()
+                            .eq(DeviceDO::getChipId, reqVO.getChipId())
+            );
+            if (exist != null) {
+                throw new ServiceException("芯片ID已存在");
+            }
         }
 
         DeviceDO updateObj = DeviceConvert.convert(reqVO);
@@ -88,10 +99,10 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
-    public DeviceRespVO getDeviceByCode(String deviceCode) {
+    public DeviceRespVO getDeviceByChipId(String chipId) {
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getDeviceCode, deviceCode)
+                        .eq(DeviceDO::getChipId, chipId)
         );
         if (device == null) {
             throw new ServiceException("设备不存在");

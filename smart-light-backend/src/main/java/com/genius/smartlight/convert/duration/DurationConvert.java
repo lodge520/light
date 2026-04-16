@@ -8,7 +8,7 @@ public class DurationConvert {
 
     public static DurationRecordDO convert(DurationCreateReqVO reqVO) {
         DurationRecordDO record = new DurationRecordDO();
-        record.setDeviceCode(reqVO.getDeviceCode());
+        record.setChipId(reqVO.getChipId());
         record.setStatDate(reqVO.getStatDate());
         record.setDurationValue(reqVO.getDurationValue());
         return record;
@@ -17,7 +17,7 @@ public class DurationConvert {
     public static DurationRespVO convert(DurationRecordDO record) {
         DurationRespVO respVO = new DurationRespVO();
         respVO.setId(record.getId());
-        respVO.setDeviceCode(record.getDeviceCode());
+        respVO.setChipId(record.getChipId());
         respVO.setStatDate(record.getStatDate());
         respVO.setDurationValue(record.getDurationValue());
         respVO.setCreateTime(record.getCreateTime());

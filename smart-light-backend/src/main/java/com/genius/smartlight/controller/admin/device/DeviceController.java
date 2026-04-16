@@ -1,9 +1,9 @@
 package com.genius.smartlight.controller.admin.device;
 
 import com.genius.smartlight.common.CommonResult;
+import com.genius.smartlight.service.device.DeviceService;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
-import com.genius.smartlight.service.device.DeviceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -63,10 +63,10 @@ public class DeviceController {
         return CommonResult.success(deviceService.getDeviceList());
     }
 
-    @Operation(summary = "根据设备编码查询设备")
-    @GetMapping("/get-by-code")
-    public CommonResult<DeviceRespVO> getDeviceByCode(
-            @Parameter(description = "设备编码") @RequestParam String deviceCode) {
-        return CommonResult.success(deviceService.getDeviceByCode(deviceCode));
+    @Operation(summary = "根据芯片ID查询设备")
+    @GetMapping("/by-chip-id")
+    public CommonResult<DeviceRespVO> getDeviceByChipId(
+            @Parameter(description = "芯片ID") @RequestParam String chipId) {
+        return CommonResult.success(deviceService.getDeviceByChipId(chipId));
     }
 }

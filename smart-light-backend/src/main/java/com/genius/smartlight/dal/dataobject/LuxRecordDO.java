@@ -15,8 +15,8 @@ public class LuxRecordDO {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    @TableField("device_code")
-    private String deviceCode;
+    @TableField("chip_id")
+    private String chipId;
 
     @TableField("lux_value")
     private Double luxValue;

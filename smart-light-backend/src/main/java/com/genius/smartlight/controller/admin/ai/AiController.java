@@ -25,9 +25,9 @@ public class AiController {
     public CommonResult<FabricRecognizeRespVO> fabricRecognize(
             @Parameter(description = "上传图片文件")
             @RequestPart("file") MultipartFile file,
-            @Parameter(description = "设备编码，可选", example = "device001")
-            @RequestParam(required = false) String deviceCode) {
-        return CommonResult.success(aiService.fabricRecognize(deviceCode, file));
+            @Parameter(description = "芯片ID，可选", example = "ABC123456")
+            @RequestParam(required = false) String chipId) {
+        return CommonResult.success(aiService.fabricRecognize(chipId, file));
     }
 
     @Operation(summary = "人流检测")
@@ -35,8 +35,8 @@ public class AiController {
     public CommonResult<PersonDetectRespVO> personDetect(
             @Parameter(description = "上传图片文件")
             @RequestPart("file") MultipartFile file,
-            @Parameter(description = "设备编码，可选", example = "device001")
-            @RequestParam(required = false) String deviceCode) {
-        return CommonResult.success(aiService.personDetect(deviceCode, file));
+            @Parameter(description = "芯片ID，可选", example = "ABC123456")
+            @RequestParam(required = false) String chipId) {
+        return CommonResult.success(aiService.personDetect(chipId, file));
     }
 }

@@ -12,8 +12,17 @@ public class DeviceRespVO {
     @Schema(description = "主键ID", example = "1")
     private Long id;
 
-    @Schema(description = "设备编码", example = "device001")
-    private String deviceCode;
+    @Schema(description = "芯片唯一ID", example = "ABC123456")
+    private String chipId;
+
+    @Schema(description = "设备类型", example = "lamp")
+    private String deviceType;
+
+    @Schema(description = "店内编号", example = "1")
+    private String deviceNo;
+
+    @Schema(description = "展示名称", example = "橱窗灯1")
+    private String displayName;
 
     @Schema(description = "设备IP地址", example = "192.168.1.10")
     private String ip;

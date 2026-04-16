@@ -20,20 +20,20 @@ public class DeviceOnlineServiceImpl implements DeviceOnlineService {
     private final DeviceSessionManager deviceSessionManager;
 
     @Override
-    public DeviceOnlineStatusRespVO getOnlineStatus(String deviceCode) {
+    public DeviceOnlineStatusRespVO getOnlineStatus(String chipId) {
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getDeviceCode, deviceCode)
+                        .eq(DeviceDO::getChipId, chipId)
         );
         if (device == null) {
             throw new ServiceException("设备不存在");
         }
 
         DeviceOnlineStatusRespVO respVO = new DeviceOnlineStatusRespVO();
-        respVO.setDeviceCode(device.getDeviceCode());
+        respVO.setChipId(device.getChipId());
         respVO.setIp(device.getIp());
-        respVO.setOnline(deviceSessionManager.isOnline(deviceCode));
-        respVO.setLastSeen(deviceSessionManager.getLastSeen(deviceCode));
+        respVO.setOnline(deviceSessionManager.isOnline(chipId));
+        respVO.setLastSeen(deviceSessionManager.getLastSeen(chipId));
         return respVO;
     }
 
@@ -43,10 +43,10 @@ public class DeviceOnlineServiceImpl implements DeviceOnlineService {
 
         return devices.stream().map(device -> {
             DeviceOnlineStatusRespVO respVO = new DeviceOnlineStatusRespVO();
-            respVO.setDeviceCode(device.getDeviceCode());
+            respVO.setChipId(device.getChipId());
             respVO.setIp(device.getIp());
-            respVO.setOnline(deviceSessionManager.isOnline(device.getDeviceCode()));
-            respVO.setLastSeen(deviceSessionManager.getLastSeen(device.getDeviceCode()));
+            respVO.setOnline(deviceSessionManager.isOnline(device.getChipId()));
+            respVO.setLastSeen(deviceSessionManager.getLastSeen(device.getChipId()));
             return respVO;
         }).toList();
     }

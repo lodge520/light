@@ -11,9 +11,9 @@ import java.time.LocalDate;
 @Data
 public class DurationCreateReqVO {
 
-    @Schema(description = "设备编码", example = "device001")
-    @NotBlank(message = "设备编码不能为空")
-    private String deviceCode;
+    @Schema(description = "芯片ID", example = "ABC123456")
+    @NotBlank(message = "芯片ID不能为空")
+    private String chipId;
 
     @Schema(description = "统计日期", example = "2026-04-14")
     @NotNull(message = "统计日期不能为空")

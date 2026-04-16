@@ -3,13 +3,13 @@ package com.genius.smartlight.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.genius.smartlight.vo.ai.FabricRecognizeRespVO;
 import com.genius.smartlight.vo.ai.PersonDetectRespVO;
+import com.genius.smartlight.vo.device.DeviceOnlineStatusRespVO;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.duration.DurationRespVO;
 import com.genius.smartlight.vo.lux.LuxRespVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import com.genius.smartlight.vo.device.DeviceOnlineStatusRespVO;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,18 +44,18 @@ public class WebSocketPushService {
         broadcast("durationUpdate", data);
     }
 
-    public void pushFabricRecognize(String deviceCode, String filename, FabricRecognizeRespVO result) {
+    public void pushFabricRecognize(String chipId, String filename, FabricRecognizeRespVO result) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("deviceCode", deviceCode);
+        data.put("chipId", chipId);
         data.put("filename", filename);
         data.put("label", result.getLabel());
         data.put("confidence", result.getConfidence());
         broadcast("fabricRecognize", data);
     }
 
-    public void pushPersonDetect(String deviceCode, String filename, PersonDetectRespVO result) {
+    public void pushPersonDetect(String chipId, String filename, PersonDetectRespVO result) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("deviceCode", deviceCode);
+        data.put("chipId", chipId);
         data.put("filename", filename);
         data.put("count", result.getCount());
         data.put("confidence", result.getConfidence());
@@ -65,9 +65,9 @@ public class WebSocketPushService {
         broadcast("personDetection", data);
     }
 
-    public void pushAnnounce(String deviceCode, String ip, Boolean added) {
+    public void pushAnnounce(String chipId, String ip, Boolean added) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("deviceCode", deviceCode);
+        data.put("chipId", chipId);
         data.put("ip", ip);
         data.put("added", added);
         broadcast("announce", data);

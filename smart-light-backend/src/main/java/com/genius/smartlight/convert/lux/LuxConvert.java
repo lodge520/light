@@ -8,7 +8,7 @@ public class LuxConvert {
 
     public static LuxRecordDO convert(LuxCreateReqVO reqVO) {
         LuxRecordDO record = new LuxRecordDO();
-        record.setDeviceCode(reqVO.getDeviceCode());
+        record.setChipId(reqVO.getChipId());
         record.setLuxValue(reqVO.getLuxValue());
         record.setCollectTime(reqVO.getCollectTime());
         return record;
@@ -17,7 +17,7 @@ public class LuxConvert {
     public static LuxRespVO convert(LuxRecordDO record) {
         LuxRespVO respVO = new LuxRespVO();
         respVO.setId(record.getId());
-        respVO.setDeviceCode(record.getDeviceCode());
+        respVO.setChipId(record.getChipId());
         respVO.setLuxValue(record.getLuxValue());
         respVO.setCollectTime(record.getCollectTime());
         respVO.setCreateTime(record.getCreateTime());
