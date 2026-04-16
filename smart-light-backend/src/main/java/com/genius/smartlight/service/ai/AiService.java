@@ -6,7 +6,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface AiService {
 
-    FabricRecognizeRespVO fabricRecognize(String deviceCode, MultipartFile file);
+    FabricRecognizeRespVO fabricRecognize(String chipId, MultipartFile file);
 
-    PersonDetectRespVO personDetect(String deviceCode, MultipartFile file);
+    PersonDetectRespVO personDetect(String chipId, MultipartFile file);
 }

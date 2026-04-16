@@ -8,9 +8,9 @@ import com.genius.smartlight.dal.mysql.LuxRecordMapper;
 import com.genius.smartlight.service.lux.LuxService;
 import com.genius.smartlight.vo.lux.LuxCreateReqVO;
 import com.genius.smartlight.vo.lux.LuxRespVO;
+import com.genius.smartlight.websocket.WebSocketPushService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import com.genius.smartlight.websocket.WebSocketPushService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +21,7 @@ public class LuxServiceImpl implements LuxService {
 
     private final LuxRecordMapper luxRecordMapper;
     private final WebSocketPushService webSocketPushService;
+
     @Override
     public Long createLuxRecord(LuxCreateReqVO reqVO) {
         LuxRecordDO record = LuxConvert.convert(reqVO);
@@ -36,10 +37,10 @@ public class LuxServiceImpl implements LuxService {
     }
 
     @Override
-    public LuxRespVO getLatestLuxRecord(String deviceCode) {
+    public LuxRespVO getLatestLuxRecord(String chipId) {
         LuxRecordDO record = luxRecordMapper.selectOne(
                 new LambdaQueryWrapper<LuxRecordDO>()
-                        .eq(LuxRecordDO::getDeviceCode, deviceCode)
+                        .eq(LuxRecordDO::getChipId, chipId)
                         .orderByDesc(LuxRecordDO::getCollectTime)
                         .last("limit 1")
         );
@@ -50,10 +51,10 @@ public class LuxServiceImpl implements LuxService {
     }
 
     @Override
-    public List<LuxRespVO> getLuxRecordList(String deviceCode) {
+    public List<LuxRespVO> getLuxRecordList(String chipId) {
         List<LuxRecordDO> list = luxRecordMapper.selectList(
                 new LambdaQueryWrapper<LuxRecordDO>()
-                        .eq(LuxRecordDO::getDeviceCode, deviceCode)
+                        .eq(LuxRecordDO::getChipId, chipId)
                         .orderByDesc(LuxRecordDO::getCollectTime)
         );
         return list.stream().map(LuxConvert::convert).toList();

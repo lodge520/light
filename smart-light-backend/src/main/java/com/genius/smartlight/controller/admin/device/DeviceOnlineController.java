@@ -20,11 +20,11 @@ public class DeviceOnlineController {
     private final DeviceOnlineService deviceOnlineService;
 
     @Operation(summary = "查询单个设备在线状态")
-    @GetMapping("/online-status/{deviceCode}")
+    @GetMapping("/online-status/{chipId}")
     public CommonResult<DeviceOnlineStatusRespVO> getOnlineStatus(
-            @Parameter(description = "设备编码", example = "device001")
-            @PathVariable String deviceCode) {
-        return CommonResult.success(deviceOnlineService.getOnlineStatus(deviceCode));
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @PathVariable String chipId) {
+        return CommonResult.success(deviceOnlineService.getOnlineStatus(chipId));
     }
 
     @Operation(summary = "查询在线设备列表")

@@ -30,23 +30,23 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         try {
             JsonNode node = objectMapper.readTree(message.getPayload());
             String type = node.path("type").asText();
-            String deviceCode = node.path("deviceCode").asText();
+            String chipId = node.path("chipId").asText();
 
             if ("register".equals(type)) {
-                if (deviceCode == null || deviceCode.isBlank()) {
-                    log.warn("Device register missing deviceCode, sessionId={}", session.getId());
+                if (chipId == null || chipId.isBlank()) {
+                    log.warn("Device register missing chipId, sessionId={}", session.getId());
                     return;
                 }
-                deviceSessionManager.registerDevice(deviceCode, session);
-                deviceOnlinePushService.pushIfChanged(deviceCode);
+                deviceSessionManager.registerDevice(chipId, session);
+                deviceOnlinePushService.pushIfChanged(chipId);
                 session.sendMessage(new TextMessage("{\"type\":\"registerAck\",\"data\":\"ok\"}"));
                 return;
             }
 
             if ("ping".equals(type)) {
-                if (deviceCode != null && !deviceCode.isBlank()) {
-                    deviceSessionManager.touch(deviceCode);
-                    deviceOnlinePushService.pushIfChanged(deviceCode);
+                if (chipId != null && !chipId.isBlank()) {
+                    deviceSessionManager.touch(chipId);
+                    deviceOnlinePushService.pushIfChanged(chipId);
                 }
                 session.sendMessage(new TextMessage("{\"type\":\"pong\",\"data\":\"ok\"}"));
                 return;
@@ -60,9 +60,9 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        String deviceCode = deviceSessionManager.removeBySession(session);
-        if (deviceCode != null) {
-            deviceOnlinePushService.pushIfChanged(deviceCode);
+        String chipId = deviceSessionManager.removeBySession(session);
+        if (chipId != null) {
+            deviceOnlinePushService.pushIfChanged(chipId);
         }
     }
 }

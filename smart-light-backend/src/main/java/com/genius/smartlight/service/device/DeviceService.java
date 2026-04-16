@@ -17,5 +17,5 @@ public interface DeviceService {
 
     List<DeviceRespVO> getDeviceList();
 
-    DeviceRespVO getDeviceByCode(String deviceCode);
+    DeviceRespVO getDeviceByChipId(String chipId);
 }

@@ -8,9 +8,13 @@ import lombok.Data;
 @Data
 public class DeviceStateReportReqVO {
 
-    @Schema(description = "设备编码", example = "device001")
-    @NotBlank(message = "设备编码不能为空")
-    private String deviceCode;
+    @Schema(description = "芯片唯一ID", example = "ABC123456")
+    @NotBlank(message = "芯片ID不能为空")
+    private String chipId;
+
+    @Schema(description = "设备类型 lamp/camlamp", example = "lamp")
+    @NotBlank(message = "设备类型不能为空")
+    private String deviceType;
 
     @Schema(description = "设备IP地址", example = "192.168.1.10")
     private String ip;

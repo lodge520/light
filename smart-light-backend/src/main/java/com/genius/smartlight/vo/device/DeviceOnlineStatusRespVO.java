@@ -7,8 +7,8 @@ import lombok.Data;
 @Data
 public class DeviceOnlineStatusRespVO {
 
-    @Schema(description = "设备编码", example = "device001")
-    private String deviceCode;
+    @Schema(description = "芯片ID", example = "ABC123456")
+    private String chipId;
 
     @Schema(description = "设备IP地址", example = "192.168.1.10")
     private String ip;

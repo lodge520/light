@@ -6,18 +6,30 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
-@Schema(description = "设备新增/更新请求")
+@Schema(description = "设备新增/修改请求")
 @Data
 public class DeviceSaveReqVO {
 
-    @Schema(description = "设备编码", example = "device001")
-    @NotBlank(message = "设备编码不能为空")
-    private String deviceCode;
+    @Schema(description = "芯片唯一ID", example = "ABC123456")
+    @NotBlank(message = "芯片ID不能为空")
+    private String chipId;
+
+    @Schema(description = "设备类型 lamp/camlamp", example = "lamp")
+    @NotBlank(message = "设备类型不能为空")
+    private String deviceType;
+
+    @Schema(description = "店内编号", example = "1")
+    @NotBlank(message = "店内编号不能为空")
+    private String deviceNo;
+
+    @Schema(description = "展示名称", example = "橱窗灯1")
+    @NotBlank(message = "展示名称不能为空")
+    private String displayName;
 
     @Schema(description = "设备IP地址", example = "192.168.1.10")
     private String ip;
 
-    @Schema(description = "亮度，范围 0-100", example = "80")
+    @Schema(description = "亮度", example = "80")
     @Min(value = 0, message = "亮度不能小于0")
     @Max(value = 100, message = "亮度不能大于100")
     private Integer brightness;

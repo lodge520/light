@@ -33,7 +33,7 @@ public class MultiLuxServiceImpl implements MultiLuxService {
         for (DeviceDO device : devices) {
             List<LuxRecordDO> luxList = luxMapper.selectList(
                     new LambdaQueryWrapper<LuxRecordDO>()
-                            .eq(LuxRecordDO::getDeviceCode, device.getDeviceCode())
+                            .eq(LuxRecordDO::getChipId, device.getChipId())
                             .orderByAsc(LuxRecordDO::getCollectTime)
                             .orderByAsc(LuxRecordDO::getCreateTime)
             );
@@ -46,7 +46,7 @@ public class MultiLuxServiceImpl implements MultiLuxService {
                     ? luxList.subList(luxList.size() - 12, luxList.size())
                     : luxList;
 
-            deviceLuxMap.put(device.getDeviceCode(), lastLuxList);
+            deviceLuxMap.put(device.getChipId(), lastLuxList);
 
             for (LuxRecordDO lux : lastLuxList) {
                 labelSet.add(formatLabel(lux));
@@ -60,7 +60,7 @@ public class MultiLuxServiceImpl implements MultiLuxService {
         List<MultiLuxRespVO.Dataset> datasets = new ArrayList<>();
 
         for (Map.Entry<String, List<LuxRecordDO>> entry : deviceLuxMap.entrySet()) {
-            String deviceCode = entry.getKey();
+            String chipId = entry.getKey();
             List<LuxRecordDO> luxList = entry.getValue();
 
             Map<String, Double> pointMap = new HashMap<>();
@@ -69,7 +69,7 @@ public class MultiLuxServiceImpl implements MultiLuxService {
             }
 
             MultiLuxRespVO.Dataset dataset = new MultiLuxRespVO.Dataset();
-            dataset.setLabel(deviceCode);
+            dataset.setLabel(chipId);
 
             List<Double> data = new ArrayList<>();
             for (String label : labels) {

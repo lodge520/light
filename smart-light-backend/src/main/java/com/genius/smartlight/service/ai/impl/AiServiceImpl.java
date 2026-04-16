@@ -20,18 +20,18 @@ public class AiServiceImpl implements AiService {
     private final WebSocketPushService webSocketPushService;
 
     @Override
-    public FabricRecognizeRespVO fabricRecognize(String deviceCode, MultipartFile file) {
+    public FabricRecognizeRespVO fabricRecognize(String chipId, MultipartFile file) {
         validateFile(file);
         FabricRecognizeRespVO result = fabricAiClient.recognize(file);
-        webSocketPushService.pushFabricRecognize(deviceCode, file.getOriginalFilename(), result);
+        webSocketPushService.pushFabricRecognize(chipId, file.getOriginalFilename(), result);
         return result;
     }
 
     @Override
-    public PersonDetectRespVO personDetect(String deviceCode, MultipartFile file) {
+    public PersonDetectRespVO personDetect(String chipId, MultipartFile file) {
         validateFile(file);
         PersonDetectRespVO result = personDetectClient.detect(file);
-        webSocketPushService.pushPersonDetect(deviceCode, file.getOriginalFilename(), result);
+        webSocketPushService.pushPersonDetect(chipId, file.getOriginalFilename(), result);
         return result;
     }
 

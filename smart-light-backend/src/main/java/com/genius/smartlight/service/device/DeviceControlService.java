@@ -5,5 +5,5 @@ import com.genius.smartlight.vo.device.DeviceStateSyncReqVO;
 
 public interface DeviceControlService {
 
-    DeviceRespVO syncStateToDevice(String deviceCode, DeviceStateSyncReqVO reqVO);
+    DeviceRespVO syncStateToDevice(String chipId, DeviceStateSyncReqVO reqVO);
 }

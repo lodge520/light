@@ -31,46 +31,46 @@ public class DurationController {
         return CommonResult.success(durationService.createOrIncrease(reqVO));
     }
 
-    @Operation(summary = "按设备与日期查询停留时长")
+    @Operation(summary = "按芯片ID与日期查询停留时长")
     @GetMapping("/get")
-    public CommonResult<DurationRespVO> getByDeviceCodeAndDate(
-            @Parameter(description = "设备编码", example = "device001")
-            @RequestParam String deviceCode,
+    public CommonResult<DurationRespVO> getByChipIdAndDate(
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @RequestParam String chipId,
             @Parameter(description = "统计日期", example = "2026-04-14")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate statDate) {
-        return CommonResult.success(durationService.getByDeviceCodeAndDate(deviceCode, statDate));
+        return CommonResult.success(durationService.getByChipIdAndDate(chipId, statDate));
     }
 
     @Operation(summary = "查询设备全部停留记录")
     @GetMapping("/list")
-    public CommonResult<List<DurationRespVO>> getListByDeviceCode(
-            @Parameter(description = "设备编码", example = "device001")
-            @RequestParam String deviceCode) {
-        return CommonResult.success(durationService.getListByDeviceCode(deviceCode));
+    public CommonResult<List<DurationRespVO>> getListByChipId(
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @RequestParam String chipId) {
+        return CommonResult.success(durationService.getListByChipId(chipId));
     }
 
     @Operation(summary = "按日期范围查询停留记录")
     @GetMapping("/range")
     public CommonResult<List<DurationRespVO>> getListByDateRange(
-            @Parameter(description = "设备编码", example = "device001")
-            @RequestParam String deviceCode,
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @RequestParam String chipId,
             @Parameter(description = "开始日期", example = "2026-04-01")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @Parameter(description = "结束日期", example = "2026-04-14")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return CommonResult.success(durationService.getListByDateRange(deviceCode, startDate, endDate));
+        return CommonResult.success(durationService.getListByDateRange(chipId, startDate, endDate));
     }
 
     @Operation(summary = "按日期范围汇总停留时长")
     @GetMapping("/sum")
     public CommonResult<DurationSumRespVO> getSumByDateRange(
-            @Parameter(description = "设备编码", example = "device001")
-            @RequestParam String deviceCode,
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @RequestParam String chipId,
             @Parameter(description = "开始日期", example = "2026-04-01")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @Parameter(description = "结束日期", example = "2026-04-14")
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return CommonResult.success(durationService.getSumByDateRange(deviceCode, startDate, endDate));
+        return CommonResult.success(durationService.getSumByDateRange(chipId, startDate, endDate));
     }
 
     @Operation(summary = "按日期范围统计各设备停留汇总")

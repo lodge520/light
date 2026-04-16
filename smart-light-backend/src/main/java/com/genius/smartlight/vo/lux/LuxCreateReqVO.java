@@ -11,9 +11,9 @@ import java.time.LocalDateTime;
 @Data
 public class LuxCreateReqVO {
 
-    @Schema(description = "设备编码", example = "device001")
-    @NotBlank(message = "设备编码不能为空")
-    private String deviceCode;
+    @Schema(description = "芯片ID", example = "ABC123456")
+    @NotBlank(message = "芯片ID不能为空")
+    private String chipId;
 
     @Schema(description = "光照值", example = "356.5")
     @NotNull(message = "光照值不能为空")

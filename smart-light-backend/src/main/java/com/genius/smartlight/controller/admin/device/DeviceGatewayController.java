@@ -43,7 +43,7 @@ public class DeviceGatewayController {
             @Valid @RequestBody DeviceAnnounceReqVO reqVO) {
         DeviceDO exist = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getDeviceCode, reqVO.getDeviceCode())
+                        .eq(DeviceDO::getChipId, reqVO.getChipId())
         );
 
         boolean added = exist != null;
@@ -51,70 +51,70 @@ public class DeviceGatewayController {
         DeviceAnnounceRespVO respVO = new DeviceAnnounceRespVO();
         respVO.setAdded(added);
 
-        webSocketPushService.pushAnnounce(reqVO.getDeviceCode(), reqVO.getIp(), added);
+        webSocketPushService.pushAnnounce(reqVO.getChipId(), reqVO.getIp(), added);
         return CommonResult.success(respVO);
     }
 
     @Operation(summary = "控制设备云台方向")
-    @PostMapping("/arm/{deviceCode}")
+    @PostMapping("/arm/{chipId}")
     public CommonResult<Boolean> armControl(
-            @Parameter(description = "设备编码", example = "device001")
-            @PathVariable String deviceCode,
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @PathVariable String chipId,
             @Valid @RequestBody DeviceArmControlReqVO reqVO) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "arm");
-        payload.put("deviceCode", deviceCode);
+        payload.put("chipId", chipId);
         payload.put("direction", reqVO.getDirection());
 
-        sendToDevice(deviceCode, payload);
+        sendToDevice(chipId, payload);
         return CommonResult.success(true);
     }
 
     @Operation(summary = "下发服装图片上传指令")
-    @PostMapping("/cloth-upload/{deviceCode}")
+    @PostMapping("/cloth-upload/{chipId}")
     public CommonResult<Boolean> clothUpload(
-            @Parameter(description = "设备编码", example = "device001")
-            @PathVariable String deviceCode) {
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @PathVariable String chipId) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "command");
         payload.put("cmd", "upload_cloth");
 
-        sendToDevice(deviceCode, payload);
+        sendToDevice(chipId, payload);
         return CommonResult.success(true);
     }
 
     @Operation(summary = "下发人流上传开关指令")
-    @PostMapping("/flow-upload/{deviceCode}")
+    @PostMapping("/flow-upload/{chipId}")
     public CommonResult<Boolean> flowUpload(
-            @Parameter(description = "设备编码", example = "device001")
-            @PathVariable String deviceCode,
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @PathVariable String chipId,
             @Valid @RequestBody DeviceFlowUploadReqVO reqVO) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "command");
         payload.put("cmd", "flow_upload");
         payload.put("enabled", reqVO.getEnabled());
 
-        sendToDevice(deviceCode, payload);
+        sendToDevice(chipId, payload);
         return CommonResult.success(true);
     }
 
     @Operation(summary = "同步设备状态到终端")
-    @PostMapping("/state-sync/{deviceCode}")
+    @PostMapping("/state-sync/{chipId}")
     public CommonResult<DeviceRespVO> stateSync(
-            @Parameter(description = "设备编码", example = "device001")
-            @PathVariable String deviceCode,
+            @Parameter(description = "芯片ID", example = "ABC123456")
+            @PathVariable String chipId,
             @RequestBody DeviceStateSyncReqVO reqVO) {
-        return CommonResult.success(deviceControlService.syncStateToDevice(deviceCode, reqVO));
+        return CommonResult.success(deviceControlService.syncStateToDevice(chipId, reqVO));
     }
 
-    private void sendToDevice(String deviceCode, Object payload) {
-        if (!deviceSessionManager.isOnline(deviceCode)) {
+    private void sendToDevice(String chipId, Object payload) {
+        if (!deviceSessionManager.isOnline(chipId)) {
             throw new ServiceException("设备未连接或已离线");
         }
 
         try {
             String text = objectMapper.writeValueAsString(payload);
-            boolean sent = deviceSessionManager.sendToDevice(deviceCode, text);
+            boolean sent = deviceSessionManager.sendToDevice(chipId, text);
             if (!sent) {
                 throw new ServiceException("指令发送失败");
             }

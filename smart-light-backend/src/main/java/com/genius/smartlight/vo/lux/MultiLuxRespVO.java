@@ -19,7 +19,7 @@ public class MultiLuxRespVO {
     @Schema(description = "单个设备光照数据集")
     public static class Dataset {
 
-        @Schema(description = "设备编码", example = "camlamp1")
+        @Schema(description = "芯片ID", example = "ABC123456")
         private String label;
 
         @Schema(description = "光照序列")

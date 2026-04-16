@@ -20,30 +20,30 @@ public class DeviceSessionManager {
     private final Map<String, WebSocketSession> deviceSessionMap = new ConcurrentHashMap<>();
     private final Map<String, Long> lastSeenMap = new ConcurrentHashMap<>();
 
-    public void registerDevice(String deviceCode, WebSocketSession session) {
-        WebSocketSession oldSession = deviceSessionMap.put(deviceCode, session);
-        lastSeenMap.put(deviceCode, System.currentTimeMillis());
+    public void registerDevice(String chipId, WebSocketSession session) {
+        WebSocketSession oldSession = deviceSessionMap.put(chipId, session);
+        lastSeenMap.put(chipId, System.currentTimeMillis());
 
         if (oldSession != null && oldSession != session && oldSession.isOpen()) {
             try {
                 oldSession.close();
             } catch (IOException e) {
-                log.warn("Close old device session failed, deviceCode={}", deviceCode, e);
+                log.warn("Close old device session failed, chipId={}", chipId, e);
             }
         }
 
-        log.info("Device registered: deviceCode={}, sessionId={}", deviceCode, session.getId());
+        log.info("Device registered: chipId={}, sessionId={}", chipId, session.getId());
     }
 
-    public void touch(String deviceCode) {
-        if (deviceCode != null && !deviceCode.isBlank()) {
-            lastSeenMap.put(deviceCode, System.currentTimeMillis());
+    public void touch(String chipId) {
+        if (chipId != null && !chipId.isBlank()) {
+            lastSeenMap.put(chipId, System.currentTimeMillis());
         }
     }
 
-    public boolean isOnline(String deviceCode) {
-        WebSocketSession session = deviceSessionMap.get(deviceCode);
-        Long lastSeen = lastSeenMap.get(deviceCode);
+    public boolean isOnline(String chipId) {
+        WebSocketSession session = deviceSessionMap.get(chipId);
+        Long lastSeen = lastSeenMap.get(chipId);
 
         return session != null
                 && session.isOpen()
@@ -51,18 +51,18 @@ public class DeviceSessionManager {
                 && System.currentTimeMillis() - lastSeen <= ONLINE_TIMEOUT_MS;
     }
 
-    public Long getLastSeen(String deviceCode) {
-        return lastSeenMap.get(deviceCode);
+    public Long getLastSeen(String chipId) {
+        return lastSeenMap.get(chipId);
     }
 
-    public Set<String> getTrackedDeviceCodes() {
-        Set<String> codes = new HashSet<>(lastSeenMap.keySet());
-        codes.addAll(deviceSessionMap.keySet());
-        return codes;
+    public Set<String> getTrackedChipIds() {
+        Set<String> chipIds = new HashSet<>(lastSeenMap.keySet());
+        chipIds.addAll(deviceSessionMap.keySet());
+        return chipIds;
     }
 
-    public boolean sendToDevice(String deviceCode, String payload) {
-        WebSocketSession session = deviceSessionMap.get(deviceCode);
+    public boolean sendToDevice(String chipId, String payload) {
+        WebSocketSession session = deviceSessionMap.get(chipId);
         if (session == null || !session.isOpen()) {
             return false;
         }
@@ -70,24 +70,24 @@ public class DeviceSessionManager {
             session.sendMessage(new TextMessage(payload));
             return true;
         } catch (IOException e) {
-            log.error("Send message to device failed, deviceCode={}", deviceCode, e);
+            log.error("Send message to device failed, chipId={}", chipId, e);
             return false;
         }
     }
 
     public String removeBySession(WebSocketSession session) {
-        String targetDeviceCode = null;
+        String targetChipId = null;
         for (Map.Entry<String, WebSocketSession> entry : deviceSessionMap.entrySet()) {
             if (entry.getValue() == session) {
-                targetDeviceCode = entry.getKey();
+                targetChipId = entry.getKey();
                 break;
             }
         }
 
-        if (targetDeviceCode != null) {
-            deviceSessionMap.remove(targetDeviceCode);
-            log.info("Device disconnected: deviceCode={}, sessionId={}", targetDeviceCode, session.getId());
+        if (targetChipId != null) {
+            deviceSessionMap.remove(targetChipId);
+            log.info("Device disconnected: chipId={}, sessionId={}", targetChipId, session.getId());
         }
-        return targetDeviceCode;
+        return targetChipId;
     }
 }

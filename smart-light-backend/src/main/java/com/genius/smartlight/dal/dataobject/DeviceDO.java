@@ -15,8 +15,17 @@ public class DeviceDO {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    @TableField("device_code")
-    private String deviceCode;
+    @TableField("chip_id")
+    private String chipId;
+
+    @TableField("device_type")
+    private String deviceType;
+
+    @TableField("device_no")
+    private String deviceNo;
+
+    @TableField("display_name")
+    private String displayName;
 
     @TableField("ip")
     private String ip;

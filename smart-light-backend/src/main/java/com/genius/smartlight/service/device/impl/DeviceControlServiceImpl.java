@@ -28,16 +28,16 @@ public class DeviceControlServiceImpl implements DeviceControlService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public DeviceRespVO syncStateToDevice(String deviceCode, DeviceStateSyncReqVO reqVO) {
+    public DeviceRespVO syncStateToDevice(String chipId, DeviceStateSyncReqVO reqVO) {
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getDeviceCode, deviceCode)
+                        .eq(DeviceDO::getChipId, chipId)
         );
         if (device == null) {
             throw new ServiceException("设备不存在");
         }
 
-        if (!deviceSessionManager.isOnline(deviceCode)) {
+        if (!deviceSessionManager.isOnline(chipId)) {
             throw new ServiceException("设备未连接或已离线");
         }
 
@@ -68,7 +68,7 @@ public class DeviceControlServiceImpl implements DeviceControlService {
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "state");
-        payload.put("deviceCode", deviceCode);
+        payload.put("chipId", chipId);
         payload.put("brightness", device.getBrightness());
         payload.put("temp", device.getTemp());
         payload.put("autoMode", device.getAutoMode());
@@ -79,7 +79,7 @@ public class DeviceControlServiceImpl implements DeviceControlService {
 
         try {
             String text = objectMapper.writeValueAsString(payload);
-            boolean sent = deviceSessionManager.sendToDevice(deviceCode, text);
+            boolean sent = deviceSessionManager.sendToDevice(chipId, text);
             if (!sent) {
                 throw new ServiceException("状态下发失败");
             }

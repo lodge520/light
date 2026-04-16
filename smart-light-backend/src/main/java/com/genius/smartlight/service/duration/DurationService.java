@@ -12,13 +12,13 @@ public interface DurationService {
 
     Long createOrIncrease(DurationCreateReqVO reqVO);
 
-    DurationRespVO getByDeviceCodeAndDate(String deviceCode, LocalDate statDate);
+    DurationRespVO getByChipIdAndDate(String chipId, LocalDate statDate);
 
-    List<DurationRespVO> getListByDeviceCode(String deviceCode);
+    List<DurationRespVO> getListByChipId(String chipId);
 
-    List<DurationRespVO> getListByDateRange(String deviceCode, LocalDate startDate, LocalDate endDate);
+    List<DurationRespVO> getListByDateRange(String chipId, LocalDate startDate, LocalDate endDate);
 
-    DurationSumRespVO getSumByDateRange(String deviceCode, LocalDate startDate, LocalDate endDate);
+    DurationSumRespVO getSumByDateRange(String chipId, LocalDate startDate, LocalDate endDate);
 
     List<DurationDeviceSummaryRespVO> getDeviceSummaryByDateRange(LocalDate startDate, LocalDate endDate);
 }

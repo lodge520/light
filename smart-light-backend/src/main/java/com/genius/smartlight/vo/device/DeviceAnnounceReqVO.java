@@ -8,9 +8,9 @@ import lombok.Data;
 @Data
 public class DeviceAnnounceReqVO {
 
-    @Schema(description = "设备编码", example = "device001")
-    @NotBlank(message = "设备编码不能为空")
-    private String deviceCode;
+    @Schema(description = "芯片ID", example = "ABC123456")
+    @NotBlank(message = "芯片ID不能为空")
+    private String chipId;
 
     @Schema(description = "设备IP地址", example = "192.168.1.10")
     private String ip;

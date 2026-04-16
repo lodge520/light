@@ -9,7 +9,7 @@ public interface LuxService {
 
     Long createLuxRecord(LuxCreateReqVO reqVO);
 
-    LuxRespVO getLatestLuxRecord(String deviceCode);
+    LuxRespVO getLatestLuxRecord(String chipId);
 
-    List<LuxRespVO> getLuxRecordList(String deviceCode);
+    List<LuxRespVO> getLuxRecordList(String chipId);
 }

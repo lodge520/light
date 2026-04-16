@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface DeviceOnlineService {
 
-    DeviceOnlineStatusRespVO getOnlineStatus(String deviceCode);
+    DeviceOnlineStatusRespVO getOnlineStatus(String chipId);
 
     List<DeviceOnlineStatusRespVO> getOnlineStatusList();
 }

@@ -16,8 +16,8 @@ public class DurationRecordDO {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    @TableField("device_code")
-    private String deviceCode;
+    @TableField("chip_id")
+    private String chipId;
 
     @TableField("stat_date")
     private LocalDate statDate;
