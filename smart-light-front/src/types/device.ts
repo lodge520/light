@@ -1,6 +1,7 @@
 export interface DeviceItem {
   id: number
   chipId: string
+  displayName?: string
   ip?: string
   brightness?: number
   temp?: number
@@ -24,12 +25,13 @@ export interface DeviceOnlineItem {
 
 export interface DeviceCreatePayload {
   chipId: string
-  ip?: string
+  ip: string
+  displayName?: string
   brightness?: number
   temp?: number
   autoMode?: boolean
-  recommendedBrightness?: number
-  recommendedTemp?: number
+  recommendedBrightness: number
+  recommendedTemp: number
   fabric?: string
   mainColorRgb?: string
 }

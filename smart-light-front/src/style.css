@@ -307,6 +307,7 @@ input {
   justify-content: center;
   align-items: center;
   z-index: 999;
+  animation: overlay-fade-in 220ms ease-out;
 }
 
 .modal-card {
@@ -814,4 +815,387 @@ input {
   gap: 12px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+}
+
+.scan-panel {
+  margin: 20px 0 24px;
+  padding: 20px 22px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.scan-panel-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 16px;
+}
+
+.scan-empty {
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+}
+
+.scan-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.scan-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.scan-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.12);
+}
+
+.scan-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.scan-item-info div:first-child {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.scan-add-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.scan-add-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.96;
+}
+
+.scan-add-btn:active {
+  transform: translateY(0);
+}
+
+.scan-add-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+.scan-item-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scan-cancel-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.scan-cancel-btn:hover {
+  transform: translateY(-1px);
+  border-color: #94a3b8;
+  opacity: 0.96;
+}
+
+.scan-panel {
+  margin: 20px 0 24px;
+  padding: 20px 22px;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  box-shadow:
+    0 12px 40px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.scan-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.scan-panel-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+.scan-clear-btn {
+  padding: 8px 14px;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.scan-clear-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.scan-clear-btn:active {
+  transform: scale(0.965);
+}
+
+.scan-empty {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px dashed #cbd5e1;
+  border-radius: 18px;
+}
+
+.scan-list {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.scan-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  background:
+    linear-gradient(180deg, rgba(248, 251, 255, 0.98) 0%, rgba(238, 246, 255, 0.98) 100%);
+  border: 1px solid rgba(219, 234, 254, 0.95);
+  border-radius: 18px;
+  box-shadow:
+    0 8px 24px rgba(59, 130, 246, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scan-item:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 14px 30px rgba(59, 130, 246, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.scan-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.scan-item-info div:first-child {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.scan-item-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scan-add-btn,
+.scan-cancel-btn,
+#controls > button,
+.btn-confirm,
+.btn-cancel {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center;
+}
+
+.scan-add-btn:active,
+.scan-cancel-btn:active,
+#controls > button:active,
+.btn-confirm:active,
+.btn-cancel:active {
+  transform: scale(0.965);
+}
+
+.scan-add-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+}
+
+.scan-add-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.97;
+}
+
+.scan-cancel-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.scan-cancel-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.97;
+}
+
+/* iOS 风格：扫描面板 */
+.ios-panel-enter-active {
+  transition:
+    opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform, filter;
+}
+
+.ios-panel-leave-active {
+  transition:
+    opacity 260ms cubic-bezier(0.4, 0, 1, 1),
+    transform 260ms cubic-bezier(0.4, 0, 1, 1),
+    filter 260ms cubic-bezier(0.4, 0, 1, 1);
+  will-change: opacity, transform, filter;
+}
+
+.ios-panel-enter-from {
+  opacity: 0;
+  transform: translateY(18px) scale(0.965);
+  filter: blur(8px);
+}
+
+.ios-panel-enter-to {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.ios-panel-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.ios-panel-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  filter: blur(6px);
+}
+
+/* iOS 风格：扫描卡片 */
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ios-modal-card-enter-active,
+.ios-modal-card-leave-active {
+  transition:
+    opacity 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: opacity, transform, filter;
+}
+
+.ios-modal-card-leave-active {
+  transition:
+    opacity 240ms cubic-bezier(0.4, 0, 1, 1),
+    transform 240ms cubic-bezier(0.4, 0, 1, 1),
+    filter 240ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.ios-modal-card-enter-from {
+  opacity: 0;
+  transform: translateY(28px) scale(0.94);
+  filter: blur(10px);
+}
+
+.ios-modal-card-enter-to {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.ios-modal-card-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.ios-modal-card-leave-to {
+  opacity: 0;
+  transform: translateY(18px) scale(0.98);
+  filter: blur(8px);
 }

@@ -6,13 +6,13 @@
       <label>选择设备：</label>
       <select v-model="selectedDeviceCode" class="date-input">
         <option value="">请选择设备</option>
-        <option
-          v-for="device in cameraDevices"
-          :key="device.id"
-          :value="device.chipId"
-        >
-          {{ device.chipId }}
-        </option>
+<option
+  v-for="(device, index) in cameraDevices"
+  :key="device.id ?? `${getDeviceCode(device)}-${index}`"
+  :value="getDeviceCode(device)"
+>
+  {{ getDeviceCode(device) || '未知设备' }}
+</option>
       </select>
     </div>
 
@@ -44,10 +44,15 @@ const submitting = ref(false)
 const errorText = ref('')
 const statusText = ref('请选择设备后发送控制指令')
 
+function getDeviceCode(device: Partial<DeviceItem> | any) {
+  return (device?.chipId || device?.deviceCode || '').trim()
+}
+
 const cameraDevices = computed(() => {
-  return props.devices.filter(device =>
-    device.chipId.toLowerCase().includes('cam'),
-  )
+  return (props.devices || []).filter(device => {
+    const code = getDeviceCode(device)
+    return code.toLowerCase().includes('cam')
+  })
 })
 
 async function send(direction: string) {

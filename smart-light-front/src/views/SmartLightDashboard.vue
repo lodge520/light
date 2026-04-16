@@ -35,8 +35,10 @@
         <h1>智能灯控</h1>
 
         <div id="controls">
-          <button @click="handleScan">扫描设备</button>
-          <button @click="showAddDeviceModal = true">手动添加设备</button>
+          <button :disabled="scanning" @click="handleScan">
+            {{ scanning ? '扫描中...' : '扫描设备' }}
+          </button>
+          <button @click="openManualAdd">手动添加设备</button>
           <label>
             服务器地址：
             <input v-model.trim="serverHost" type="text" placeholder="127.0.0.1" />
@@ -46,6 +48,50 @@
           </div>
         </div>
 
+<Transition name="ios-panel">
+  <div v-if="scanning || scannedDevices.length > 0" class="scan-panel">
+    <div class="scan-panel-header">
+      <div class="scan-panel-title">
+        {{ scanning ? '扫描结果（进行中）' : '扫描结果（已结束）' }}
+      </div>
+
+      <button
+        v-if="scannedDevices.length > 0"
+        class="scan-clear-btn"
+        @click="scannedDevices = []"
+      >
+        清空结果
+      </button>
+    </div>
+
+    <div v-if="scannedDevices.length === 0" class="scan-empty">
+      正在等待设备广播...
+    </div>
+
+    <TransitionGroup name="ios-card" tag="div" class="scan-list">
+      <div
+        v-for="(item, index) in scannedDevices"
+        :key="`${item.chipId || 'unknown'}-${index}`"
+        class="scan-item"
+      >
+        <div class="scan-item-info">
+          <div>{{ item.chipId }}</div>
+          <div>IP：{{ item.ip || '未知' }}</div>
+          <div>类型：{{ item.deviceType || '未知' }}</div>
+        </div>
+
+        <div class="scan-item-actions">
+          <button class="scan-add-btn" @click="openAddFromScan(item)">
+            添加设备
+          </button>
+          <button class="scan-cancel-btn" @click="removeScannedDevice(item.chipId)">
+            取消
+          </button>
+        </div>
+      </div>
+    </TransitionGroup>
+  </div>
+</Transition>
         <DeviceGrid
           :devices="devices"
           :loading="loading"
@@ -55,14 +101,17 @@
           @delete="handleDeleteDevice"
         />
 
-        <DeviceAddModal
-          v-if="showAddDeviceModal"
-          :submitting="creating"
-          @close="showAddDeviceModal = false"
-          @submit="handleCreateDevice"
-        />
-      </section>
+      </section> 
 
+      <Transition name="ios-modal">
+  <DeviceAddModal
+    v-if="showAddDeviceModal"
+    :submitting="creating"
+    :initial-data="pendingScannedDevice"
+    @close="closeAddDeviceModal"
+    @submit="handleCreateDevice"
+  />
+</Transition>
       <section v-show="activeTab === 'flow'" class="page-section">
         <FlowOverview
           :devices="devices"
@@ -71,27 +120,39 @@
         />
       </section>
 
-    <section v-show="activeTab === 'settings'" class="page-section">
-      <div class="settings-layout">
-        <StoreSettingsPanel v-model="storeSettings" />
-        <DurationQueryPanel />
-        <ArmControlPanel :devices="devices" />
-      </div>
-    </section>
+      <section v-show="activeTab === 'settings'" class="page-section">
+        <div class="settings-layout">
+          <StoreSettingsPanel v-model="storeSettings" />
+          <DurationQueryPanel />
+          <ArmControlPanel :devices="devices" />
+        </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import SidebarNav from '../components/layout/SidebarNav.vue'
 import TopStatusBar from '../components/layout/TopStatusBar.vue'
 import DeviceGrid from '../components/device/DeviceGrid.vue'
 import DeviceAddModal from '../components/device/DeviceAddModal.vue'
 import { useClock } from '../composables/useClock'
 import { useWebSocket } from '../composables/useWebSocket'
-import { createDevice, deleteDevice, getDeviceList, getOnlineList, updateDevice } from '../api/device'
-import type { DashboardTab, DeviceCreatePayload, DeviceItem, DeviceOnlineItem } from '../types/device'
+import {
+  createDevice,
+  deleteDevice,
+  getDeviceList,
+  getOnlineList,
+  updateDevice,
+} from '../api/device'
+import { getLatestLux } from '../api/lux'
+import type {
+  DashboardTab,
+  DeviceCreatePayload,
+  DeviceItem,
+  DeviceOnlineItem,
+} from '../types/device'
 import DurationQueryPanel from '../components/settings/DurationQueryPanel.vue'
 import ArmControlPanel from '../components/settings/ArmControlPanel.vue'
 import StoreSettingsPanel from '../components/settings/StoreSettingsPanel.vue'
@@ -107,7 +168,35 @@ const scanStatus = ref('未扫描')
 const serverHost = ref('127.0.0.1')
 const showAddDeviceModal = ref(false)
 
-import { getLatestLux } from '../api/lux'
+const scannedDevices = ref<
+  Array<{
+    chipId: string
+    ip: string
+    deviceType?: string
+    mac?: string
+    added?: boolean
+  }>
+>([])
+
+function removeScannedDevice(chipId: string) {
+  scannedDevices.value = scannedDevices.value.filter(item => item.chipId !== chipId)
+
+  if (scanning.value) {
+    scanStatus.value = `扫描中，已发现 ${scannedDevices.value.length} 台待添加设备`
+  } else {
+    scanStatus.value = `扫描结束，发现 ${scannedDevices.value.length} 台待添加设备`
+  }
+}
+
+const scanning = ref(false)
+const pendingScannedDevice = ref<{
+  chipId: string
+  ip: string
+  deviceType?: string
+} | null>(null)
+
+let scanTimer: number | null = null
+
 const { currentTime, dateInfo, weekInfo } = useClock()
 
 const weatherText = ref('天气信息待接入')
@@ -150,35 +239,31 @@ const storeSettings = ref<StoreSettingsValue>({
   isNightMode: false,
 })
 
-
 watch(
   storeSettings,
   async (val) => {
     const storeTypeInfo = parseStoreType(val.storeType)
     const storeSizeInfo = parseStoreSize(val.storeSize)
 
-    // 1. 城市显示联动
     weatherText.value = `${val.region.provinceLabel} · ${val.region.cityLabel}`
-
-    // 2. 面积联动
     envInfo.value.area = storeSizeInfo.area
-
-    // 3. 温度联动：这里先用一个简单展示值
     envInfo.value.temp = val.isNightMode ? 20 : 24
 
-    // 4. 自动模式设备的推荐色温联动
     for (const device of devices.value) {
       if (!device.autoMode) continue
 
       const nextPayload: DeviceCreatePayload = {
-        chipId: device.chipId,
-        ip: device.ip,
-        brightness: device.brightness,
-        temp: device.temp,
-        autoMode: device.autoMode,
-        recommendedBrightness: device.recommendedBrightness,
-        recommendedTemp: storeTypeInfo.temp,
-      }
+      chipId: device.chipId || '',
+      ip: device.ip || '',
+      displayName: device.displayName || '',
+      brightness: device.brightness ?? 50,
+      temp: device.temp ?? 4000,
+      autoMode: device.autoMode ?? false,
+      recommendedBrightness: device.recommendedBrightness ?? 50,
+      recommendedTemp: storeTypeInfo.temp ?? 4000,
+      fabric: device.fabric || '',
+      mainColorRgb: device.mainColorRgb || '',
+    }
 
       try {
         await updateDevice(device.id, nextPayload)
@@ -191,11 +276,12 @@ watch(
   { deep: true, immediate: true },
 )
 
-
 function mergeDeviceOnline(deviceList: DeviceItem[], onlineList: DeviceOnlineItem[]) {
-  const onlineMap = new Map(onlineList.map(item => [item.chipId, item]))
+  const onlineMap = new Map(
+    (onlineList || []).map(item => [item.chipId, item]),
+  )
 
-  return deviceList.map(device => {
+  return (deviceList || []).map(device => {
     const onlineInfo = onlineMap.get(device.chipId)
     return {
       ...device,
@@ -208,7 +294,7 @@ function mergeDeviceOnline(deviceList: DeviceItem[], onlineList: DeviceOnlineIte
 
 async function loadDevices() {
   loading.value = true
-  scanStatus.value = '加载中...'
+  scanStatus.value = scanning.value ? '扫描中（10秒）...' : '加载中...'
 
   try {
     const [deviceList, onlineList] = await Promise.all([
@@ -217,7 +303,10 @@ async function loadDevices() {
     ])
 
     devices.value = mergeDeviceOnline(deviceList, onlineList)
-    scanStatus.value = `已加载 ${devices.value.length} 台设备`
+
+    if (!scanning.value) {
+      scanStatus.value = `已加载 ${devices.value.length} 台设备`
+    }
 
     await loadLatestLux()
   } catch (error) {
@@ -246,7 +335,6 @@ async function loadLatestLux() {
           return
         }
       } catch (error) {
-        // 当前设备没光照记录就继续找下一台
         console.warn(`device ${device.chipId} has no lux record`)
       }
     }
@@ -260,14 +348,53 @@ async function loadLatestLux() {
 }
 
 function handleScan() {
-  loadDevices()
+  scannedDevices.value = []
+  scanning.value = true
+  scanStatus.value = '扫描中（10秒）...'
+
+  if (scanTimer) {
+    window.clearTimeout(scanTimer)
+    scanTimer = null
+  }
+
+  scanTimer = window.setTimeout(() => {
+    scanning.value = false
+    scanStatus.value = `扫描结束，发现 ${scannedDevices.value.length} 台待添加设备`
+    scanTimer = null
+  }, 10000)
+}
+
+function openManualAdd() {
+  pendingScannedDevice.value = null
+  showAddDeviceModal.value = true
+}
+
+function openAddFromScan(device: { chipId: string; ip: string; deviceType?: string }) {
+  pendingScannedDevice.value = {
+    chipId: device.chipId || '',
+    ip: device.ip || '',
+    deviceType: device.deviceType || '',
+  }
+  showAddDeviceModal.value = true
+}
+
+function closeAddDeviceModal() {
+  showAddDeviceModal.value = false
+  pendingScannedDevice.value = null
 }
 
 async function handleCreateDevice(payload: DeviceCreatePayload) {
   creating.value = true
   try {
     await createDevice(payload)
+
     showAddDeviceModal.value = false
+    pendingScannedDevice.value = null
+
+    scannedDevices.value = scannedDevices.value.filter(
+      item => item.chipId !== payload.chipId,
+    )
+
     await loadDevices()
   } catch (error) {
     console.error('createDevice error =', error)
@@ -363,7 +490,6 @@ function handleWsMessage(message: any) {
       message?.data?.lux ??
       message?.value ??
       0
-      
     )
 
     latestLux.value = luxValue
@@ -372,8 +498,38 @@ function handleWsMessage(message: any) {
     return
   }
 
-  if (message.type === 'announce') {
-    loadDevices()
+  if (message.type === 'announce' && message.data) {
+    if (!scanning.value) return
+
+    const chipId = String(
+      message.data.chipId ??
+      message.data.deviceCode ??
+      ''
+    ).trim()
+
+    if (!chipId) return
+
+    const alreadyAdded = devices.value.some(item => item.chipId === chipId)
+    if (alreadyAdded) return
+
+    const added = Boolean(message.data.added)
+    if (added) return
+
+    const exists = scannedDevices.value.some(item => item.chipId === chipId)
+    if (exists) return
+
+    scannedDevices.value = [
+      ...scannedDevices.value,
+      {
+        chipId,
+        ip: String(message.data.ip ?? '').trim(),
+        deviceType: String(message.data.deviceType ?? '').trim(),
+        mac: String(message.data.mac ?? '').trim(),
+        added: false,
+      },
+    ]
+
+    scanStatus.value = `扫描中，已发现 ${scannedDevices.value.length} 台待添加设备`
     return
   }
 }
@@ -385,10 +541,24 @@ watch(connected, (val) => {
   if (val) {
     scanStatus.value = '实时连接已建立'
     loadDevices()
+  } else {
+    scanStatus.value = 'WebSocket 未连接'
   }
 })
 
 onMounted(() => {
   loadDevices()
+})
+
+onBeforeUnmount(() => {
+  if (scanTimer) {
+    window.clearTimeout(scanTimer)
+    scanTimer = null
+  }
+
+  updateTimerMap.forEach(timer => {
+    window.clearTimeout(timer)
+  })
+  updateTimerMap.clear()
 })
 </script>

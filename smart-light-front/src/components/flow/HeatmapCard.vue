@@ -57,31 +57,38 @@ const props = defineProps<{
   rows: DurationSummaryItem[]
 }>()
 
-function formatSeconds(value: number) {
+function toDisplaySeconds(value: number) {
   if (!Number.isFinite(value)) return 0
-  return value > 10000 ? Math.round(value / 1000) : Math.round(value)
+  return value > 10000 ? value / 1000 : value
+}
+
+function formatSeconds(value: number) {
+  return Math.round(toDisplaySeconds(value))
 }
 
 function getMaxValue() {
-  return Math.max(...props.rows.map(item => item.totalDuration), 1)
+  return Math.max(...props.rows.map(item => toDisplaySeconds(item.totalDuration)), 1)
 }
 
 function getPercent(value: number) {
   const max = getMaxValue()
-  return Math.max(8, Math.round((value / max) * 100))
+  const current = toDisplaySeconds(value)
+  return Math.max(8, Math.round((current / max) * 100))
 }
 
 function getCircleSize(value: number) {
   const max = getMaxValue()
+  const current = toDisplaySeconds(value)
   const minSize = 48
   const maxSize = 110
-  return Math.round(minSize + (value / max) * (maxSize - minSize))
+  return Math.round(minSize + (current / max) * (maxSize - minSize))
 }
 
 function getCircleOpacity(value: number) {
   const max = getMaxValue()
+  const current = toDisplaySeconds(value)
   const minOpacity = 0.45
   const maxOpacity = 0.95
-  return minOpacity + (value / max) * (maxOpacity - minOpacity)
+  return minOpacity + (current / max) * (maxOpacity - minOpacity)
 }
 </script>
