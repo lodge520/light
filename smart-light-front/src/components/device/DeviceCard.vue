@@ -1,7 +1,7 @@
 <template>
   <div class="lamp-card">
     <div class="card-header">
-      <h3>{{ localForm.deviceCode }}</h3>
+      <h3>{{ localForm.chipId }}</h3>
       <span class="status-badge" :class="{ online: device.online, offline: !device.online }">
         {{ device.online ? '在线' : '离线' }}
       </span>
@@ -79,7 +79,7 @@ const emit = defineEmits<{
 }>()
 
 const localForm = reactive<DeviceCreatePayload>({
-  deviceCode: '',
+  chipId: '',
   ip: '',
   brightness: 50,
   temp: 4000,
@@ -91,7 +91,7 @@ const localForm = reactive<DeviceCreatePayload>({
 })
 
 function syncFromProps() {
-  localForm.deviceCode = props.device.deviceCode
+  localForm.chipId = props.device.chipId
   localForm.ip = props.device.ip || ''
   localForm.brightness = props.device.brightness ?? 50
   localForm.temp = props.device.temp ?? 4000
@@ -118,7 +118,7 @@ function emitRealtimeUpdate() {
   emit('update-realtime', {
     id: props.device.id,
     payload: {
-      deviceCode: localForm.deviceCode,
+      chipId: localForm.chipId,
       ip: localForm.ip,
       brightness: localForm.brightness,
       temp: localForm.temp,
@@ -148,7 +148,7 @@ function handleAutoModeChange() {
 }
 
 function handleDelete() {
-  if (!window.confirm(`确认删除设备 ${props.device.deviceCode} 吗？`)) return
+  if (!window.confirm(`确认删除设备 ${props.device.chipId} 吗？`)) return
   emit('delete', props.device.id)
 }
 

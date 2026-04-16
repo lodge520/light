@@ -49,7 +49,7 @@ function renderChart() {
   chart = new Chart(canvasRef.value, {
     type: 'bar',
     data: {
-      labels: props.devices.map(item => item.deviceCode),
+      labels: props.devices.map(item => item.chipId),
       datasets: [
         {
           label: '亮度',

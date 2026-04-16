@@ -1,4 +1,4 @@
 export interface DurationSummaryItem {
-  deviceCode: string
+  chipId: string
   totalDuration: number
 }
