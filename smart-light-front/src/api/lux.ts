@@ -15,16 +15,16 @@ export interface MultiLuxRespVO {
   }[]
 }
 
-export async function getLuxList(deviceCode: string): Promise<LuxRecord[]> {
+export async function getLuxList(chipId: string): Promise<LuxRecord[]> {
   const res = await http.get<CommonResult<LuxRecord[]>>('/admin/lux/list', {
-    params: { deviceCode },
+    params: { chipId },
   })
   return res.data.data || []
 }
 
-export async function getLatestLux(deviceCode: string): Promise<LuxRecord | null> {
+export async function getLatestLux(chipId: string): Promise<LuxRecord | null> {
   const res = await http.get<CommonResult<LuxRecord | null>>('/admin/lux/get-latest', {
-    params: { deviceCode },
+    params: { chipId },
   })
   return res.data.data || null
 }

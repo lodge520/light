@@ -7,11 +7,11 @@ interface CommonResult<T> {
   data: T
 }
 
-export async function getTempPeopleTrend(deviceCode?: string): Promise<TempPeopleTrendData | null> {
+export async function getTempPeopleTrend(chipId?: string): Promise<TempPeopleTrendData | null> {
   try {
     const res = await http.get<CommonResult<TempPeopleTrendData>>('/admin/analytics/temp-people-trend', {
       params: {
-        deviceCode,
+        chipId,
       },
     })
     return res.data.data || null
@@ -21,11 +21,11 @@ export async function getTempPeopleTrend(deviceCode?: string): Promise<TempPeopl
   }
 }
 
-export async function getStrategyCompare(deviceCode?: string): Promise<StrategyCompareData | null> {
+export async function getStrategyCompare(chipId?: string): Promise<StrategyCompareData | null> {
   try {
     const res = await http.get<CommonResult<StrategyCompareData>>('/admin/analytics/strategy-compare', {
       params: {
-        deviceCode,
+        chipId,
       },
     })
     return res.data.data || null

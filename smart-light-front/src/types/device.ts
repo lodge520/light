@@ -1,6 +1,6 @@
 export interface DeviceItem {
   id: number
-  deviceCode: string
+  chipId: string
   ip?: string
   brightness?: number
   temp?: number
@@ -16,14 +16,14 @@ export interface DeviceItem {
 }
 
 export interface DeviceOnlineItem {
-  deviceCode: string
+  chipId: string
   ip?: string
   online: boolean
   lastSeen?: number
 }
 
 export interface DeviceCreatePayload {
-  deviceCode: string
+  chipId: string
   ip?: string
   brightness?: number
   temp?: number

@@ -8,10 +8,10 @@
       <div class="heatmap-list">
         <div
           v-for="item in rows"
-          :key="item.deviceCode"
+          :key="item.chipId"
           class="heatmap-row"
         >
-          <div class="heatmap-label">{{ item.deviceCode }}</div>
+          <div class="heatmap-label">{{ item.chipId }}</div>
           <div class="heatmap-bar-wrap">
             <div
               class="heatmap-bar"
@@ -28,7 +28,7 @@
         <div class="heat-circle-grid">
           <div
             v-for="item in rows"
-            :key="`${item.deviceCode}-circle`"
+            :key="`${item.chipId}-circle`"
             class="heat-circle-item"
           >
             <div
@@ -41,7 +41,7 @@
             >
               {{ formatSeconds(item.totalDuration) }}
             </div>
-            <div class="heat-circle-device">{{ item.deviceCode }}</div>
+            <div class="heat-circle-device">{{ item.chipId }}</div>
             <div class="heat-circle-time">{{ formatSeconds(item.totalDuration) }} 秒</div>
           </div>
         </div>

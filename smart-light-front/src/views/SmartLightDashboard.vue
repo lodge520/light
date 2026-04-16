@@ -171,7 +171,7 @@ watch(
       if (!device.autoMode) continue
 
       const nextPayload: DeviceCreatePayload = {
-        deviceCode: device.deviceCode,
+        chipId: device.chipId,
         ip: device.ip,
         brightness: device.brightness,
         temp: device.temp,
@@ -193,10 +193,10 @@ watch(
 
 
 function mergeDeviceOnline(deviceList: DeviceItem[], onlineList: DeviceOnlineItem[]) {
-  const onlineMap = new Map(onlineList.map(item => [item.deviceCode, item]))
+  const onlineMap = new Map(onlineList.map(item => [item.chipId, item]))
 
   return deviceList.map(device => {
-    const onlineInfo = onlineMap.get(device.deviceCode)
+    const onlineInfo = onlineMap.get(device.chipId)
     return {
       ...device,
       online: onlineInfo?.online ?? false,
@@ -238,7 +238,7 @@ async function loadLatestLux() {
 
     for (const device of devices.value) {
       try {
-        const record = await getLatestLux(device.deviceCode)
+        const record = await getLatestLux(device.chipId)
 
         if (record && record.luxValue != null) {
           latestLux.value = record.luxValue
@@ -247,7 +247,7 @@ async function loadLatestLux() {
         }
       } catch (error) {
         // 当前设备没光照记录就继续找下一台
-        console.warn(`device ${device.deviceCode} has no lux record`)
+        console.warn(`device ${device.chipId} has no lux record`)
       }
     }
 
@@ -322,7 +322,7 @@ async function handleDeleteDevice(id: number) {
 function updateDeviceByIncoming(incoming: Partial<DeviceItem>) {
   const index = devices.value.findIndex(item => {
     if (incoming.id != null && item.id === incoming.id) return true
-    if (incoming.deviceCode && item.deviceCode === incoming.deviceCode) return true
+    if (incoming.chipId && item.chipId === incoming.chipId) return true
     return false
   })
 
@@ -344,7 +344,7 @@ function handleWsMessage(message: any) {
 
   if (message.type === 'onlineStatus' && message.data) {
     updateDeviceByIncoming({
-      deviceCode: message.data.deviceCode,
+      chipId: message.data.chipId,
       ip: message.data.ip,
       online: message.data.online,
       lastSeen: message.data.lastSeen,
