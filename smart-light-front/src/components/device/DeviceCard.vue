@@ -52,7 +52,7 @@
         color: textColor,
       }"
     >
-      {{ localForm.mainColorRgb || '暂无主色' }}
+      {{ "RGB(" + (localForm.mainColorRgb || '暂无主色') + ")" }}
     </div>
 
     <div class="card-actions">
