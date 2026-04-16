@@ -5,7 +5,7 @@
 
       <label class="modal-label">设备编码</label>
       <input
-        v-model.trim="form.deviceCode"
+        v-model.trim="form.chipId"
         class="modal-input"
         type="text"
         placeholder="如 lamp2"
@@ -45,7 +45,7 @@ const emit = defineEmits<{
 }>()
 
 const form = reactive<DeviceCreatePayload>({
-  deviceCode: '',
+  chipId: '',
   ip: '',
   brightness: 50,
   temp: 4000,
@@ -57,7 +57,7 @@ const form = reactive<DeviceCreatePayload>({
 })
 
 function resetForm() {
-  form.deviceCode = ''
+  form.chipId = ''
   form.ip = ''
   form.brightness = 50
   form.temp = 4000
@@ -69,7 +69,7 @@ function resetForm() {
 }
 
 function submit() {
-  if (!form.deviceCode) return
+  if (!form.chipId) return
   emit('submit', { ...form })
 }
 
