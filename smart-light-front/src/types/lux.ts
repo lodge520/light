@@ -1,6 +1,6 @@
 export interface LuxRecord {
   id: number
-  deviceCode: string
+  chipId: string
   luxValue: number
   collectTime?: string
   createTime?: string

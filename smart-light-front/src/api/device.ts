@@ -32,8 +32,8 @@ export async function deleteDevice(id: number): Promise<boolean> {
   return res.data.data
 }
 
-export async function armControl(deviceCode: string, direction: string): Promise<boolean> {
-  const res = await http.post<CommonResult<boolean>>(`/admin/device/arm/${deviceCode}`, {
+export async function armControl(chipId: string, direction: string): Promise<boolean> {
+  const res = await http.post<CommonResult<boolean>>(`/admin/device/arm/${chipId}`, {
     direction,
   })
   return res.data.data

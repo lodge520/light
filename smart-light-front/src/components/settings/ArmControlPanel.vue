@@ -9,9 +9,9 @@
         <option
           v-for="device in cameraDevices"
           :key="device.id"
-          :value="device.deviceCode"
+          :value="device.chipId"
         >
-          {{ device.deviceCode }}
+          {{ device.chipId }}
         </option>
       </select>
     </div>
@@ -46,7 +46,7 @@ const statusText = ref('请选择设备后发送控制指令')
 
 const cameraDevices = computed(() => {
   return props.devices.filter(device =>
-    device.deviceCode.toLowerCase().includes('cam'),
+    device.chipId.toLowerCase().includes('cam'),
   )
 })
 
