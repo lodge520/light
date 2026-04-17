@@ -30,7 +30,7 @@
 
       <button type="button" class="btn-primary" @click="toggleMode">
         {{ isNightMode ? '切换到日间模式' : '切换到夜间模式' }}
-     </button>
+      </button>
     </div>
   </div>
 </template>
@@ -39,6 +39,7 @@
 import { ref, watch } from 'vue'
 import ProvinceCityPicker from './ProvinceCityPicker.vue'
 import type { RegionValue } from '../../constants/china-region'
+import { STORE_STYLE_OPTIONS, STORE_STYLE_MAP } from '../../constants/store'
 
 export interface StoreSettingsValue {
   region: RegionValue
@@ -55,16 +56,25 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: StoreSettingsValue): void
 }>()
 
-const storeTypeOptions = [
-  { label: '高端店（3500K）', value: '高端,3500' },
-  { label: '大众店（4000K）', value: '中端,4000' },
-  { label: '快销店（5000K）', value: '小型,5000' },
-]
+const STYLE_TEMP_MAP: Record<string, number> = {
+  HIGH_END: 3500,
+  MASS_MARKET: 4000,
+  FAST_FASHION: 4500,
+}
 
+const storeTypeOptions = STORE_STYLE_OPTIONS.map(item => ({
+  label: `${item.label}店（${STYLE_TEMP_MAP[item.value]}K）`,
+  value: `${STORE_STYLE_MAP[item.value]},${STYLE_TEMP_MAP[item.value]}`,
+}))
+
+/**
+ * 这里先用固定档位，和你父页面 parseStoreSize / buildStoreSizeValue 对齐
+ * 如果后面想支持任意面积，建议把这个 select 改成 input
+ */
 const storeSizeOptions = [
-  { label: '40㎡', value: '小型,40' },
-  { label: '60㎡', value: '中端,60' },
-  { label: '80㎡', value: '高端,80' },
+  { label: '40㎡（小型）', value: '小型,40' },
+  { label: '80㎡（中型）', value: '中型,80' },
+  { label: '150㎡（大型）', value: '大型,150' },
 ]
 
 const localRegion = ref<RegionValue>({ ...props.modelValue.region })
@@ -101,5 +111,4 @@ function toggleMode() {
   isNightMode.value = !isNightMode.value
   emitChange()
 }
-
 </script>

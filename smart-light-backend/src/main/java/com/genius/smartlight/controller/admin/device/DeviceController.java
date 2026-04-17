@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -57,7 +58,7 @@ public class DeviceController {
         return CommonResult.success(deviceService.getDevice(id));
     }
 
-    @Operation(summary = "查询设备列表")
+    @Operation(summary = "查询设备列表（管理员全量）")
     @GetMapping("/list")
     public CommonResult<List<DeviceRespVO>> getDeviceList() {
         return CommonResult.success(deviceService.getDeviceList());
@@ -68,5 +69,24 @@ public class DeviceController {
     public CommonResult<DeviceRespVO> getDeviceByChipId(
             @Parameter(description = "芯片ID") @RequestParam String chipId) {
         return CommonResult.success(deviceService.getDeviceByChipId(chipId));
+    }
+
+    @Operation(summary = "查询当前登录用户所属店铺的设备列表")
+    @GetMapping("/my-list")
+    public CommonResult<List<DeviceRespVO>> getMyDeviceList() {
+        return CommonResult.success(deviceService.getCurrentUserDeviceList());
+    }
+
+    @Operation(summary = "将设备绑定到当前登录用户所属店铺")
+    @PostMapping("/bind-current-store")
+    public CommonResult<Boolean> bindCurrentStore(@RequestBody BindCurrentStoreReqVO reqVO) {
+        deviceService.bindDeviceToCurrentStore(reqVO.getChipId(), reqVO.getDisplayName());
+        return CommonResult.success(true);
+    }
+
+    @Data
+    public static class BindCurrentStoreReqVO {
+        private String chipId;
+        private String displayName;
     }
 }

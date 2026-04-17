@@ -4,7 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.genius.smartlight.common.ServiceException;
 import com.genius.smartlight.convert.device.DeviceConvert;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
+import com.genius.smartlight.dal.dataobject.StoreDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
+import com.genius.smartlight.dal.mysql.StoreMapper;
+import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.device.DeviceService;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
@@ -21,6 +24,7 @@ public class DeviceServiceImpl implements DeviceService {
 
     private final WebSocketPushService webSocketPushService;
     private final DeviceMapper deviceMapper;
+    private final StoreMapper storeMapper;
 
     @Override
     public Long createDevice(DeviceSaveReqVO reqVO) {
@@ -51,7 +55,6 @@ public class DeviceServiceImpl implements DeviceService {
             throw new ServiceException("设备不存在");
         }
 
-        // 如果芯片ID被修改，需要检查唯一性
         if (!device.getChipId().equals(reqVO.getChipId())) {
             DeviceDO exist = deviceMapper.selectOne(
                     new LambdaQueryWrapper<DeviceDO>()
@@ -66,6 +69,12 @@ public class DeviceServiceImpl implements DeviceService {
         updateObj.setId(id);
         updateObj.setCreateTime(device.getCreateTime());
         updateObj.setUpdateTime(LocalDateTime.now());
+
+        // 关键：保留原 storeId，避免后台更新设备时把店铺归属冲掉
+        updateObj.setStoreId(device.getStoreId());
+
+        // 如果你 DeviceDO 有 displayName，也顺便保留
+        updateObj.setDisplayName(device.getDisplayName());
 
         deviceMapper.updateById(updateObj);
 
@@ -108,5 +117,58 @@ public class DeviceServiceImpl implements DeviceService {
             throw new ServiceException("设备不存在");
         }
         return DeviceConvert.convert(device);
+    }
+
+    @Override
+    public List<DeviceRespVO> getCurrentUserDeviceList() {
+        Long userId = SecurityUtils.getCurrentUserId();
+
+        StoreDO store = storeMapper.selectOne(
+                new LambdaQueryWrapper<StoreDO>()
+                        .eq(StoreDO::getUserId, userId)
+        );
+        if (store == null) {
+            throw new ServiceException("当前用户未绑定店铺");
+        }
+
+        List<DeviceDO> list = deviceMapper.selectList(
+                new LambdaQueryWrapper<DeviceDO>()
+                        .eq(DeviceDO::getStoreId, store.getId())
+                        .orderByDesc(DeviceDO::getId)
+        );
+
+        return list.stream().map(DeviceConvert::convert).toList();
+    }
+
+    @Override
+    public void bindDeviceToCurrentStore(String chipId, String displayName) {
+        Long userId = SecurityUtils.getCurrentUserId();
+
+        StoreDO store = storeMapper.selectOne(
+                new LambdaQueryWrapper<StoreDO>()
+                        .eq(StoreDO::getUserId, userId)
+        );
+        if (store == null) {
+            throw new ServiceException("当前用户未绑定店铺");
+        }
+
+        DeviceDO device = deviceMapper.selectOne(
+                new LambdaQueryWrapper<DeviceDO>()
+                        .eq(DeviceDO::getChipId, chipId)
+        );
+        if (device == null) {
+            throw new ServiceException("设备不存在");
+        }
+
+        device.setStoreId(store.getId());
+
+        if (displayName != null && !displayName.isBlank()) {
+            device.setDisplayName(displayName);
+        }
+
+        device.setUpdateTime(LocalDateTime.now());
+        deviceMapper.updateById(device);
+
+        webSocketPushService.pushState(DeviceConvert.convert(device));
     }
 }

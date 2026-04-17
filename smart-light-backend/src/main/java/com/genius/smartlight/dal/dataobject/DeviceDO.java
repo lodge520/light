@@ -56,4 +56,9 @@ public class DeviceDO {
 
     @TableField("update_time")
     private LocalDateTime updateTime;
+
+    @TableField("store_id")
+    private Long storeId;
+
+
 }
