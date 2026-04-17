@@ -14,10 +14,7 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOriginPatterns(
-                                "http://localhost:*",
-                                "http://127.0.0.1:*"
-                        )
+                        .allowedOriginPatterns("*")  // 允许所有来源（包含 file:// 来源null）
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(false)

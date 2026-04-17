@@ -103,7 +103,7 @@
 
       </section> 
 
-      <Transition name="ios-modal">
+
   <DeviceAddModal
     v-if="showAddDeviceModal"
     :submitting="creating"
@@ -111,7 +111,7 @@
     @close="closeAddDeviceModal"
     @submit="handleCreateDevice"
   />
-</Transition>
+
       <section v-show="activeTab === 'flow'" class="page-section">
         <FlowOverview
           :devices="devices"
@@ -173,6 +173,7 @@ const scannedDevices = ref<
     chipId: string
     ip: string
     deviceType?: string
+
     mac?: string
     added?: boolean
   }>
@@ -193,6 +194,7 @@ const pendingScannedDevice = ref<{
   chipId: string
   ip: string
   deviceType?: string
+  deviceNo?: string
 } | null>(null)
 
 let scanTimer: number | null = null
@@ -369,11 +371,17 @@ function openManualAdd() {
   showAddDeviceModal.value = true
 }
 
-function openAddFromScan(device: { chipId: string; ip: string; deviceType?: string }) {
+function openAddFromScan(device: {
+  chipId: string
+  ip: string
+  deviceType?: string
+  deviceNo?: string
+}) {
   pendingScannedDevice.value = {
     chipId: device.chipId || '',
     ip: device.ip || '',
     deviceType: device.deviceType || '',
+    deviceNo: device.deviceNo || '',
   }
   showAddDeviceModal.value = true
 }

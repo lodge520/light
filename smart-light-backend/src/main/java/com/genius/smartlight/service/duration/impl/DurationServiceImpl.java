@@ -29,28 +29,35 @@ public class DurationServiceImpl implements DurationService {
 
     @Override
     public Long createOrIncrease(DurationCreateReqVO reqVO) {
-        DurationRecordDO exist = durationRecordMapper.selectOne(
+        if (reqVO.getChipId() == null || reqVO.getChipId().isBlank()) {
+            throw new ServiceException("chipId不能为空");
+        }
+        if (reqVO.getDurationValue() == null || reqVO.getDurationValue() < 0) {
+            throw new ServiceException("durationValue不能为空且不能小于0");
+        }
+        if (reqVO.getStatDate() == null) {
+            reqVO.setStatDate(LocalDate.now());
+        }
+
+        durationRecordMapper.insertOrIncrease(
+                reqVO.getChipId(),
+                reqVO.getStatDate(),
+                reqVO.getDurationValue()
+        );
+
+        DurationRecordDO latest = durationRecordMapper.selectOne(
                 new LambdaQueryWrapper<DurationRecordDO>()
                         .eq(DurationRecordDO::getChipId, reqVO.getChipId())
                         .eq(DurationRecordDO::getStatDate, reqVO.getStatDate())
+                        .last("limit 1")
         );
 
-        if (exist != null) {
-            exist.setDurationValue(exist.getDurationValue() + reqVO.getDurationValue());
-            exist.setUpdateTime(LocalDateTime.now());
-            durationRecordMapper.updateById(exist);
-
-            webSocketPushService.pushDuration(DurationConvert.convert(exist));
-            return exist.getId();
+        if (latest == null) {
+            throw new ServiceException("时长记录保存成功，但查询结果失败");
         }
 
-        DurationRecordDO record = DurationConvert.convert(reqVO);
-        record.setCreateTime(LocalDateTime.now());
-        record.setUpdateTime(LocalDateTime.now());
-        durationRecordMapper.insert(record);
-
-        webSocketPushService.pushDuration(DurationConvert.convert(record));
-        return record.getId();
+        webSocketPushService.pushDuration(DurationConvert.convert(latest));
+        return latest.getId();
     }
 
     @Override
@@ -129,9 +136,10 @@ public class DurationServiceImpl implements DurationService {
         );
 
         Map<String, Long> summaryMap = list.stream()
+                .filter(item -> item.getChipId() != null && !item.getChipId().isBlank())
                 .collect(Collectors.groupingBy(
                         DurationRecordDO::getChipId,
-                        Collectors.summingLong(DurationRecordDO::getDurationValue)
+                        Collectors.summingLong(item -> item.getDurationValue() == null ? 0 : item.getDurationValue())
                 ));
 
         return summaryMap.entrySet().stream().map(entry -> {
