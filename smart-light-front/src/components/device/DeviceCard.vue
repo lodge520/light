@@ -1,14 +1,18 @@
 <template>
   <div class="lamp-card">
-    <div class="card-header">
-      <h3>{{ localForm.chipId }}</h3>
+    <div class="card-header clickable-header" @click="openDetailModal">
+      <div class="device-title-block">
+        <h3>{{ displayNameText }}</h3>
+        <p class="last-seen-under-name">
+          上次在线：{{ !device.online ? (lastSeenText || '未知') : '当前在线' }}
+        </p>
+      </div>
+
       <span class="status-badge" :class="{ online: device.online, offline: !device.online }">
         {{ device.online ? '在线' : '离线' }}
       </span>
     </div>
 
-    <p class="device-meta">IP：{{ localForm.ip || '未设置' }}</p>
-    <p class="device-meta">设备ID：{{ device.id }}</p>
 
     <label class="field-label">亮度：{{ displayBrightness }}</label>
     <input
@@ -40,10 +44,7 @@
       自动模式
     </label>
 
-    <label class="field-label">面料</label>
-    <div class="readonly-box">
-      {{ localForm.fabric || '未知' }}
-    </div>
+    <label class="field-label">面料：{{ localForm.fabric || '未设置' }}</label>
 
     <div
       class="color-box"
@@ -62,10 +63,61 @@
       </button>
     </div>
   </div>
+
+<Transition name="detail-overlay-fade">
+  <div
+    v-if="showDetailModal"
+    class="device-detail-overlay"
+    @click.self="closeDetailModal"
+  >
+    <Transition name="detail-card-pop" appear>
+      <div class="device-detail-modal">
+        <div class="detail-modal-header">
+          <div>
+            <h3>{{ displayNameText }}</h3>
+            <p class="detail-subtitle">{{ device.online ? '在线' : '离线' }}</p>
+          </div>
+          <button class="detail-close-btn" @click="closeDetailModal">×</button>
+        </div>
+
+        <div class="detail-info-item">
+          <span class="detail-label">设备类型</span>
+          <span class="detail-value">{{ displayDeviceType }}</span>
+        </div>
+
+        <div class="detail-info-item">
+          <span class="detail-label">IP</span>
+          <span class="detail-value">{{ localForm.ip || '未设置' }}</span>
+        </div>
+
+        <label class="modal-label">用户命名</label>
+        <input
+          v-model.trim="localForm.displayName"
+          class="modal-input"
+          type="text"
+          placeholder="如 橱窗灯1"
+        />
+
+        <label class="modal-label">设备编号</label>
+        <input
+          v-model.trim="localForm.deviceNo"
+          class="modal-input"
+          type="text"
+          placeholder="如 LIGHT-001"
+        />
+
+        <div class="detail-modal-actions">
+          <button class="btn-secondary" @click="closeDetailModal">取消</button>
+          <button class="btn-primary" @click="saveDeviceBaseInfo">保存</button>
+        </div>
+      </div>
+    </Transition>
+  </div>
+</Transition>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import type { DeviceCreatePayload, DeviceItem } from '../../types/device'
 
 const props = defineProps<{
@@ -81,6 +133,9 @@ const emit = defineEmits<{
 const localForm = reactive<DeviceCreatePayload>({
   chipId: '',
   ip: '',
+  displayName: '',
+  deviceType: '',
+  deviceNo: '',
   brightness: 50,
   temp: 4000,
   autoMode: false,
@@ -90,9 +145,45 @@ const localForm = reactive<DeviceCreatePayload>({
   mainColorRgb: '',
 })
 
+const showDetailModal = ref(false)
+
+function openDetailModal() {
+  showDetailModal.value = true
+}
+
+function closeDetailModal() {
+  showDetailModal.value = false
+}
+
+function saveDeviceBaseInfo() {
+  emitRealtimeUpdate()
+  showDetailModal.value = false
+}
+
+const lastSeenText = computed(() => {
+  const value = props.device.lastSeen
+  if (!value) return ''
+
+  const timestamp = value < 1e12 ? value * 1000 : value
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  const ss = String(date.getSeconds()).padStart(2, '0')
+
+  return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
+})
+
 function syncFromProps() {
   localForm.chipId = props.device.chipId
   localForm.ip = props.device.ip || ''
+  localForm.displayName = props.device.displayName || ''
+  localForm.deviceType = props.device.deviceType || ''
+  localForm.deviceNo = props.device.deviceNo || ''
   localForm.brightness = props.device.brightness ?? 50
   localForm.temp = props.device.temp ?? 4000
   localForm.autoMode = props.device.autoMode ?? false
@@ -119,12 +210,17 @@ function emitRealtimeUpdate() {
     id: props.device.id,
     payload: {
       chipId: localForm.chipId,
-      ip: localForm.ip,
-      brightness: localForm.brightness,
-      temp: localForm.temp,
-      autoMode: localForm.autoMode,
-      recommendedBrightness: localForm.recommendedBrightness,
-      recommendedTemp: localForm.recommendedTemp,
+      ip: localForm.ip || '',
+      displayName: localForm.displayName || '',
+      deviceType: localForm.deviceType || '',
+      deviceNo: localForm.deviceNo || '',
+      brightness: localForm.brightness ?? 50,
+      temp: localForm.temp ?? 4000,
+      autoMode: localForm.autoMode ?? false,
+      recommendedBrightness: localForm.recommendedBrightness ?? 50,
+      recommendedTemp: localForm.recommendedTemp ?? 4000,
+      fabric: localForm.fabric || '',
+      mainColorRgb: localForm.mainColorRgb || '',
     },
   })
 }
@@ -148,9 +244,22 @@ function handleAutoModeChange() {
 }
 
 function handleDelete() {
-  if (!window.confirm(`确认删除设备 ${props.device.chipId} 吗？`)) return
+  const targetName = displayNameText.value || displayDeviceNo.value || '该设备'
+  if (!window.confirm(`确认删除设备 ${targetName} 吗？`)) return
   emit('delete', props.device.id)
 }
+
+const displayNameText = computed(() => {
+  return props.device.displayName?.trim() || props.device.deviceNo?.trim() || '未命名设备'
+})
+
+const displayDeviceNo = computed(() => {
+  return props.device.deviceNo?.trim() || '未设置'
+})
+
+const displayDeviceType = computed(() => {
+  return props.device.deviceType?.trim() || '未知'
+})
 
 const displayBrightness = computed(() => {
   return localForm.autoMode
