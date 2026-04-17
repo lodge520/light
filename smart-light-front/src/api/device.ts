@@ -17,6 +17,11 @@ export async function getOnlineList(): Promise<DeviceOnlineItem[]> {
   return res.data.data || []
 }
 
+export async function getMyDeviceListApi(): Promise<DeviceItem[]> {
+  const res = await http.get<CommonResult<DeviceItem[]>>('/admin/device/my-list')
+  return res.data.data || []
+}
+
 export async function createDevice(payload: DeviceCreatePayload): Promise<number> {
   const res = await http.post<CommonResult<number>>('/admin/device/create', payload)
   return res.data.data

@@ -15,7 +15,11 @@ public interface DeviceService {
 
     DeviceRespVO getDevice(Long id);
 
-    List<DeviceRespVO> getDeviceList();
+    List<DeviceRespVO> getDeviceList(); // 管理员看全量
 
     DeviceRespVO getDeviceByChipId(String chipId);
+
+    List<DeviceRespVO> getCurrentUserDeviceList();
+
+    void bindDeviceToCurrentStore(String chipId, String displayName);
 }

@@ -1405,3 +1405,62 @@ input {
   line-height: 1.35;
   word-break: break-all;
 }
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f5f7fb;
+}
+
+button {
+  cursor: pointer;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.auth-card {
+  width: 420px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.register-card {
+  width: 520px;
+}
+
+.auth-card input,
+.auth-card select,
+.auth-card button {
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.auth-card button {
+  background: #1677ff;
+  color: #fff;
+  border: none;
+}
+
+.error-text {
+  color: #e74c3c;
+  margin: 0;
+}
+
+.dashboard-page {
+  padding: 24px;
+}

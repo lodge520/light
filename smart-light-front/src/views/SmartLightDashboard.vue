@@ -133,6 +133,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import SidebarNav from '../components/layout/SidebarNav.vue'
 import TopStatusBar from '../components/layout/TopStatusBar.vue'
 import DeviceGrid from '../components/device/DeviceGrid.vue'
@@ -142,11 +143,12 @@ import { useWebSocket } from '../composables/useWebSocket'
 import {
   createDevice,
   deleteDevice,
-  getDeviceList,
+  getMyDeviceListApi,
   getOnlineList,
   updateDevice,
 } from '../api/device'
 import { getLatestLux } from '../api/lux'
+import { getCurrentStoreApi } from '../api/store'
 import type {
   DashboardTab,
   DeviceCreatePayload,
@@ -158,6 +160,8 @@ import ArmControlPanel from '../components/settings/ArmControlPanel.vue'
 import StoreSettingsPanel from '../components/settings/StoreSettingsPanel.vue'
 import type { StoreSettingsValue } from '../components/settings/StoreSettingsPanel.vue'
 import FlowOverview from '../components/flow/FlowOverview.vue'
+import { regions } from '../constants/china-region'
+import { STORE_STYLE_MAP } from '../constants/store'
 
 const activeTab = ref<DashboardTab>('main')
 const devices = ref<DeviceItem[]>([])
@@ -178,6 +182,95 @@ const scannedDevices = ref<
     added?: boolean
   }>
 >([])
+
+const router = useRouter()
+const storeSettingsReady = ref(false)
+
+const STYLE_TEMP_MAP: Record<string, number> = {
+  HIGH_END: 3500,
+  MASS_MARKET: 4000,
+  FAST_FASHION: 4500,
+}
+
+function buildStoreTypeValue(storeStyle: string) {
+  const label = STORE_STYLE_MAP[storeStyle] || '大众'
+  const temp = STYLE_TEMP_MAP[storeStyle] || 4000
+  return `${label},${temp}`
+}
+
+function buildStoreSizeValue(area: number | string | undefined) {
+  const num = Number(area || 80)
+  let label = '中型'
+  if (num <= 60) label = '小型'
+  if (num >= 150) label = '大型'
+  return `${label},${num}`
+}
+
+function findRegionValue(provinceLabel: string, cityLabel: string) {
+  for (const province of regions) {
+    if (province.label !== provinceLabel) continue
+
+    const city = province.cities.find(item => item.label === cityLabel)
+    if (city) {
+      return {
+        province: province.value,
+        provinceLabel: province.label,
+        city: city.value,
+        cityLabel: city.label,
+      }
+    }
+
+    return {
+      province: province.value,
+      provinceLabel: province.label,
+      city: '',
+      cityLabel,
+    }
+  }
+
+  return {
+    province: '',
+    provinceLabel: provinceLabel || '',
+    city: '',
+    cityLabel: cityLabel || '',
+  }
+}
+
+async function loadCurrentStore() {
+  try {
+    const store = await getCurrentStoreApi()
+    const region = findRegionValue(store.province, store.city)
+
+    storeSettingsReady.value = false
+    storeSettings.value = {
+      ...storeSettings.value,
+      region,
+      storeType: buildStoreTypeValue(store.storeStyle),
+      storeSize: buildStoreSizeValue(store.area),
+    }
+
+    weatherText.value = `${store.province} · ${store.city}`
+    envInfo.value.area = Number(store.area || 80)
+    return true
+  } catch (error: any) {
+    console.error('loadCurrentStore error =', error)
+
+    const msg = error?.response?.data?.msg || error?.message || ''
+    if (msg.includes('当前用户未绑定店铺')) {
+      router.push('/store-setup')
+      return false
+    }
+    return false
+  } finally {
+    storeSettingsReady.value = true
+  }
+}
+
+onMounted(async () => {
+  const ok = await loadCurrentStore()
+  if (!ok) return
+  await loadDevices()
+})
 
 function removeScannedDevice(chipId: string) {
   scannedDevices.value = scannedDevices.value.filter(item => item.chipId !== chipId)
@@ -244,6 +337,8 @@ const storeSettings = ref<StoreSettingsValue>({
 watch(
   storeSettings,
   async (val) => {
+    if (!storeSettingsReady.value) return
+
     const storeTypeInfo = parseStoreType(val.storeType)
     const storeSizeInfo = parseStoreSize(val.storeSize)
 
@@ -255,17 +350,17 @@ watch(
       if (!device.autoMode) continue
 
       const nextPayload: DeviceCreatePayload = {
-      chipId: device.chipId || '',
-      ip: device.ip || '',
-      displayName: device.displayName || '',
-      brightness: device.brightness ?? 50,
-      temp: device.temp ?? 4000,
-      autoMode: device.autoMode ?? false,
-      recommendedBrightness: device.recommendedBrightness ?? 50,
-      recommendedTemp: storeTypeInfo.temp ?? 4000,
-      fabric: device.fabric || '',
-      mainColorRgb: device.mainColorRgb || '',
-    }
+        chipId: device.chipId || '',
+        ip: device.ip || '',
+        displayName: device.displayName || '',
+        brightness: device.brightness ?? 50,
+        temp: device.temp ?? 4000,
+        autoMode: device.autoMode ?? false,
+        recommendedBrightness: device.recommendedBrightness ?? 50,
+        recommendedTemp: storeTypeInfo.temp ?? 4000,
+        fabric: device.fabric || '',
+        mainColorRgb: device.mainColorRgb || '',
+      }
 
       try {
         await updateDevice(device.id, nextPayload)
@@ -275,7 +370,7 @@ watch(
       }
     }
   },
-  { deep: true, immediate: true },
+  { deep: true },
 )
 
 function mergeDeviceOnline(deviceList: DeviceItem[], onlineList: DeviceOnlineItem[]) {
@@ -300,7 +395,7 @@ async function loadDevices() {
 
   try {
     const [deviceList, onlineList] = await Promise.all([
-      getDeviceList(),
+      getMyDeviceListApi(),
       getOnlineList(),
     ])
 
@@ -542,7 +637,10 @@ function handleWsMessage(message: any) {
   }
 }
 
-const wsUrl = computed(() => `ws://${serverHost.value}:3000/ws`)
+const wsUrl = computed(() => {
+  const token = localStorage.getItem('TOKEN') || ''
+  return `ws://${serverHost.value}:3000/ws?token=${encodeURIComponent(token)}`
+})
 const { connected } = useWebSocket(wsUrl, handleWsMessage)
 
 watch(connected, (val) => {
@@ -554,8 +652,9 @@ watch(connected, (val) => {
   }
 })
 
-onMounted(() => {
-  loadDevices()
+onMounted(async () => {
+  await loadCurrentStore()
+  await loadDevices()
 })
 
 onBeforeUnmount(() => {
