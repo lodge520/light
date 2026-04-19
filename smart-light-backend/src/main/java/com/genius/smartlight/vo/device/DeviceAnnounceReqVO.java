@@ -14,4 +14,7 @@ public class DeviceAnnounceReqVO {
 
     @Schema(description = "设备IP地址", example = "192.168.1.10")
     private String ip;
+
+    @Schema(description = "设备類型", example = "lamp")
+    private String deviceType;
 }

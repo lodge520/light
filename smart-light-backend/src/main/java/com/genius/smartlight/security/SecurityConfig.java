@@ -32,20 +32,31 @@ public class SecurityConfig {
                         // 登录注册放行
                         .requestMatchers(
                                 "/api/auth/login",
-                                "/api/auth/register"
+                                "/api/auth/register",
+                                "/v3/api-docs",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
+
+                        // 设备端 WebSocket：必须放在 /ws/** 前面
+                        .requestMatchers("/ws/device").permitAll()
+
+                        // 设备主动上报接口：放行
+                        .requestMatchers(HttpMethod.POST,
+                                "/admin/device/announce",
+                                "/admin/device/state-report",
+                                "/admin/lux/create",
+                                "/admin/duration/create"
+                        ).permitAll()
+
+                        // OTA 如果后面要用，也先放行
+                        .requestMatchers(
+                                "/ota/**"
                         ).permitAll()
 
                         // 浏览器端 websocket：继续走 JWT
                         .requestMatchers("/ws", "/ws/**").authenticated()
-
-                        // 设备端 websocket：先放行
-                        .requestMatchers("/ws/device").permitAll()
-
-                        // 设备主动上报接口：先放行
-                        .requestMatchers(HttpMethod.POST,
-                                "/admin/device/announce",
-                                "/admin/device/state-report"
-                        ).permitAll()
 
                         // 其余全部要求用户登录
                         .anyRequest().authenticated()

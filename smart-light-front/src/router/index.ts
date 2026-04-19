@@ -64,7 +64,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  const token = localStorage.getItem('TOKEN')
+  const token = localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN')
   const { storeConfigured, storeSkipped } = getStoreSetupState()
 
   if (to.meta.requiresAuth && !token) {

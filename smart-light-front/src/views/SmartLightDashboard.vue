@@ -122,7 +122,10 @@
 
       <section v-show="activeTab === 'settings'" class="page-section">
         <div class="settings-layout">
-          <StoreSettingsPanel v-model="storeSettings" />
+          <StoreSettingsPanel
+            v-model="storeSettings"
+            @logout="handleLogout"
+          />
           <DurationQueryPanel />
           <ArmControlPanel :devices="devices" />
         </div>
@@ -185,6 +188,19 @@ const scannedDevices = ref<
 
 const router = useRouter()
 const storeSettingsReady = ref(false)
+
+function handleLogout() {
+  localStorage.removeItem('TOKEN')
+  localStorage.removeItem('USER_INFO')
+  localStorage.removeItem('storeSetup')
+  localStorage.removeItem('REMEMBER_USERNAME')
+
+  sessionStorage.removeItem('TOKEN')
+  sessionStorage.removeItem('USER_INFO')
+  sessionStorage.removeItem('storeSetup')
+
+  router.replace('/login')
+}
 
 const STYLE_TEMP_MAP: Record<string, number> = {
   HIGH_END: 3500,
@@ -638,7 +654,7 @@ function handleWsMessage(message: any) {
 }
 
 const wsUrl = computed(() => {
-  const token = localStorage.getItem('TOKEN') || ''
+  const token = localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN') || ''
   return `ws://${serverHost.value}:3000/ws?token=${encodeURIComponent(token)}`
 })
 const { connected } = useWebSocket(wsUrl, handleWsMessage)
