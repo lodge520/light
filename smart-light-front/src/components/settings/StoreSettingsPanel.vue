@@ -31,6 +31,9 @@
       <button type="button" class="btn-primary" @click="toggleMode">
         {{ isNightMode ? '切换到日间模式' : '切换到夜间模式' }}
       </button>
+      <button type="button" class="btn-logout" @click="handleLogout">
+        退出登录
+      </button>
     </div>
   </div>
 </template>
@@ -54,7 +57,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: StoreSettingsValue): void
+  (e: 'logout'): void
 }>()
+
+function handleLogout() {
+  emit('logout')
+}
 
 const STYLE_TEMP_MAP: Record<string, number> = {
   HIGH_END: 3500,

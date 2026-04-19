@@ -10,7 +10,7 @@ import com.genius.smartlight.vo.lux.LuxRespVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -21,9 +21,39 @@ public class WebSocketPushService {
 
     private final WebSocketSessionManager sessionManager;
     private final ObjectMapper objectMapper;
-
+    private final DeviceSessionManager deviceSessionManager;
     public void pushState(DeviceRespVO data) {
         broadcast("state", data);
+    }
+
+    public void pushStateToDevice(String chipId, DeviceRespVO data) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("chipId", chipId);
+            payload.put("brightness", data.getBrightness());
+            payload.put("temp", data.getTemp());
+            payload.put("autoMode", data.getAutoMode());
+            payload.put("recommendedBrightness", data.getRecommendedBrightness());
+            payload.put("recommendedTemp", data.getRecommendedTemp());
+            payload.put("fabric", data.getFabric());
+            payload.put("mainColorRgb", data.getMainColorRgb());
+
+            Map<String, Object> message = new HashMap<>();
+            message.put("type", "state");
+            message.put("data", payload);
+
+            String json = objectMapper.writeValueAsString(message);
+
+            boolean sent = deviceSessionManager.sendToDevice(chipId, json);
+
+            if (!sent) {
+                log.warn("设备状态下发失败，设备不在线或连接不可用，chipId={}, payload={}", chipId, json);
+            } else {
+                log.info("设备状态已下发，chipId={}, payload={}", chipId, json);
+            }
+        } catch (Exception e) {
+            log.error("设备状态下发异常，chipId={}", chipId, e);
+        }
     }
 
     public void pushOnlineStatus(DeviceOnlineStatusRespVO data) {
@@ -65,10 +95,11 @@ public class WebSocketPushService {
         broadcast("personDetection", data);
     }
 
-    public void pushAnnounce(String chipId, String ip, Boolean added) {
+    public void pushAnnounce(String chipId, String ip, String deviceType, Boolean added) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("chipId", chipId);
         data.put("ip", ip);
+        data.put("deviceType", deviceType);
         data.put("added", added);
         broadcast("announce", data);
     }

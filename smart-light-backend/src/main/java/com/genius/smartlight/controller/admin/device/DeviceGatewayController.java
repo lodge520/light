@@ -46,12 +46,18 @@ public class DeviceGatewayController {
                         .eq(DeviceDO::getChipId, reqVO.getChipId())
         );
 
-        boolean added = exist != null;
+        boolean added = exist != null && exist.getStoreId() != null;
 
         DeviceAnnounceRespVO respVO = new DeviceAnnounceRespVO();
         respVO.setAdded(added);
 
-        webSocketPushService.pushAnnounce(reqVO.getChipId(), reqVO.getIp(), added);
+        webSocketPushService.pushAnnounce(
+                reqVO.getChipId(),
+                reqVO.getIp(),
+                reqVO.getDeviceType(),
+                added
+        );
+
         return CommonResult.success(respVO);
     }
 

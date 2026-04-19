@@ -140,12 +140,19 @@ async function handleLogin() {
       throw new Error('登录成功但未返回 token')
     }
 
-    localStorage.setItem('TOKEN', data.token)
-    localStorage.setItem('USER_INFO', JSON.stringify(data))
+
+    localStorage.removeItem('TOKEN')
+    localStorage.removeItem('USER_INFO')
+    sessionStorage.removeItem('TOKEN')
+    sessionStorage.removeItem('USER_INFO')
 
     if (rememberMe.value) {
+      localStorage.setItem('TOKEN', data.token)
+      localStorage.setItem('USER_INFO', JSON.stringify(data))
       localStorage.setItem('REMEMBER_USERNAME', form.username)
     } else {
+      sessionStorage.setItem('TOKEN', data.token)
+      sessionStorage.setItem('USER_INFO', JSON.stringify(data))
       localStorage.removeItem('REMEMBER_USERNAME')
     }
 

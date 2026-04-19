@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -18,8 +19,14 @@ public class LuxRecordDO {
     @TableField("chip_id")
     private String chipId;
 
+    @TableField("device_id")
+    private Long deviceId;
+
+    @TableField("store_id")
+    private Long storeId;
+
     @TableField("lux_value")
-    private Double luxValue;
+    private BigDecimal luxValue;
 
     @TableField("collect_time")
     private LocalDateTime collectTime;

@@ -14,6 +14,8 @@ import com.genius.smartlight.vo.device.DeviceSaveReqVO;
 import com.genius.smartlight.websocket.WebSocketPushService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,18 +29,60 @@ public class DeviceServiceImpl implements DeviceService {
     private final StoreMapper storeMapper;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Long createDevice(DeviceSaveReqVO reqVO) {
+        Long userId = SecurityUtils.getCurrentUserId();
+
+        StoreDO store = storeMapper.selectOne(
+                new LambdaQueryWrapper<StoreDO>()
+                        .eq(StoreDO::getUserId, userId)
+        );
+        if (store == null) {
+            throw new ServiceException("当前用户未绑定店铺");
+        }
+
         DeviceDO exist = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
                         .eq(DeviceDO::getChipId, reqVO.getChipId())
         );
+
+        LocalDateTime now = LocalDateTime.now();
+
         if (exist != null) {
-            throw new ServiceException("芯片ID已存在");
+            if (exist.getStoreId() != null && !exist.getStoreId().equals(store.getId())) {
+                throw new ServiceException("该设备已被其他店铺绑定");
+            }
+
+            if (exist.getStoreId() != null && exist.getStoreId().equals(store.getId())) {
+                throw new ServiceException("该设备已添加到当前店铺");
+            }
+
+            exist.setStoreId(store.getId());
+            exist.setDeviceType(reqVO.getDeviceType());
+            exist.setDeviceNo(reqVO.getDeviceNo());
+            exist.setDisplayName(reqVO.getDisplayName());
+            exist.setIp(reqVO.getIp());
+            exist.setBrightness(reqVO.getBrightness());
+            exist.setTemp(reqVO.getTemp());
+            exist.setAutoMode(reqVO.getAutoMode());
+            exist.setRecommendedBrightness(reqVO.getRecommendedBrightness());
+            exist.setRecommendedTemp(reqVO.getRecommendedTemp());
+            exist.setFabric(reqVO.getFabric());
+            exist.setMainColorRgb(reqVO.getMainColorRgb());
+            exist.setUpdateTime(now);
+
+            deviceMapper.updateById(exist);
+
+            DeviceRespVO respVO = DeviceConvert.convert(exist);
+            webSocketPushService.pushState(respVO);
+
+            return exist.getId();
         }
 
         DeviceDO device = DeviceConvert.convert(reqVO);
-        device.setCreateTime(LocalDateTime.now());
-        device.setUpdateTime(LocalDateTime.now());
+        device.setStoreId(store.getId());
+        device.setCreateTime(now);
+        device.setUpdateTime(now);
 
         deviceMapper.insert(device);
 
@@ -69,16 +113,15 @@ public class DeviceServiceImpl implements DeviceService {
         updateObj.setId(id);
         updateObj.setCreateTime(device.getCreateTime());
         updateObj.setUpdateTime(LocalDateTime.now());
-
-        // 关键：保留原 storeId，避免后台更新设备时把店铺归属冲掉
         updateObj.setStoreId(device.getStoreId());
-
-        // 如果你 DeviceDO 有 displayName，也顺便保留
         updateObj.setDisplayName(device.getDisplayName());
 
         deviceMapper.updateById(updateObj);
 
-        webSocketPushService.pushState(DeviceConvert.convert(updateObj));
+        DeviceRespVO respVO = DeviceConvert.convert(updateObj);
+
+        webSocketPushService.pushState(respVO);
+        webSocketPushService.pushStateToDevice(updateObj.getChipId(), respVO);
     }
 
     @Override

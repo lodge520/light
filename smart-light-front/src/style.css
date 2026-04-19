@@ -1464,3 +1464,17 @@ button {
 .dashboard-page {
   padding: 24px;
 }
+
+.btn-logout {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  background: #fff1f0;
+  color: #f53f3f;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-logout:hover {
+  background: #ffe4e1;
+}

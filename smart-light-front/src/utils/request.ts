@@ -6,7 +6,7 @@ type RequestOptions = RequestInit & {
 
 export async function request(url: string, options: RequestOptions = {}) {
   const { auth = true, headers, ...rest } = options
-  const token = localStorage.getItem('TOKEN')
+  const token = localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN')
 
   const finalHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
