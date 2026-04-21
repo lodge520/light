@@ -120,16 +120,27 @@
         />
       </section>
 
-      <section v-show="activeTab === 'settings'" class="page-section">
-        <div class="settings-layout">
-          <StoreSettingsPanel
-            v-model="storeSettings"
-            @logout="handleLogout"
+    <section v-show="activeTab === 'settings'" class="page-section">
+      <div class="settings-layout">
+        <StoreSettingsPanel
+          v-model="storeSettings"
+          @logout="handleLogout"
+        />
+
+        <div class="settings-row">
+          <DurationQueryPanel class="settings-half-card" />
+          <ArmControlPanel
+            class="settings-half-card"
+            :devices="devices"
           />
-          <DurationQueryPanel />
-          <ArmControlPanel :devices="devices" />
         </div>
-      </section>
+
+        <FlowMonitorPanel
+          class="settings-full-card"
+          :devices="devices"
+        />
+      </div>
+    </section>
     </div>
   </div>
 </template>
@@ -141,6 +152,7 @@ import SidebarNav from '../components/layout/SidebarNav.vue'
 import TopStatusBar from '../components/layout/TopStatusBar.vue'
 import DeviceGrid from '../components/device/DeviceGrid.vue'
 import DeviceAddModal from '../components/device/DeviceAddModal.vue'
+import FlowMonitorPanel from '../components/settings/FlowMonitorPanel.vue'
 import { useClock } from '../composables/useClock'
 import { useWebSocket } from '../composables/useWebSocket'
 import {

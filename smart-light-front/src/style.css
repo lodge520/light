@@ -446,9 +446,27 @@ input {
   background: #f56c6c;
   color: #fff;
 }
+
 .settings-layout {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.settings-half-card {
+  min-width: 0;
+  height: 100%;
+}
+
+.settings-full-card {
+  width: 100%;
 }
 
 .settings-card {
@@ -469,6 +487,12 @@ input {
   gap: 12px;
   margin-bottom: 14px;
   flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .settings-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .form-row label {
@@ -1477,4 +1501,41 @@ button {
 
 .btn-logout:hover {
   background: #ffe4e1;
+}
+
+.ai-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.btn-ai {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  background: #eef4ff;
+  color: #1677ff;
+  transition: all 0.2s ease;
+}
+
+.btn-ai:hover {
+  background: #dbeafe;
+}
+
+.btn-ai.active {
+  background: #fff1f0;
+  color: #f53f3f;
+}
+
+.btn-ai:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }

@@ -25,12 +25,12 @@
             </template>
 
             <template v-else>
-              <label class="modal-label">设备名称</label>
+              <label class="modal-label">设备编码</label>
               <input
                 v-model.trim="form.chipId"
                 class="modal-input"
                 type="text"
-                placeholder="如 lamp2"
+                placeholder="如 1237461B"
               />
 
               <label class="modal-label">设备 IP</label>
@@ -40,6 +40,12 @@
                 type="text"
                 placeholder="如 192.168.1.105"
               />
+
+              <label class="modal-label">设备类型</label>
+                <select v-model="form.deviceType" class="modal-input">
+                  <option value="lamp">lamp</option>
+                  <option value="camlamp">camlamp</option>
+                </select>
             </template>
 
             <label class="modal-label">显示名称</label>

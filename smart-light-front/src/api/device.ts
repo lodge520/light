@@ -43,3 +43,14 @@ export async function armControl(chipId: string, direction: string): Promise<boo
   })
   return res.data.data
 }
+
+export async function setFlowUpload(chipId: string, enabled: boolean): Promise<boolean> {
+  const res = await http.post<CommonResult<boolean>>(
+    `/admin/device/flow-upload/${chipId}`,
+    {
+      enabled,
+    }
+  )
+
+  return res.data.data
+}

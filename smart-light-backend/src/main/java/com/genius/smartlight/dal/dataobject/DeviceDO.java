@@ -60,5 +60,4 @@ public class DeviceDO {
     @TableField("store_id")
     private Long storeId;
 
-
 }
