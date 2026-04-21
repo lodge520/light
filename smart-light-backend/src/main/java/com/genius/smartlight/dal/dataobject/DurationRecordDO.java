@@ -19,11 +19,20 @@ public class DurationRecordDO {
     @TableField("chip_id")
     private String chipId;
 
+    @TableField("device_id")
+    private Long deviceId;
+
+    @TableField("store_id")
+    private Long storeId;
+
     @TableField("stat_date")
     private LocalDate statDate;
 
     @TableField("duration_value")
     private Long durationValue;
+
+    @TableField("collect_time")
+    private LocalDateTime collectTime;
 
     @TableField("create_time")
     private LocalDateTime createTime;

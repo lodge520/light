@@ -46,17 +46,54 @@
 
     <label class="field-label">面料：{{ localForm.fabric || '未设置' }}</label>
 
-    <div
-      class="color-box"
-      :style="{
-        background: rgbStyle,
-        color: textColor,
-      }"
-    >
-      {{ "RGB(" + (localForm.mainColorRgb || '暂无主色') + ")" }}
-    </div>
+<div
+  class="color-box"
+  :style="{
+    background: rgbStyle,
+    color: textColor,
+  }"
+>
+  {{ "RGB(" + (localForm.mainColorRgb || '暂无主色') + ")" }}
+</div>
 
-    <div class="card-actions">
+<div class="ai-actions">
+  <template v-if="isLamp">
+    <input
+      ref="fabricInputRef"
+      class="hidden-file-input"
+      type="file"
+      accept="image/*"
+      @change="handleFabricFileChange"
+    />
+
+    <button
+      class="btn-ai"
+      :disabled="fabricLoading"
+      @click.stop="openFabricUpload"
+    >
+      {{ fabricLoading ? '识别中...' : '上传图片识别面料' }}
+    </button>
+  </template>
+
+  <template v-if="isCamLamp">
+    <button
+      class="btn-ai"
+      :class="{ active: flowEnabled }"
+      :disabled="flowLoading"
+      @click.stop="handleToggleFlowUpload"
+    >
+      {{
+        flowLoading
+          ? '下发中...'
+          : flowEnabled
+            ? '停止人流监测'
+            : '开启人流监测'
+      }}
+    </button>
+  </template>
+</div>
+
+<div class="card-actions">
       <button class="btn-secondary" @click="resetForm">重置</button>
       <button class="btn-danger" :disabled="deleting" @click="handleDelete">
         {{ deleting ? '删除中...' : '删除' }}
@@ -119,6 +156,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import type { DeviceCreatePayload, DeviceItem } from '../../types/device'
+import { fabricRecognize } from '../../api/ai'
+import { setFlowUpload } from '../../api/device'
 
 const props = defineProps<{
   device: DeviceItem
@@ -146,6 +185,10 @@ const localForm = reactive<DeviceCreatePayload>({
 })
 
 const showDetailModal = ref(false)
+const fabricInputRef = ref<HTMLInputElement | null>(null)
+const fabricLoading = ref(false)
+const flowLoading = ref(false)
+const flowEnabled = ref(false)
 
 function openDetailModal() {
   showDetailModal.value = true
@@ -191,6 +234,11 @@ function syncFromProps() {
   localForm.recommendedTemp = props.device.recommendedTemp ?? 4000
   localForm.fabric = props.device.fabric || ''
   localForm.mainColorRgb = props.device.mainColorRgb || ''
+  flowEnabled.value = Boolean(
+  (props.device as any).flowEnabled ??
+  (props.device as any).flowAutoUpload ??
+  false
+  )
 }
 
 watch(
@@ -243,6 +291,70 @@ function handleAutoModeChange() {
   emitRealtimeUpdate()
 }
 
+function openFabricUpload() {
+  fabricInputRef.value?.click()
+}
+
+async function handleFabricFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  if (!localForm.chipId) {
+   // window.alert('设备缺少芯片ID，无法进行面料识别')
+    input.value = ''
+    return
+  }
+
+  fabricLoading.value = true
+
+  try {
+    const result = await fabricRecognize(file, localForm.chipId)
+
+    const fabricName =
+      result.fabric ||
+      result.label ||
+      ''
+
+    if (fabricName) {
+      localForm.fabric = fabricName
+      emitRealtimeUpdate()
+    }
+
+    //window.alert(fabricName ? `面料识别完成：${fabricName}` : '面料识别完成')
+  } catch (error) {
+    console.error('面料识别失败：', error)
+    //window.alert('面料识别失败')
+  } finally {
+    fabricLoading.value = false
+    input.value = ''
+  }
+}
+
+async function handleToggleFlowUpload() {
+  if (!localForm.chipId) {
+    //window.alert('设备缺少芯片ID，无法下发人流监测命令')
+    return
+  }
+
+  const nextEnabled = !flowEnabled.value
+  flowLoading.value = true
+
+  try {
+    await setFlowUpload(localForm.chipId, nextEnabled)
+
+    flowEnabled.value = nextEnabled
+
+    //window.alert(nextEnabled ? '已开启人流监测' : '已停止人流监测')
+  } catch (error) {
+    console.error('人流监测命令下发失败：', error)
+    //window.alert('人流监测命令下发失败')
+  } finally {
+    flowLoading.value = false
+  }
+}
+
 function handleDelete() {
   const targetName = displayNameText.value || displayDeviceNo.value || '该设备'
   if (!window.confirm(`确认删除设备 ${targetName} 吗？`)) return
@@ -260,6 +372,14 @@ const displayDeviceNo = computed(() => {
 const displayDeviceType = computed(() => {
   return props.device.deviceType?.trim() || '未知'
 })
+const normalizedDeviceType = computed(() => {
+  return String(localForm.deviceType || props.device.deviceType || '')
+    .replace(/[-_\s]/g, '')
+    .toLowerCase()
+})
+
+const isLamp = computed(() => normalizedDeviceType.value === 'lamp')
+const isCamLamp = computed(() => normalizedDeviceType.value === 'camlamp')
 
 const displayBrightness = computed(() => {
   return localForm.autoMode

@@ -109,7 +109,7 @@ public class DeviceGatewayController {
     public CommonResult<DeviceRespVO> stateSync(
             @Parameter(description = "芯片ID", example = "ABC123456")
             @PathVariable String chipId,
-            @RequestBody DeviceStateSyncReqVO reqVO) {
+            @Valid @RequestBody DeviceStateSyncReqVO reqVO) {
         return CommonResult.success(deviceControlService.syncStateToDevice(chipId, reqVO));
     }
 

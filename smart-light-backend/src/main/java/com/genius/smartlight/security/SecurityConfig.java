@@ -36,7 +36,8 @@ public class SecurityConfig {
                                 "/v3/api-docs",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/admin/device/ping"
                         ).permitAll()
 
                         // 设备端 WebSocket：必须放在 /ws/** 前面

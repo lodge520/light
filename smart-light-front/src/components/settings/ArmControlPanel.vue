@@ -11,7 +11,7 @@
   :key="device.id ?? `${getDeviceCode(device)}-${index}`"
   :value="getDeviceCode(device)"
 >
-  {{ getDeviceCode(device) || '未知设备' }}
+  {{ device.displayName || getDeviceCode(device) || '未知设备' }}
 </option>
       </select>
     </div>
@@ -50,8 +50,11 @@ function getDeviceCode(device: Partial<DeviceItem> | any) {
 
 const cameraDevices = computed(() => {
   return (props.devices || []).filter(device => {
-    const code = getDeviceCode(device)
-    return code.toLowerCase().includes('cam')
+    const type = String(device.deviceType || '')
+      .replace(/[-_\s]/g, '')
+      .toLowerCase()
+
+    return type === 'camlamp'
   })
 })
 

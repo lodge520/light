@@ -6,8 +6,10 @@ import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -79,14 +81,20 @@ public class DeviceController {
 
     @Operation(summary = "将设备绑定到当前登录用户所属店铺")
     @PostMapping("/bind-current-store")
-    public CommonResult<Boolean> bindCurrentStore(@RequestBody BindCurrentStoreReqVO reqVO) {
+    public CommonResult<Boolean> bindCurrentStore(@Valid @RequestBody BindCurrentStoreReqVO reqVO) {
         deviceService.bindDeviceToCurrentStore(reqVO.getChipId(), reqVO.getDisplayName());
         return CommonResult.success(true);
     }
 
     @Data
+    @Schema(description = "绑定设备到当前店铺请求参数")
     public static class BindCurrentStoreReqVO {
+
+        @Schema(description = "芯片ID", example = "ABC123456", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotBlank(message = "芯片ID不能为空")
         private String chipId;
+
+        @Schema(description = "设备显示名称", example = "入口射灯")
         private String displayName;
     }
 }
