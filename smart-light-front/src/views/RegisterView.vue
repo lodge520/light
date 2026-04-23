@@ -76,7 +76,7 @@
         </div>
       </div>
     </div>
-  </div>npm run dev
+  </div>
 </template>
 
 <script setup lang="ts">

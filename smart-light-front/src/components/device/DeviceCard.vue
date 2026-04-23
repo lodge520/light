@@ -73,6 +73,14 @@
     >
       {{ fabricLoading ? '识别中...' : '上传图片识别面料' }}
     </button>
+    <button
+      v-if="annotatedImageBase64"
+      class="btn-ai btn-preview"
+      type="button"
+      @click.stop="openClothPreviewModal"
+    >
+      查看分割图
+    </button>
   </template>
 
   <template v-if="isCamLamp">
@@ -151,6 +159,37 @@
     </Transition>
   </div>
 </Transition>
+<Transition name="detail-overlay-fade">
+  <div
+    v-if="showClothPreviewModal"
+    class="device-detail-overlay"
+    @click.self="closeClothPreviewModal"
+  >
+    <Transition name="detail-card-pop" appear>
+      <div class="cloth-preview-modal">
+        <div class="detail-modal-header">
+          <div>
+            <h3>服装区域分割结果</h3>
+            <p class="detail-subtitle">
+              {{ clothDetected === false ? '未检测到明确服装区域，已使用回退结果' : '已分割服装区域' }}
+            </p>
+          </div>
+          <button class="detail-close-btn" @click="closeClothPreviewModal">×</button>
+        </div>
+
+        <img
+          class="cloth-preview-image"
+          :src="`data:image/jpeg;base64,${annotatedImageBase64}`"
+          alt="服装区域分割结果"
+        />
+
+        <div class="detail-modal-actions">
+          <button class="btn-secondary" @click="closeClothPreviewModal">关闭</button>
+        </div>
+      </div>
+    </Transition>
+  </div>
+</Transition>
 </template>
 
 <script setup lang="ts">
@@ -189,6 +228,17 @@ const fabricInputRef = ref<HTMLInputElement | null>(null)
 const fabricLoading = ref(false)
 const flowLoading = ref(false)
 const flowEnabled = ref(false)
+const annotatedImageBase64 = ref('')
+const clothDetected = ref<boolean | null>(null)
+const showClothPreviewModal = ref(false)
+
+function openClothPreviewModal() {
+  showClothPreviewModal.value = true
+}
+
+function closeClothPreviewModal() {
+  showClothPreviewModal.value = false
+}
 
 function openDetailModal() {
   showDetailModal.value = true
@@ -269,6 +319,7 @@ function emitRealtimeUpdate() {
       recommendedTemp: localForm.recommendedTemp ?? 4000,
       fabric: localForm.fabric || '',
       mainColorRgb: localForm.mainColorRgb || '',
+      
     },
   })
 }
@@ -295,14 +346,21 @@ function openFabricUpload() {
   fabricInputRef.value?.click()
 }
 
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024 // 20MB
+
 async function handleFabricFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
 
   if (!file) return
 
+  if (file.size > MAX_IMAGE_SIZE) {
+    window.alert('图片大小不能超过 20MB，请压缩后再上传')
+    input.value = ''
+    return
+  }
+
   if (!localForm.chipId) {
-   // window.alert('设备缺少芯片ID，无法进行面料识别')
     input.value = ''
     return
   }
@@ -312,20 +370,35 @@ async function handleFabricFileChange(event: Event) {
   try {
     const result = await fabricRecognize(file, localForm.chipId)
 
-    const fabricName =
-      result.fabric ||
-      result.label ||
-      ''
+    const fabricName = result.fabric || result.label || ''
 
     if (fabricName) {
       localForm.fabric = fabricName
-      emitRealtimeUpdate()
     }
 
-    //window.alert(fabricName ? `面料识别完成：${fabricName}` : '面料识别完成')
+    if (result.mainColorRgb !== undefined) {
+      localForm.mainColorRgb = result.mainColorRgb || ''
+    }
+
+    if (result.recommendedBrightness !== undefined) {
+      localForm.recommendedBrightness = result.recommendedBrightness
+    }
+
+    if (result.recommendedTemp !== undefined) {
+      localForm.recommendedTemp = result.recommendedTemp
+    }
+
+    if (result.annotatedImageBase64) {
+    annotatedImageBase64.value = result.annotatedImageBase64
+    }
+
+    if (result.clothDetected !== undefined) {
+      clothDetected.value = result.clothDetected
+    }
+
+    emitRealtimeUpdate()
   } catch (error) {
     console.error('面料识别失败：', error)
-    //window.alert('面料识别失败')
   } finally {
     fabricLoading.value = false
     input.value = ''

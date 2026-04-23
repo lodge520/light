@@ -78,8 +78,22 @@ public class WebSocketPushService {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("chipId", chipId);
         data.put("filename", filename);
+
         data.put("label", result.getLabel());
         data.put("confidence", result.getConfidence());
+
+        data.put("mainColorRgb", result.getMainColorRgb());
+        data.put("recommendedBrightness", result.getRecommendedBrightness());
+        data.put("recommendedTemp", result.getRecommendedTemp());
+
+        data.put("clothDetected", result.getClothDetected());
+        data.put("clothX", result.getClothX());
+        data.put("clothY", result.getClothY());
+        data.put("clothW", result.getClothW());
+        data.put("clothH", result.getClothH());
+
+        data.put("annotatedImageBase64", result.getAnnotatedImageBase64());
+
         broadcast("fabricRecognize", data);
     }
 
