@@ -5,11 +5,16 @@ const http = axios.create({
   timeout: 10000,
 })
 
+console.log('VITE_API_BASE =', import.meta.env.VITE_API_BASE)
+console.log('axios baseURL =', http.defaults.baseURL)
+
 http.interceptors.request.use((config) => {
   const token = window.localStorage.getItem('TOKEN')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+   console.log('请求地址:', `${config.baseURL || ''}${config.url || ''}`)
+
   return config
 })
 

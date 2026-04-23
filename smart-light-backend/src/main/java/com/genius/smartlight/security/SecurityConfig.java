@@ -29,6 +29,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
+                        // CORS 预检请求放行
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 登录注册放行
                         .requestMatchers(
                                 "/api/auth/login",

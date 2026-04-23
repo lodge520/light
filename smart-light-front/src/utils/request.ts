@@ -1,4 +1,4 @@
-const API_BASE = 'http://127.0.0.1:3000'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:3000'
 
 type RequestOptions = RequestInit & {
   auth?: boolean
@@ -17,7 +17,10 @@ export async function request(url: string, options: RequestOptions = {}) {
     finalHeaders.Authorization = `Bearer ${token}`
   }
 
-  const res = await fetch(`${API_BASE}${url}`, {
+  const fullUrl = `${API_BASE}${url}`
+  console.log('fetch 请求地址:', fullUrl)
+
+  const res = await fetch(fullUrl, {
     ...rest,
     headers: finalHeaders,
   })

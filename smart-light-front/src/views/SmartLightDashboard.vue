@@ -140,6 +140,7 @@
           :devices="devices"
         />
       </div>
+       <SmartConfigPanel class="settings-full-card" />
     </section>
     </div>
   </div>
@@ -153,6 +154,7 @@ import TopStatusBar from '../components/layout/TopStatusBar.vue'
 import DeviceGrid from '../components/device/DeviceGrid.vue'
 import DeviceAddModal from '../components/device/DeviceAddModal.vue'
 import FlowMonitorPanel from '../components/settings/FlowMonitorPanel.vue'
+import SmartConfigPanel from '../components/settings/SmartConfigPanel.vue'
 import { useClock } from '../composables/useClock'
 import { useWebSocket } from '../composables/useWebSocket'
 import {
