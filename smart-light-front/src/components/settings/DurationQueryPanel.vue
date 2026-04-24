@@ -14,14 +14,11 @@
 
     <div class="form-row">
       <label>最近天数：</label>
-      <select v-model="recentDays" class="date-input">
-        <option value="">不使用</option>
-        <option value="1">1 天内</option>
-        <option value="3">3 天内</option>
-        <option value="7">7 天内</option>
-        <option value="14">14 天内</option>
-        <option value="30">30 天内</option>
-      </select>
+        <BaseSelect
+          v-model="recentDays"
+          :options="recentDayOptions"
+          placeholder="请选择最近天数"
+        />
     </div>
 
     <div class="query-actions">
@@ -61,7 +58,16 @@
 import { ref } from 'vue'
 import { getDurationSummary } from '../../api/duration'
 import type { DurationSummaryItem } from '../../types/duration'
+import BaseSelect from '../common/BaseSelect.vue'
 
+const recentDayOptions = [
+  { label: '不使用', value: '' },
+  { label: '1 天内', value: '1' },
+  { label: '3 天内', value: '3' },
+  { label: '7 天内', value: '7' },
+  { label: '14 天内', value: '14' },
+  { label: '30 天内', value: '30' },
+]
 const rows = ref<DurationSummaryItem[]>([])
 const loading = ref(false)
 const errorText = ref('')
@@ -129,3 +135,67 @@ async function handleQuery() {
   }
 }
 </script>
+
+<style scoped>
+.query-actions {
+  margin: 16px 0;
+}
+
+.result-block {
+  margin-top: 18px;
+}
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.result-table th,
+.result-table td {
+  border: 1px solid #ebeef5;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.result-table thead {
+  background: #f7f8fa;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .form-row label {
+    min-width: auto;
+  }
+
+  .date-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .query-actions .btn-primary {
+    width: 100%;
+  }
+
+  .result-block {
+    overflow-x: auto;
+  }
+
+  .result-table {
+    min-width: 320px;
+  }
+
+  .result-table th,
+  .result-table td {
+    padding: 8px 10px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+}
+</style>

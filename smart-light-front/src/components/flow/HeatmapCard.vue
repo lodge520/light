@@ -92,3 +92,86 @@ function getCircleOpacity(value: number) {
   return minOpacity + (current / max) * (maxOpacity - minOpacity)
 }
 </script>
+
+<style scoped>
+.heatmap-list {
+  display: grid;
+  gap: 12px;
+}
+
+.heatmap-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 80px;
+  gap: 12px;
+  align-items: center;
+}
+
+.heatmap-label,
+.heatmap-value {
+  font-size: 14px;
+  color: #606266;
+}
+
+.heatmap-bar-wrap {
+  height: 14px;
+  background: #f2f3f5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.heatmap-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ffb347 0%, #ff6b6b 100%);
+  border-radius: 999px;
+}
+
+.heat-circle-section {
+  margin-top: 24px;
+}
+
+.heat-circle-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.heat-circle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 18px;
+  align-items: end;
+}
+
+.heat-circle-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.heat-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ffcc80 0%, #ff7043 55%, #ef5350 100%);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(239, 83, 80, 0.28);
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.heat-circle-device {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  text-align: center;
+}
+
+.heat-circle-time {
+  font-size: 12px;
+  color: #606266;
+  text-align: center;
+}
+</style>

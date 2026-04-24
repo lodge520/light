@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { request } from '../utils/request'
+import http from '../api/http'
 
 const router = useRouter()
 const loading = ref(false)
@@ -125,16 +125,12 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    const loginResult = await request('/api/auth/login', {
-      method: 'POST',
-      auth: false,
-      body: JSON.stringify({
-        username: form.username,
-        password: form.password,
-      }),
-    })
+  const res = await http.post('/api/auth/login', {
+    username: form.username,
+    password: form.password,
+  })
 
-    const data = loginResult.data ?? loginResult
+  const data = res.data?.data ?? res.data
 
     if (!data?.token) {
       throw new Error('登录成功但未返回 token')
@@ -143,16 +139,26 @@ async function handleLogin() {
 
     localStorage.removeItem('TOKEN')
     localStorage.removeItem('USER_INFO')
+    localStorage.removeItem('storeSetup')
     sessionStorage.removeItem('TOKEN')
     sessionStorage.removeItem('USER_INFO')
+    sessionStorage.removeItem('storeSetup')
+
+    const storage = rememberMe.value ? localStorage : sessionStorage
+
+    storage.setItem('TOKEN', data.token)
+    storage.setItem('USER_INFO', JSON.stringify(data))
+    storage.setItem(
+      'storeSetup',
+      JSON.stringify({
+        configured: !!data.storeConfigured,
+        skipped: false,
+      }),
+    )
 
     if (rememberMe.value) {
-      localStorage.setItem('TOKEN', data.token)
-      localStorage.setItem('USER_INFO', JSON.stringify(data))
       localStorage.setItem('REMEMBER_USERNAME', form.username)
     } else {
-      sessionStorage.setItem('TOKEN', data.token)
-      sessionStorage.setItem('USER_INFO', JSON.stringify(data))
       localStorage.removeItem('REMEMBER_USERNAME')
     }
 

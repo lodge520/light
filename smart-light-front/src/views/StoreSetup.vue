@@ -72,81 +72,43 @@
             <div class="form-grid">
               <div class="form-item">
                 <label>省份</label>
-                <select v-model="regionValue.province" @change="handleProvinceChange">
-                  <option value="">请选择省份</option>
-                  <option
-                    v-for="item in regions"
-                    :key="item.value"
-                    :value="item.value"
-                  >
-                    {{ item.label }}
-                  </option>
-                </select>
+                  <BaseSelect
+                    v-model="regionValue.province"
+                    :options="provinceOptions"
+                    placeholder="请选择省份"
+                    @change="handleProvinceChange"
+                  />
               </div>
 
               <div class="form-item">
                 <label>城市</label>
-                <select
-                  v-model="regionValue.city"
-                  :disabled="!cityOptions.length"
-                  @change="handleCityChange"
-                >
-                  <option value="">请选择城市</option>
-                  <option
-                    v-for="item in cityOptions"
-                    :key="item.value"
-                    :value="item.value"
-                  >
-                    {{ item.label }}
-                  </option>
-                </select>
+                  <BaseSelect
+                    v-model="regionValue.city"
+                    :options="citySelectOptions"
+                    placeholder="请选择城市"
+                    :disabled="!citySelectOptions.length"
+                    @change="handleCityChange"
+                  />
               </div>
             </div>
 
             <div class="form-grid">
               <div class="form-item">
                 <label>店铺风格</label>
-                <select v-model="form.storeStyle">
-                  <option value="">请选择店铺风格</option>
-                  <option
-                    v-for="item in STORE_STYLE_OPTIONS"
-                    :key="item.value"
-                    :value="item.value"
-                  >
-                    {{ item.label }}
-                  </option>
-                </select>
+                  <BaseSelect
+                    v-model="form.storeStyle"
+                    :options="storeStyleOptions"
+                    placeholder="请选择店铺风格"
+                  />
               </div>
 
               <div class="form-item">
                 <label>经营场景</label>
-                <select v-model="form.businessScene">
-                  <option value="">请选择经营场景</option>
-                  <option value="daily">日常营业</option>
-                  <option value="window">橱窗展示</option>
-                  <option value="display">主题陈列</option>
-                  <option value="live">直播展示</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-grid">
-              <div class="form-item">
-                <label>联系人</label>
-                <input
-                  v-model.trim="form.contactName"
-                  type="text"
-                  placeholder="请输入联系人姓名"
-                />
-              </div>
-
-              <div class="form-item">
-                <label>联系电话</label>
-                <input
-                  v-model.trim="form.contactPhone"
-                  type="text"
-                  placeholder="请输入联系电话"
-                />
+                  <BaseSelect
+                    v-model="form.businessScene"
+                    :options="businessSceneOptions"
+                    placeholder="请选择经营场景"
+                  />
               </div>
             </div>
 
@@ -168,23 +130,47 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { request } from '../utils/request'
+import http from '../api/http'
 import type { RegionCity, RegionProvince, RegionValue } from '../constants/china-region'
 import { regions } from '../constants/china-region'
 import { STORE_STYLE_OPTIONS, STORE_STYLE_MAP } from '../constants/store'
-
+import BaseSelect from '../components/common/BaseSelect.vue'
 const router = useRouter()
 const loading = ref(false)
 
 const STORE_SETUP_URL = '/api/store/setup'
+const provinceOptions = computed(() => {
+  return regions.map(item => ({
+    label: item.label,
+    value: item.value,
+  }))
+})
 
+const citySelectOptions = computed(() => {
+  return cityOptions.value.map(item => ({
+    label: item.label,
+    value: item.value,
+  }))
+})
+
+const storeStyleOptions = computed(() => {
+  return STORE_STYLE_OPTIONS.map(item => ({
+    label: item.label,
+    value: item.value,
+  }))
+})
+
+const businessSceneOptions = [
+  { label: '日常营业', value: 'daily' },
+  { label: '橱窗展示', value: 'window' },
+  { label: '主题陈列', value: 'display' },
+  { label: '直播展示', value: 'live' },
+]
 const form = reactive({
   storeName: '',
   storeArea: '' as number | string,
   storeStyle: '',
   businessScene: '',
-  contactName: '',
-  contactPhone: '',
 })
 
 const regionValue = reactive<RegionValue>({
@@ -247,18 +233,15 @@ async function handleSave() {
 
   loading.value = true
   try {
-    const saveResult = await request(STORE_SETUP_URL, {
-      method: 'POST',
-      body: JSON.stringify({
-        storeName: form.storeName,
-        area: Number(form.storeArea),
-        storeStyle: form.storeStyle,
-        province: regionValue.provinceLabel,
-        city: regionValue.cityLabel,
-      }),
-    })
+   const saveRes = await http.post(STORE_SETUP_URL, {
+    storeName: form.storeName,
+    area: Number(form.storeArea),
+    storeStyle: form.storeStyle,
+    province: regionValue.provinceLabel,
+    city: regionValue.cityLabel,
+  })
 
-    const data = saveResult.data ?? saveResult
+    const data = saveRes.data?.data ?? saveRes.data
 
     localStorage.setItem(
       'storeSetup',

@@ -33,6 +33,9 @@ public class AuthServiceImpl implements AuthService {
         if (reqVO.getUsername() == null || reqVO.getUsername().isBlank()) {
             throw new ServiceException("用户名不能为空");
         }
+        if (reqVO.getPhone() == null || reqVO.getPhone().isBlank()) {
+            throw new ServiceException("手机号不能为空");
+        }
         if (reqVO.getPassword() == null || reqVO.getPassword().isBlank()) {
             throw new ServiceException("密码不能为空");
         }
@@ -53,7 +56,7 @@ public class AuthServiceImpl implements AuthService {
         UserAccountDO user = new UserAccountDO();
         user.setUsername(reqVO.getUsername());
         user.setPasswordHash(passwordEncoder.encode(reqVO.getPassword()));
-        user.setNickname(reqVO.getUsername());
+        user.setPhone(reqVO.getPhone());
         user.setEnabled(1);
         user.setCreateTime(now);
         user.setUpdateTime(now);

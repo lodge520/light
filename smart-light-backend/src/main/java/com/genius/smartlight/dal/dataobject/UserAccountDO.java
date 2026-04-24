@@ -10,7 +10,7 @@ public class UserAccountDO {
     private Long id;
     private String username;
     private String passwordHash;
-    private String nickname;
+    private String phone;
     private Integer enabled;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
