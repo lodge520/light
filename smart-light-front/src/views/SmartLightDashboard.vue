@@ -124,9 +124,10 @@
       <div class="settings-layout">
         <StoreSettingsPanel
           v-model="storeSettings"
+          :store-name="currentStoreName"
           @logout="handleLogout"
+          @open-store-settings="goStoreSettings"
         />
-
         <div class="settings-row">
           <DurationQueryPanel class="settings-half-card" />
           <ArmControlPanel
@@ -148,7 +149,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import SidebarNav from '../components/layout/SidebarNav.vue'
 import TopStatusBar from '../components/layout/TopStatusBar.vue'
 import DeviceGrid from '../components/device/DeviceGrid.vue'
@@ -179,8 +180,20 @@ import type { StoreSettingsValue } from '../components/settings/StoreSettingsPan
 import FlowOverview from '../components/flow/FlowOverview.vue'
 import { regions } from '../constants/china-region'
 import { STORE_STYLE_MAP } from '../constants/store'
+const router = useRouter()
+const route = useRoute()
 
-const activeTab = ref<DashboardTab>('main')
+function getInitialTab(): DashboardTab {
+  const tab = route.query.tab
+
+  if (tab === 'main' || tab === 'flow' || tab === 'settings') {
+    return tab
+  }
+
+  return 'main'
+}
+
+const activeTab = ref<DashboardTab>(getInitialTab())
 const devices = ref<DeviceItem[]>([])
 const loading = ref(false)
 const creating = ref(false)
@@ -188,6 +201,8 @@ const deletingId = ref<number | null>(null)
 const scanStatus = ref('未扫描')
 const serverHost = ref('127.0.0.1')
 const showAddDeviceModal = ref(false)
+const currentStoreName = ref('')
+
 
 const scannedDevices = ref<
   Array<{
@@ -200,7 +215,6 @@ const scannedDevices = ref<
   }>
 >([])
 
-const router = useRouter()
 const storeSettingsReady = ref(false)
 
 function handleLogout() {
@@ -216,6 +230,9 @@ function handleLogout() {
   router.replace('/login')
 }
 
+function goStoreSettings() {
+  router.push('/store-profile')
+}
 const STYLE_TEMP_MAP: Record<string, number> = {
   HIGH_END: 3500,
   MASS_MARKET: 4000,
@@ -279,6 +296,7 @@ async function loadCurrentStore() {
       storeSize: buildStoreSizeValue(store.area),
     }
 
+    currentStoreName.value = store.storeName || ''
     weatherText.value = `${store.province} · ${store.city}`
     envInfo.value.area = Number(store.area || 80)
     return true
@@ -403,6 +421,14 @@ watch(
   { deep: true },
 )
 
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === 'main' || tab === 'flow' || tab === 'settings') {
+      activeTab.value = tab
+    }
+  },
+)
 function mergeDeviceOnline(deviceList: DeviceItem[], onlineList: DeviceOnlineItem[]) {
   const onlineMap = new Map(
     (onlineList || []).map(item => [item.chipId, item]),
@@ -699,3 +725,472 @@ onBeforeUnmount(() => {
   updateTimerMap.clear()
 })
 </script>
+
+<style scoped>
+
+.app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.page-section {
+  position: relative;
+}
+
+.section-space-top {
+  margin-top: 16px;
+}
+
+.env-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.env-card {
+  flex: 1 1 48%;
+  min-width: 300px;
+  background: #fff;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.env-info {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#metaInfo {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 30px;
+  row-gap: 6px;
+}
+
+.lux-display {
+  margin-top: 1em;
+  padding: 10px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.settings-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.settings-half-card {
+  min-width: 0;
+  height: 100%;
+}
+
+.settings-full-card {
+  width: 100%;
+}
+
+.night-mode {
+  background: linear-gradient(180deg, #1f2329 0%, #14181f 100%);
+  color: #e5eaf3;
+}
+
+.night-mode .main-content {
+  background: transparent;
+}
+
+/* 夜间模式下的组件样式调整 */
+.night-mode .env-card,
+.night-mode .lamp-card,
+.night-mode .settings-card,
+.night-mode .placeholder-card,
+.night-mode .empty-block,
+.night-mode #controls,
+.night-mode .sidebar {
+  background: #23272f;
+  color: #e5eaf3;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+}
+
+.night-mode .device-meta,
+.night-mode .field-label,
+.night-mode .checkbox-row,
+.night-mode .settings-title,
+.night-mode .lux-display,
+.night-mode .readonly-box {
+  color: #c9d1d9;
+}
+
+.night-mode .readonly-box,
+.night-mode .date-input,
+.night-mode .text-input,
+.night-mode .region-input {
+  background: #2b313a;
+  border-color: #3a4452;
+  color: #e5eaf3;
+}
+
+.night-mode .sidebar li.active,
+.night-mode .sidebar li:hover {
+  background: rgba(64, 158, 255, 0.18);
+}
+
+
+.scan-panel {
+  margin: 20px 0 24px;
+  padding: 20px 22px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.scan-panel-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 16px;
+}
+
+.scan-empty {
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+}
+
+.scan-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.scan-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.scan-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.12);
+}
+
+.scan-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.scan-item-info div:first-child {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.scan-add-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.scan-add-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.96;
+}
+
+.scan-add-btn:active {
+  transform: translateY(0);
+}
+
+.scan-add-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+.scan-item-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scan-cancel-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.scan-cancel-btn:hover {
+  transform: translateY(-1px);
+  border-color: #94a3b8;
+  opacity: 0.96;
+}
+
+.scan-panel {
+  margin: 20px 0 24px;
+  padding: 20px 22px;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  box-shadow:
+    0 12px 40px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.scan-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.scan-panel-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+.scan-clear-btn {
+  padding: 8px 14px;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.scan-clear-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.scan-clear-btn:active {
+  transform: scale(0.965);
+}
+
+.scan-empty {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px dashed #cbd5e1;
+  border-radius: 18px;
+}
+
+.scan-list {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.scan-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  background:
+    linear-gradient(180deg, rgba(248, 251, 255, 0.98) 0%, rgba(238, 246, 255, 0.98) 100%);
+  border: 1px solid rgba(219, 234, 254, 0.95);
+  border-radius: 18px;
+  box-shadow:
+    0 8px 24px rgba(59, 130, 246, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scan-item:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 14px 30px rgba(59, 130, 246, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.scan-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.scan-item-info div:first-child {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.scan-item-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scan-add-btn,
+.scan-cancel-btn,
+#controls > button,
+.btn-confirm,
+.btn-cancel {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center;
+}
+
+.scan-add-btn:active,
+.scan-cancel-btn:active,
+#controls > button:active,
+.btn-confirm:active,
+.btn-cancel:active {
+  transform: scale(0.965);
+}
+
+.scan-add-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+}
+
+.scan-add-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.97;
+}
+
+.scan-cancel-btn {
+  align-self: flex-start;
+  padding: 10px 18px;
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.scan-cancel-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.97;
+}
+
+/* iOS 风格：扫描面板 */
+.ios-panel-enter-active {
+  transition:
+    opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform, filter;
+}
+
+.ios-panel-leave-active {
+  transition:
+    opacity 260ms cubic-bezier(0.4, 0, 1, 1),
+    transform 260ms cubic-bezier(0.4, 0, 1, 1),
+    filter 260ms cubic-bezier(0.4, 0, 1, 1);
+  will-change: opacity, transform, filter;
+}
+
+.ios-panel-enter-from {
+  opacity: 0;
+  transform: translateY(18px) scale(0.965);
+  filter: blur(8px);
+}
+
+.ios-panel-enter-to {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.ios-panel-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.ios-panel-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  filter: blur(6px);
+}
+
+.text-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+}
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+
+  .main-content {
+    padding: 12px;
+  }
+}
+</style>

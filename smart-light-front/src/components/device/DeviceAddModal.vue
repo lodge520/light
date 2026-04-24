@@ -42,10 +42,11 @@
               />
 
               <label class="modal-label">设备类型</label>
-                <select v-model="form.deviceType" class="modal-input">
-                  <option value="lamp">lamp</option>
-                  <option value="camlamp">camlamp</option>
-                </select>
+                <BaseSelect
+                  v-model="form.deviceType"
+                  :options="deviceTypeOptions"
+                  placeholder="请选择设备类型"
+                />
             </template>
 
             <label class="modal-label">显示名称</label>
@@ -81,7 +82,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import type { DeviceCreatePayload } from '../../types/device'
-
+import BaseSelect from '../common/BaseSelect.vue'
 type DeviceAddInitialData = {
   chipId?: string
   ip?: string
@@ -89,7 +90,10 @@ type DeviceAddInitialData = {
   displayName?: string
   deviceNo?: string
 } | null
-
+const deviceTypeOptions = [
+  { label: 'lamp', value: 'lamp' },
+  { label: 'camlamp', value: 'camlamp' },
+]
 const props = defineProps<{
   submitting?: boolean
   initialData?: DeviceAddInitialData
@@ -198,3 +202,166 @@ watch(
   },
 )
 </script>
+
+<style scoped>
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  animation: overlay-fade-in 220ms ease-out;
+}
+
+.modal-card {
+  background: #fff;
+  width: 360px;
+  max-width: 92vw;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.modal-card h3 {
+  margin-bottom: 16px;
+}
+
+.modal-label {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-confirm,
+.btn-cancel {
+  flex: 1;
+  border: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.btn-confirm {
+  background: #409eff;
+  color: #fff;
+}
+
+.btn-cancel {
+  background: #f2f3f5;
+  color: #303133;
+}
+
+/* iOS 风格：扫描卡片 */
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ios-modal-card-enter-active,
+.ios-modal-card-leave-active {
+  transition:
+    opacity 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: opacity, transform, filter;
+}
+
+.ios-modal-card-leave-active {
+  transition:
+    opacity 240ms cubic-bezier(0.4, 0, 1, 1),
+    transform 240ms cubic-bezier(0.4, 0, 1, 1),
+    filter 240ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.ios-modal-card-enter-from {
+  opacity: 0;
+  transform: translateY(28px) scale(0.94);
+  filter: blur(10px);
+}
+
+.ios-modal-card-enter-to {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.ios-modal-card-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.ios-modal-card-leave-to {
+  opacity: 0;
+  transform: translateY(18px) scale(0.98);
+  filter: blur(8px);
+}
+
+.modal-overlay-fade-enter-active,
+.modal-overlay-fade-leave-active {
+  transition: opacity 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.modal-overlay-fade-enter-from,
+.modal-overlay-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-overlay-fade-enter-to,
+.modal-overlay-fade-leave-from {
+  opacity: 1;
+}
+
+.compact-readonly-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+  margin-bottom: 12px;
+}
+
+.readonly-item {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.readonly-item-full {
+  grid-column: 1 / -1;
+}
+
+.readonly-label {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 3px;
+  line-height: 1.2;
+}
+
+.readonly-value {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 600;
+  line-height: 1.35;
+  word-break: break-all;
+}
+</style>

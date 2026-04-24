@@ -118,3 +118,143 @@ function selectCity(cityValue: string) {
   closePopup()
 }
 </script>
+
+<style scoped>
+.region-input {
+  min-width: 170px;
+  padding: 10px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.region-placeholder {
+  color: #909399;
+}
+
+.region-arrow {
+  color: #909399;
+}
+
+.region-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1200;
+}
+
+.region-dialog {
+  width: 760px;
+  max-width: 92vw;
+  height: 520px;
+  max-height: 86vh;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.region-dialog-header {
+  height: 60px;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.region-dialog-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.region-close {
+  border: none;
+  background: transparent;
+  font-size: 26px;
+  cursor: pointer;
+  color: #909399;
+}
+
+.region-dialog-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.region-province-list {
+  width: 220px;
+  border-right: 1px solid #ebeef5;
+  overflow-y: auto;
+  background: #fafafa;
+}
+
+.region-province-item {
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.region-province-item:hover,
+.region-province-item.active {
+  background: rgba(64, 158, 255, 0.1);
+  color: #409eff;
+}
+
+.region-city-list {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.region-city-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.region-city-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.region-city-item {
+  padding: 10px 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.region-city-item:hover,
+.region-city-item.active {
+  border-color: #409eff;
+  background: rgba(64, 158, 255, 0.08);
+  color: #409eff;
+}
+
+.region-dialog-footer {
+  height: 60px;
+  padding: 0 20px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  border-top: 1px solid #ebeef5;
+}
+
+.region-picker {
+  min-width: 170px;
+}
+</style>

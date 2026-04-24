@@ -82,7 +82,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { request } from '../utils/request'
+import http from '../api/http'
 
 const router = useRouter()
 const loading = ref(false)
@@ -123,26 +123,19 @@ async function handleRegister() {
 
   loading.value = true
   try {
-    await request('/api/auth/register', {
-      method: 'POST',
-      auth: false,
-      body: JSON.stringify({
-        username: form.username,
-        password: form.password,
-        confirmPassword: form.confirmPassword,
-      }),
-    })
+  await http.post('/api/auth/register', {
+  username: form.username,
+  phone: form.phone,
+  password: form.password,
+  confirmPassword: form.confirmPassword,
+})
 
-    const loginResult = await request('/api/auth/login', {
-      method: 'POST',
-      auth: false,
-      body: JSON.stringify({
-        username: form.username,
-        password: form.password,
-      }),
-    })
+  const loginRes = await http.post('/api/auth/login', {
+    username: form.username,
+    password: form.password,
+  })
 
-    const data = loginResult.data ?? loginResult
+  const data = loginRes.data?.data ?? loginRes.data
 
     if (!data?.token) {
       throw new Error('登录成功但未返回 token')
@@ -354,6 +347,7 @@ function goLogin() {
   text-decoration: none;
   font-weight: 600;
 }
+
 
 @media (max-width: 960px) {
   .auth-shell {

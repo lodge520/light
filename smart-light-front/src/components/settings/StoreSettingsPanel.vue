@@ -1,48 +1,47 @@
 <template>
-  <div class="settings-card">
-    <h2 class="settings-title">⚙️ 店铺设置</h2>
+  <div class="settings-card store-toolbar-card">
+    <div class="store-toolbar">
+      <div class="store-toolbar-left">
+        <h2 class="settings-title"> 店铺概览</h2>
 
-    <div class="selector-box">
-      <ProvinceCityPicker
-        :model-value="localRegion"
-        @update:modelValue="handleRegionChange"
-      />
+        <div class="store-meta">
+          <span class="meta-chip">
+            <span class="meta-key">店铺</span>
+            <span class="meta-value">{{ storeNameText }}</span>
+          </span>
 
-      <select v-model="localStoreType" class="date-input" @change="emitChange">
-        <option
-          v-for="item in storeTypeOptions"
-          :key="item.value"
-          :value="item.value"
-        >
-          {{ item.label }}
-        </option>
-      </select>
+          <span class="meta-chip">
+            <span class="meta-key">城市</span>
+            <span class="meta-value">{{ cityText }}</span>
+          </span>
 
-      <select v-model="localStoreSize" class="date-input" @change="emitChange">
-        <option
-          v-for="item in storeSizeOptions"
-          :key="item.value"
-          :value="item.value"
-        >
-          {{ item.label }}
-        </option>
-      </select>
+          <span class="meta-chip">
+            <span class="meta-key">风格</span>
+            <span class="meta-value">{{ storeTypeText }}</span>
+          </span>
+        </div>
+      </div>
 
-      <button type="button" class="btn-primary" @click="toggleMode">
-        {{ isNightMode ? '切换到日间模式' : '切换到夜间模式' }}
-      </button>
-      <button type="button" class="btn-logout" @click="handleLogout">
-        退出登录
-      </button>
+      <div class="store-toolbar-actions">
+        <button type="button" class="btn-primary" @click="toggleMode">
+          {{ isNightMode ? '切换到日间模式' : '切换到夜间模式' }}
+        </button>
+
+        <button type="button" class="btn-secondary" @click="handleOpenStoreSettings">
+          进入店铺设置
+        </button>
+
+        <button type="button" class="btn-logout" @click="handleLogout">
+          退出登录
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import ProvinceCityPicker from './ProvinceCityPicker.vue'
+import { computed } from 'vue'
 import type { RegionValue } from '../../constants/china-region'
-import { STORE_STYLE_OPTIONS, STORE_STYLE_MAP } from '../../constants/store'
 
 export interface StoreSettingsValue {
   region: RegionValue
@@ -53,70 +52,143 @@ export interface StoreSettingsValue {
 
 const props = defineProps<{
   modelValue: StoreSettingsValue
+  storeName?: string
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: StoreSettingsValue): void
   (e: 'logout'): void
+  (e: 'open-store-settings'): void
 }>()
+
+const isNightMode = computed(() => props.modelValue.isNightMode)
+
+const storeNameText = computed(() => {
+  return props.storeName || '未设置'
+})
+
+const cityText = computed(() => {
+  return props.modelValue.region?.cityLabel || '未设置'
+})
+
+const storeTypeText = computed(() => {
+  const raw = props.modelValue.storeType || ''
+  return raw.split(',')[0] || '未设置'
+})
+
+function toggleMode() {
+  emit('update:modelValue', {
+    ...props.modelValue,
+    isNightMode: !props.modelValue.isNightMode,
+  })
+}
 
 function handleLogout() {
   emit('logout')
 }
 
-const STYLE_TEMP_MAP: Record<string, number> = {
-  HIGH_END: 3500,
-  MASS_MARKET: 4000,
-  FAST_FASHION: 4500,
-}
-
-const storeTypeOptions = STORE_STYLE_OPTIONS.map(item => ({
-  label: `${item.label}店（${STYLE_TEMP_MAP[item.value]}K）`,
-  value: `${STORE_STYLE_MAP[item.value]},${STYLE_TEMP_MAP[item.value]}`,
-}))
-
-/**
- * 这里先用固定档位，和你父页面 parseStoreSize / buildStoreSizeValue 对齐
- * 如果后面想支持任意面积，建议把这个 select 改成 input
- */
-const storeSizeOptions = [
-  { label: '40㎡（小型）', value: '小型,40' },
-  { label: '80㎡（中型）', value: '中型,80' },
-  { label: '150㎡（大型）', value: '大型,150' },
-]
-
-const localRegion = ref<RegionValue>({ ...props.modelValue.region })
-const localStoreType = ref(props.modelValue.storeType)
-const localStoreSize = ref(props.modelValue.storeSize)
-const isNightMode = ref(props.modelValue.isNightMode)
-
-watch(
-  () => props.modelValue,
-  (val) => {
-    localRegion.value = { ...val.region }
-    localStoreType.value = val.storeType
-    localStoreSize.value = val.storeSize
-    isNightMode.value = val.isNightMode
-  },
-  { deep: true },
-)
-
-function emitChange() {
-  emit('update:modelValue', {
-    region: { ...localRegion.value },
-    storeType: localStoreType.value,
-    storeSize: localStoreSize.value,
-    isNightMode: isNightMode.value,
-  })
-}
-
-function handleRegionChange(value: RegionValue) {
-  localRegion.value = { ...value }
-  emitChange()
-}
-
-function toggleMode() {
-  isNightMode.value = !isNightMode.value
-  emitChange()
+function handleOpenStoreSettings() {
+  emit('open-store-settings')
 }
 </script>
+
+<style scoped>
+.store-toolbar-card {
+  padding: 20px 22px;
+}
+
+.store-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.store-toolbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.store-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.meta-key {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.2;
+}
+
+.meta-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.store-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.btn-logout {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  background: #fff1f0;
+  color: #f53f3f;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-logout:hover {
+  background: #ffe4e1;
+}
+
+@media (max-width: 960px) {
+  .store-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .store-toolbar-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .store-toolbar-actions {
+    flex-direction: column;
+  }
+
+  .store-toolbar-actions .btn-primary,
+  .store-toolbar-actions .btn-secondary,
+  .store-toolbar-actions .btn-logout {
+    width: 100%;
+  }
+}
+</style>

@@ -3,10 +3,13 @@ import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import SmartLightDashboard from '../views/SmartLightDashboard.vue'
 import StoreSetupView from '../views/StoreSetup.vue'
+import StoreProfileView from '../views/StoreProfileView.vue'
 
 function getStoreSetupState() {
-  const rawStoreSetup = localStorage.getItem('storeSetup')
-  const rawUserInfo = localStorage.getItem('USER_INFO')
+  const rawStoreSetup =
+    localStorage.getItem('storeSetup') || sessionStorage.getItem('storeSetup')
+  const rawUserInfo =
+    localStorage.getItem('USER_INFO') || sessionStorage.getItem('USER_INFO')
 
   let storeSetup: any = null
   let userInfo: any = null
@@ -25,9 +28,14 @@ function getStoreSetupState() {
 
   return {
     storeConfigured: Boolean(
-      storeSetup?.configured === true || userInfo?.storeConfigured === true,
+      storeSetup?.configured === true ||
+      storeSetup?.storeConfigured === true ||
+      userInfo?.storeConfigured === true,
     ),
-    storeSkipped: Boolean(storeSetup?.skipped === true),
+    storeSkipped: Boolean(
+      storeSetup?.skipped === true ||
+      storeSetup?.storeSkipped === true,
+    ),
   }
 }
 
@@ -58,6 +66,12 @@ const router = createRouter({
       path: '/smartlightdashboard',
       name: 'smartlightdashboard',
       component: SmartLightDashboard,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/store-profile',
+      name: 'StoreProfile',
+      component: StoreProfileView,
       meta: { requiresAuth: true },
     },
   ],

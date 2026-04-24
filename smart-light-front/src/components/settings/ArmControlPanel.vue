@@ -4,16 +4,11 @@
 
     <div class="form-row">
       <label>选择设备：</label>
-      <select v-model="selectedDeviceCode" class="date-input">
-        <option value="">请选择设备</option>
-<option
-  v-for="(device, index) in cameraDevices"
-  :key="device.id ?? `${getDeviceCode(device)}-${index}`"
-  :value="getDeviceCode(device)"
->
-  {{ device.displayName || getDeviceCode(device) || '未知设备' }}
-</option>
-      </select>
+        <BaseSelect
+          v-model="selectedDeviceCode"
+          :options="cameraDeviceOptions"
+          placeholder="请选择设备"
+        />
     </div>
 
     <div class="arm-grid">
@@ -34,7 +29,7 @@
 import { computed, ref } from 'vue'
 import { armControl } from '../../api/device'
 import type { DeviceItem } from '../../types/device'
-
+import BaseSelect from '../common/BaseSelect.vue'
 const props = defineProps<{
   devices: DeviceItem[]
 }>()
@@ -43,6 +38,13 @@ const selectedDeviceCode = ref('')
 const submitting = ref(false)
 const errorText = ref('')
 const statusText = ref('请选择设备后发送控制指令')
+
+const cameraDeviceOptions = computed(() => {
+  return cameraDevices.value.map(device => ({
+    label: device.displayName || getDeviceCode(device) || '未知设备',
+    value: getDeviceCode(device),
+  }))
+})
 
 function getDeviceCode(device: Partial<DeviceItem> | any) {
   return (device?.chipId || device?.deviceCode || '').trim()
@@ -78,3 +80,38 @@ async function send(direction: string) {
   }
 }
 </script>
+
+<style scoped>
+.arm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .form-row label {
+    min-width: auto;
+  }
+
+  .date-input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .arm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .arm-grid .btn-primary,
+  .arm-grid .btn-secondary {
+    width: 100%;
+  }
+}
+</style>
