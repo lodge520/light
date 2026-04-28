@@ -28,9 +28,12 @@ input {
 }
 
 .main-content {
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow: auto;
   padding: 20px;
+  background: transparent;
 }
 
 #controls {
@@ -139,11 +142,7 @@ input {
   flex-wrap: wrap;
 }
 
-@media (max-width: 900px) {
-  .settings-row {
-    grid-template-columns: 1fr;
-  }
-}
+
 
 .form-row label {
   min-width: 90px;

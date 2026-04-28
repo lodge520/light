@@ -126,4 +126,16 @@ public class WebSocketPushService {
             log.error("WebSocket broadcast failed, type={}", type, e);
         }
     }
+
+    public boolean pushRawToDevice(String chipId, String message) {
+        boolean sent = deviceSessionManager.sendToDevice(chipId, message);
+
+        if (!sent) {
+            log.warn("设备指令下发失败，设备不在线或连接不可用，chipId={}, message={}", chipId, message);
+        } else {
+            log.info("设备指令已下发，chipId={}, message={}", chipId, message);
+        }
+
+        return sent;
+    }
 }

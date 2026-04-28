@@ -1,6 +1,6 @@
 <template>
   <div class="lamp-card">
-    <div class="card-header clickable-header" @click="openDetailModal">
+    <div class="card-header clickable-header" @click="handleHeaderClick">
       <div class="device-title-block">
         <h3>{{ displayNameText }}</h3>
         <p class="last-seen-under-name">
@@ -12,7 +12,6 @@
         {{ device.online ? '在线' : '离线' }}
       </span>
     </div>
-
 
     <label class="field-label">亮度：{{ displayBrightness }}</label>
     <input
@@ -135,21 +134,31 @@
           <span class="detail-value">{{ localForm.ip || '未设置' }}</span>
         </div>
 
-        <label class="modal-label">用户命名</label>
+       <label class="modal-label">所属分区</label>
         <input
           v-model.trim="localForm.displayName"
           class="modal-input"
           type="text"
-          placeholder="如 橱窗灯1"
+          placeholder="如 新品展示区、橱窗区、主通道区"
         />
 
-        <label class="modal-label">设备编号</label>
+        <label class="modal-label">分区内编号</label>
         <input
           v-model.trim="localForm.deviceNo"
           class="modal-input"
           type="text"
-          placeholder="如 LIGHT-001"
+          inputmode="numeric"
+          pattern="[1-9][0-9]*"
+          placeholder="从 1 开始，如 1、2、3"
         />
+
+        <p class="modal-hint">
+          编号从 1 开始，同一分区内不能重复。
+        </p>
+
+        <p v-if="deviceNoError" class="modal-error">
+          {{ deviceNoError }}
+        </p>
 
         <div class="detail-modal-actions">
           <button class="btn-secondary" @click="closeDetailModal">取消</button>
@@ -196,11 +205,12 @@
 import { computed, reactive, ref, watch } from 'vue'
 import type { DeviceCreatePayload, DeviceItem } from '../../types/device'
 import { fabricRecognize } from '../../api/ai'
-import { setFlowUpload } from '../../api/device'
+import { setFlowUpload, locateDevice } from '../../api/device'
 
 const props = defineProps<{
   device: DeviceItem
   deleting?: boolean
+  allDevices?: DeviceItem[]
 }>()
 
 const emit = defineEmits<{
@@ -248,7 +258,68 @@ function closeDetailModal() {
   showDetailModal.value = false
 }
 
+const locating = ref(false)
+
+async function silentLocateDevice() {
+  const chipId = localForm.chipId || props.device.chipId
+
+  if (!chipId) return
+  if (locating.value) return
+
+  locating.value = true
+
+  try {
+    await locateDevice(chipId)
+  } catch (error) {
+    console.warn('静默定位失败，可能设备离线：', error)
+  } finally {
+    locating.value = false
+  }
+}
+
+function handleHeaderClick() {
+  openDetailModal()
+  silentLocateDevice()
+}
+
+const deviceNoError = computed(() => {
+  const zoneName = localForm.displayName?.trim()
+  const deviceNo = localForm.deviceNo?.trim()
+
+  if (!zoneName) {
+    return '所属分区不能为空'
+  }
+
+  if (!deviceNo) {
+    return '分区内编号不能为空'
+  }
+
+  if (!/^[1-9]\d*$/.test(deviceNo)) {
+    return '分区内编号必须是从 1 开始的正整数'
+  }
+
+  const duplicated = (props.allDevices || []).some(item => {
+    if (item.id === props.device.id) return false
+
+    const sameZone = (item.displayName || '').trim() === zoneName
+    const sameNo = (item.deviceNo || '').trim() === deviceNo
+
+    return sameZone && sameNo
+  })
+
+  if (duplicated) {
+    return `「${zoneName}」分区内已经存在编号 ${deviceNo}`
+  }
+
+  return ''
+})
+
 function saveDeviceBaseInfo() {
+  if (deviceNoError.value) {
+    window.alert(deviceNoError.value)
+    return
+  }
+
   emitRealtimeUpdate()
   showDetailModal.value = false
 }
@@ -435,7 +506,14 @@ function handleDelete() {
 }
 
 const displayNameText = computed(() => {
-  return props.device.displayName?.trim() || props.device.deviceNo?.trim() || '未命名设备'
+  const zoneName = props.device.displayName?.trim() || '未分区'
+  const deviceNo = props.device.deviceNo?.trim()
+
+  if (deviceNo) {
+    return `${zoneName} · 灯具-${deviceNo}`
+  }
+
+  return zoneName
 })
 
 const displayDeviceNo = computed(() => {
@@ -803,4 +881,57 @@ const textColor = computed(() => {
   margin-top: 14px;
   background: #f6f7f9;
 }
+.modal-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.modal-error {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff1f0;
+  color: #f53f3f;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.modal-label {
+  display: block;
+  margin: 14px 0 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.modal-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.modal-input:focus {
+  border-color: #409eff;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.14);
+}
+
+.modal-input::placeholder {
+  color: #94a3b8;
+}
+
+
+
 </style>

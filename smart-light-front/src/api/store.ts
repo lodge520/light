@@ -29,10 +29,7 @@ export interface StoreSavePayload {
   city: string
 }
 
-const data = await setupCurrentStoreApi({
-  storeName: form.storeName,
-  area: Number(form.area),
-  storeStyle: form.storeStyle,
-  province: regionValue.provinceLabel,
-  city: regionValue.cityLabel,
-})
+export async function setupCurrentStoreApi(payload: StoreSavePayload): Promise<StoreItem> {
+  const res = await http.post<CommonResult<StoreItem>>('/api/store/setup', payload)
+  return res.data.data
+}

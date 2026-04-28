@@ -2,6 +2,7 @@ package com.genius.smartlight.service.device;
 
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
+import com.genius.smartlight.vo.device.LightEffectReqVO;
 
 import java.util.List;
 
@@ -22,4 +23,8 @@ public interface DeviceService {
     List<DeviceRespVO> getCurrentUserDeviceList();
 
     void bindDeviceToCurrentStore(String chipId, String displayName);
+
+    boolean locateDevice(String chipId);
+
+    void sendLightEffect(String chipId, LightEffectReqVO reqVO);
 }

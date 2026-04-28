@@ -231,4 +231,5 @@ function getDetectTime(device: DeviceItem) {
   color: #86909c;
   text-align: center;
 }
+
 </style>

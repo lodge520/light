@@ -106,6 +106,10 @@ onBeforeUnmount(() => {
 .base-select {
   position: relative;
   width: 100%;
+  z-index: 1;
+}
+.base-select.open {
+  z-index: 9999;
 }
 
 .select-trigger {
@@ -169,7 +173,7 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
   padding: 8px;
-  z-index: 1000;
+  z-index: 9999;
   max-height: 240px;
   overflow-y: auto;
   box-sizing: border-box;

@@ -29,7 +29,6 @@ WiFiUDP udp;
 #define FW_VERSION "1.0.0"
 
 // ===================== 默认服务器配置 =====================
-// 这里只是默认值，真正运行时会优先用保存的配置
 const char* DEFAULT_SERVER_HOST = "192.168.31.171";
 const uint16_t DEFAULT_HTTP_PORT = 3000;
 const uint16_t DEFAULT_WS_PORT   = 3000;
@@ -41,7 +40,7 @@ const unsigned long wifiConnectTimeout   = 15000;  // 已保存WiFi连接超时
 const unsigned long smartConfigTimeout   = 30000;  // SmartConfig超时
 const unsigned long announceInterval     = 5000;   // 上报间隔
 const unsigned long broadcastInterval    = 5000;   // UDP广播间隔
-const unsigned long wsPingInterval       = 30000;  // WebSocket心跳间隔
+const unsigned long wsPingInterval       = 5000;  // WebSocket心跳间隔
 
 const int udpPort = 4210;
 
@@ -82,6 +81,7 @@ DeviceConfig cfg;
 String deviceId;
 
 void beginWebSocketClient();
+void locateBreath(int times, int cycleMs);
 // ===================== 工具函数 =====================
 String configPath() {
   return "/config.json";
@@ -619,6 +619,22 @@ void handleWsMessage(const String& text) {
     return;
   }
 
+  if (type == "locate") {
+    int times = root["times"] | 3;
+
+    int cycleMs = root["duration"] | 1200;
+    if (payload.containsKey("duration")) {
+      cycleMs = payload["duration"] | cycleMs;
+    } else if (payload.containsKey("interval")) {
+      cycleMs = payload["interval"] | cycleMs;
+    }
+
+    Serial.printf("[LOCATE] 收到呼吸定位指令 times=%d cycleMs=%d\n", times, cycleMs);
+
+    locateBreath(times, cycleMs);
+    return;
+  }
+
   if (type == "ota:update") {
     String fwType = root["fwType"] | payload["fwType"] | "";
     String version = root["version"] | payload["version"] | "";
@@ -698,7 +714,50 @@ void applyLightSettings(int br, int tp) {
 
   analogWrite(LED_COLD_PIN, 1024 - pwmCold);
   analogWrite(LED_WARM_PIN, 1024 - pwmWarm);
-  Serial.printf("PWM Cold=%d, Warm=%d\n", pwmCold, pwmWarm);
+  //Serial.printf("PWM Cold=%d, Warm=%d\n", pwmCold, pwmWarm);
+}
+
+void locateBreath(int times, int cycleMs) {
+  times = constrain(times, 1, 8);
+  cycleMs = constrain(cycleMs, 800, 3000);
+
+  int oldBrightness = autoMode ? recommendedBrightness : brightness;
+  int oldTemp = autoMode ? recommendedTemp : temp;
+
+  int minBrightness = 5;
+  int maxBrightness = 100;
+  int locateTemp = 4500;
+
+  int steps = 36;
+  int stepDelay = cycleMs / steps;
+
+  Serial.printf(
+    "[LOCATE] 呼吸灯开始 times=%d cycleMs=%d restoreB=%d restoreT=%d\n",
+    times,
+    cycleMs,
+    oldBrightness,
+    oldTemp
+  );
+
+  for (int round = 0; round < times; round++) {
+    for (int i = 0; i <= steps; i++) {
+      float phase = (float)i / (float)steps * PI;
+
+      int br = minBrightness + int(sin(phase) * (maxBrightness - minBrightness));
+
+      applyLightSettings(br, locateTemp);
+
+      delay(stepDelay);
+      yield();
+
+      webSocket.loop();
+      server.handleClient();
+    }
+  }
+
+  applyLightSettings(oldBrightness, oldTemp);
+
+  Serial.println("[LOCATE] 呼吸定位结束，已恢复原灯光");
 }
 
 void sendStayRecordToServer(unsigned long durationSeconds) {
@@ -1005,15 +1064,19 @@ void loop() {
   unsigned long now = millis();
 
   if (now - lastPing > wsPingInterval) {
-    lastPing = now;
-    StaticJsonDocument<64> doc;
-    doc["type"] = "ping";
-    doc["id"] = deviceId;
-    String pingMsg;
-    serializeJson(doc, pingMsg);
-    webSocket.sendTXT(pingMsg);
-    Serial.println("发送 WebSocket 心跳: " + pingMsg);
-  }
+  lastPing = now;
+
+  StaticJsonDocument<96> doc;
+  doc["type"] = "ping";
+  doc["id"] = deviceId;
+  doc["chipId"] = deviceId;
+
+  String pingMsg;
+  serializeJson(doc, pingMsg);
+  webSocket.sendTXT(pingMsg);
+
+  Serial.println("发送 WebSocket 心跳: " + pingMsg);
+}
 
   if (now - lastAnnounce > announceInterval) {
     lastAnnounce = now;

@@ -13,6 +13,7 @@
         v-for="device in devices"
         :key="device.id"
         :device="device"
+        :all-devices="devices"
         :deleting="deletingId === device.id"
         @update-realtime="$emit('update-realtime', $event)"
         @delete="$emit('delete', $event)"

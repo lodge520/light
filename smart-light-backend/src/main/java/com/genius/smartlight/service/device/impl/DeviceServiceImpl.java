@@ -11,6 +11,7 @@ import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.device.DeviceService;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
+import com.genius.smartlight.vo.device.LightEffectReqVO;
 import com.genius.smartlight.websocket.WebSocketPushService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +30,8 @@ public class DeviceServiceImpl implements DeviceService {
     private final WebSocketPushService webSocketPushService;
     private final DeviceMapper deviceMapper;
     private final StoreMapper storeMapper;
-
+    private final ObjectMapper objectMapper;
+    
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createDevice(DeviceSaveReqVO reqVO) {
@@ -114,7 +118,9 @@ public class DeviceServiceImpl implements DeviceService {
         updateObj.setCreateTime(device.getCreateTime());
         updateObj.setUpdateTime(LocalDateTime.now());
         updateObj.setStoreId(device.getStoreId());
-        updateObj.setDisplayName(device.getDisplayName());
+
+        // 改这里：不要用旧 displayName 覆盖
+        updateObj.setDisplayName(reqVO.getDisplayName());
 
         deviceMapper.updateById(updateObj);
 
@@ -213,5 +219,55 @@ public class DeviceServiceImpl implements DeviceService {
         deviceMapper.updateById(device);
 
         webSocketPushService.pushState(DeviceConvert.convert(device));
+    }
+
+    @Override
+    public boolean locateDevice(String chipId) {
+        ObjectNode msg = objectMapper.createObjectNode();
+        msg.put("type", "locate");
+        msg.put("times", 3);
+        msg.put("duration", 1200);
+
+        boolean sent = webSocketPushService.pushRawToDevice(chipId, msg.toString());
+
+        if (!sent) {
+            throw new ServiceException("设备离线，无法定位");
+        }
+
+        return true;
+    }
+
+    @Override
+    public void sendLightEffect(String chipId, LightEffectReqVO reqVO) {
+        ObjectNode msg = objectMapper.createObjectNode();
+
+        msg.put("type", "lightEffect");
+        msg.put("effect", reqVO.getEffect() == null ? "wave" : reqVO.getEffect());
+        msg.put("enabled", reqVO.getEnabled() == null || reqVO.getEnabled());
+
+        if (reqVO.getBaseTemp() != null) {
+            msg.put("baseTemp", reqVO.getBaseTemp());
+        }
+        if (reqVO.getRange() != null) {
+            msg.put("range", reqVO.getRange());
+        }
+        if (reqVO.getSpeed() != null) {
+            msg.put("speed", reqVO.getSpeed());
+        }
+        if (reqVO.getBrightness() != null) {
+            msg.put("brightness", reqVO.getBrightness());
+        }
+        if (reqVO.getPhaseIndex() != null) {
+            msg.put("phaseIndex", reqVO.getPhaseIndex());
+        }
+        if (reqVO.getPhaseGap() != null) {
+            msg.put("phaseGap", reqVO.getPhaseGap());
+        }
+
+        boolean sent = webSocketPushService.pushRawToDevice(chipId, msg.toString());
+
+        if (!sent) {
+            throw new ServiceException("设备离线，灯效下发失败");
+        }
     }
 }

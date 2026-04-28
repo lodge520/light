@@ -4,6 +4,7 @@ import com.genius.smartlight.common.CommonResult;
 import com.genius.smartlight.service.device.DeviceService;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
+import com.genius.smartlight.vo.device.LightEffectReqVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -96,5 +97,20 @@ public class DeviceController {
 
         @Schema(description = "设备显示名称", example = "入口射灯")
         private String displayName;
+    }
+
+    @PostMapping("/locate/{chipId}")
+    public CommonResult<Boolean> locateDevice(@PathVariable String chipId) {
+        deviceService.locateDevice(chipId);
+        return CommonResult.success(true);
+    }
+
+    @PostMapping("/effect/{chipId}")
+    public CommonResult<Boolean> sendLightEffect(
+            @PathVariable String chipId,
+            @RequestBody LightEffectReqVO reqVO
+    ) {
+        deviceService.sendLightEffect(chipId, reqVO);
+        return CommonResult.success(true);
     }
 }

@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class DeviceSessionManager {
 
-    private static final long ONLINE_TIMEOUT_MS = 60_000L;
+    private static final long ONLINE_TIMEOUT_MS = 15_000L;
 
     private final Map<String, WebSocketSession> deviceSessionMap = new ConcurrentHashMap<>();
     private final Map<String, Long> lastSeenMap = new ConcurrentHashMap<>();

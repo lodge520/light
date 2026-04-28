@@ -51,6 +51,34 @@ export async function setFlowUpload(chipId: string, enabled: boolean): Promise<b
       enabled,
     }
   )
+  return res.data.data
+}
 
+export async function locateDevice(chipId: string): Promise<boolean> {
+  const res = await http.post<CommonResult<boolean>>(
+    `/admin/device/locate/${chipId}`
+  )
+  return res.data.data
+}
+
+export interface LightEffectPayload {
+  effect: 'wave'
+  enabled: boolean
+  baseTemp?: number
+  range?: number
+  speed?: number
+  brightness?: number
+  phaseIndex?: number
+  phaseGap?: number
+}
+
+export async function sendLightEffect(
+  chipId: string,
+  payload: LightEffectPayload,
+): Promise<boolean> {
+  const res = await http.post<CommonResult<boolean>>(
+    `/admin/device/effect/${chipId}`,
+    payload,
+  )
   return res.data.data
 }

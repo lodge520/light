@@ -92,6 +92,20 @@
     </TransitionGroup>
   </div>
 </Transition>
+
+       <div class="store-layout-row">
+          <LightEffectMiniPanel
+            class="store-effect-mini"
+            :devices="devices"
+          />
+
+          <StoreLightLayout
+            class="store-layout-main"
+            :devices="devices"
+            @saved="loadDevices"
+          />
+        </div>
+
         <DeviceGrid
           :devices="devices"
           :loading="loading"
@@ -128,6 +142,7 @@
           @logout="handleLogout"
           @open-store-settings="goStoreSettings"
         />
+
         <div class="settings-row">
           <DurationQueryPanel class="settings-half-card" />
           <ArmControlPanel
@@ -156,6 +171,8 @@ import DeviceGrid from '../components/device/DeviceGrid.vue'
 import DeviceAddModal from '../components/device/DeviceAddModal.vue'
 import FlowMonitorPanel from '../components/settings/FlowMonitorPanel.vue'
 import SmartConfigPanel from '../components/settings/SmartConfigPanel.vue'
+import StoreLightLayout from '../components/device/StoreLightLayout.vue'
+import LightEffectMiniPanel from '../components/device/LightEffectMiniPanel.vue'
 import { useClock } from '../composables/useClock'
 import { useWebSocket } from '../composables/useWebSocket'
 import {
@@ -199,10 +216,19 @@ const loading = ref(false)
 const creating = ref(false)
 const deletingId = ref<number | null>(null)
 const scanStatus = ref('未扫描')
-const serverHost = ref('127.0.0.1')
 const showAddDeviceModal = ref(false)
 const currentStoreName = ref('')
 
+const API_BASE = import.meta.env.VITE_API_BAS
+
+const serverHost = computed(() => {
+  return new URL(API_BASE).host
+})
+
+const wsUrl = computed(() => {
+  const token = localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN') || ''
+  return `${API_BASE.replace(/^http/, 'ws')}/ws?token=${encodeURIComponent(token)}`
+})
 
 const scannedDevices = ref<
   Array<{
@@ -429,16 +455,21 @@ watch(
     }
   },
 )
+function normalizeChipId(value?: string) {
+  return String(value || '').trim().toUpperCase()
+}
+
 function mergeDeviceOnline(deviceList: DeviceItem[], onlineList: DeviceOnlineItem[]) {
   const onlineMap = new Map(
-    (onlineList || []).map(item => [item.chipId, item]),
+    (onlineList || []).map(item => [normalizeChipId(item.chipId), item]),
   )
 
   return (deviceList || []).map(device => {
-    const onlineInfo = onlineMap.get(device.chipId)
+    const onlineInfo = onlineMap.get(normalizeChipId(device.chipId))
+
     return {
       ...device,
-      online: onlineInfo?.online ?? false,
+      online: onlineInfo?.online === true,
       lastSeen: onlineInfo?.lastSeen,
       ip: onlineInfo?.ip || device.ip,
     }
@@ -693,10 +724,6 @@ function handleWsMessage(message: any) {
   }
 }
 
-const wsUrl = computed(() => {
-  const token = localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN') || ''
-  return `ws://${serverHost.value}:3000/ws?token=${encodeURIComponent(token)}`
-})
 const { connected } = useWebSocket(wsUrl, handleWsMessage)
 
 watch(connected, (val) => {
@@ -706,11 +733,6 @@ watch(connected, (val) => {
   } else {
     scanStatus.value = 'WebSocket 未连接'
   }
-})
-
-onMounted(async () => {
-  await loadCurrentStore()
-  await loadDevices()
 })
 
 onBeforeUnmount(() => {
@@ -729,8 +751,57 @@ onBeforeUnmount(() => {
 <style scoped>
 
 .app-container {
-  display: flex;
+  position: relative;
+  isolation: isolate;
+  display: block;
   min-height: 100vh;
+  background: #eef4fb;
+  overflow: visible;
+}
+
+.app-container::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image: url('/backgrounds/bg-day.png');
+  background-size: cover;
+  background-position: center right;
+  background-repeat: no-repeat;
+  opacity: 0.95;
+  filter: blur(8px);
+  transform: scale(1.02);
+  pointer-events: none;
+}
+
+.app-container::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(245, 248, 252, 0.18) 0%,
+      rgba(245, 248, 252, 0.08) 45%,
+      rgba(245, 248, 252, 0.02) 100%
+    );
+  pointer-events: none;
+}
+
+.app-container.night-mode::before {
+  background-image: url('/backgrounds/bg-night.png');
+  opacity: 1;
+}
+
+.app-container.night-mode::after {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(2, 6, 23, 0.42) 0%,
+      rgba(2, 6, 23, 0.22) 55%,
+      rgba(2, 6, 23, 0.08) 100%
+    );
 }
 
 .page-section {
@@ -756,7 +827,21 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
-
+:deep(.env-card),
+:deep(.lamp-card),
+:deep(.settings-card),
+:deep(.placeholder-card),
+:deep(.empty-block),
+:deep(.scan-panel),
+:deep(.chart-card),
+:deep(.info-card),
+:deep(#controls) {
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.10);
+}
 .env-info {
   display: grid;
   gap: 8px;
@@ -773,7 +858,7 @@ onBeforeUnmount(() => {
 .lux-display {
   margin-top: 1em;
   padding: 10px;
-  background: #f9f9f9;
+  background: rgba(248, 250, 252, 0.72);
   border-radius: 8px;
 }
 
@@ -808,52 +893,163 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
-/* 夜间模式下的组件样式调整 */
-.night-mode .env-card,
-.night-mode .lamp-card,
-.night-mode .settings-card,
-.night-mode .placeholder-card,
-.night-mode .empty-block,
-.night-mode #controls,
-.night-mode .sidebar {
-  background: #23272f;
-  color: #e5eaf3;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
-}
-
+/* 夜间模式：基础文字 */
 .night-mode .device-meta,
 .night-mode .field-label,
 .night-mode .checkbox-row,
 .night-mode .settings-title,
-.night-mode .lux-display,
 .night-mode .readonly-box {
   color: #c9d1d9;
 }
 
-.night-mode .readonly-box,
-.night-mode .date-input,
-.night-mode .text-input,
-.night-mode .region-input {
-  background: #2b313a;
-  border-color: #3a4452;
-  color: #e5eaf3;
+/* 夜间模式：光照显示 */
+.night-mode .lux-display {
+  background: rgba(30, 41, 59, 0.72);
 }
 
-.night-mode .sidebar li.active,
-.night-mode .sidebar li:hover {
+/* 夜间模式：侧边栏激活态 */
+.night-mode :deep(.sidebar li.active),
+.night-mode :deep(.sidebar li:hover) {
   background: rgba(64, 158, 255, 0.18);
 }
 
-
-.scan-panel {
-  margin: 20px 0 24px;
-  padding: 20px 22px;
-  background: #ffffff;
-  border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-  border: 1px solid rgba(226, 232, 240, 0.9);
+/* 夜间模式：大卡片统一 */
+.app-container.night-mode :deep(.env-card),
+.app-container.night-mode :deep(.lamp-card),
+.app-container.night-mode :deep(.settings-card),
+.app-container.night-mode :deep(.placeholder-card),
+.app-container.night-mode :deep(.empty-block),
+.app-container.night-mode :deep(.scan-panel),
+.app-container.night-mode :deep(.chart-card),
+.app-container.night-mode :deep(.info-card),
+.app-container.night-mode :deep(#controls),
+.app-container.night-mode :deep(.sidebar) {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: #e5e7eb;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
+/* 夜间模式：设置页内部小卡片 */
+.app-container.night-mode :deep(.flow-card),
+.app-container.night-mode :deep(.flow-data-item),
+.app-container.night-mode :deep(.flow-chart-box),
+.app-container.night-mode :deep(.empty-flow),
+.app-container.night-mode :deep(.smart-step),
+.app-container.night-mode :deep(.smart-status),
+.app-container.night-mode :deep(.smart-message),
+.app-container.night-mode :deep(.meta-chip) {
+  background: rgba(15, 23, 42, 0.62) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  color: #e5e7eb !important;
+}
+
+/* 夜间模式：重点文字 */
+.app-container.night-mode :deep(.flow-device-name),
+.app-container.night-mode :deep(.flow-data-item strong),
+.app-container.night-mode :deep(.meta-value),
+.app-container.night-mode :deep(.smart-title) {
+  color: #f8fafc !important;
+}
+
+/* 夜间模式：辅助文字 */
+.app-container.night-mode :deep(.flow-device-sub),
+.app-container.night-mode :deep(.flow-data-item span),
+.app-container.night-mode :deep(.meta-key),
+.app-container.night-mode :deep(.smart-desc),
+.app-container.night-mode :deep(.flow-chart-box),
+.app-container.night-mode :deep(.smart-step p) {
+  color: #94a3b8 !important;
+}
+
+/* 夜间模式：输入框、日期框、自定义下拉 */
+.app-container.night-mode :deep(input),
+.app-container.night-mode :deep(select),
+.app-container.night-mode :deep(.date-input),
+.app-container.night-mode :deep(.text-input),
+.app-container.night-mode :deep(.region-input),
+.app-container.night-mode :deep(.readonly-box),
+.app-container.night-mode :deep(.select-trigger) {
+  background: rgba(15, 23, 42, 0.76) !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  color: #e5e7eb !important;
+}
+
+.app-container.night-mode :deep(input::placeholder),
+.app-container.night-mode :deep(.select-text.placeholder) {
+  color: #64748b !important;
+}
+
+/* 夜间模式：自定义下拉展开面板 */
+.app-container.night-mode :deep(.select-dropdown) {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45) !important;
+}
+
+.app-container.night-mode :deep(.select-option) {
+  color: #e5e7eb !important;
+}
+
+.app-container.night-mode :deep(.select-option:hover) {
+  background: rgba(30, 41, 59, 0.9) !important;
+}
+
+/* 夜间模式：状态标签 */
+.app-container.night-mode :deep(.flow-status) {
+  background: rgba(37, 99, 235, 0.22) !important;
+  color: #93c5fd !important;
+}
+
+.app-container.night-mode :deep(.flow-status.active) {
+  background: rgba(127, 29, 29, 0.3) !important;
+  color: #fecaca !important;
+}
+
+/* 夜间模式：次级按钮 */
+.app-container.night-mode :deep(.btn-secondary),
+.app-container.night-mode :deep(.secondary-btn),
+.app-container.night-mode :deep(.scan-cancel-btn) {
+  background: rgba(30, 41, 59, 0.82) !important;
+  border: 1px solid rgba(148, 163, 184, 0.24) !important;
+  color: #e5e7eb !important;
+}
+
+/* 夜间模式：退出 / 危险按钮 */
+.app-container.night-mode :deep(.btn-logout),
+.app-container.night-mode :deep(.btn-danger) {
+  background: rgba(127, 29, 29, 0.26) !important;
+  color: #fecaca !important;
+}
+
+/* 夜间模式：SmartConfig 提示框 */
+.app-container.night-mode :deep(.smart-tips) {
+  background: rgba(120, 53, 15, 0.22) !important;
+  border: 1px solid rgba(245, 158, 11, 0.18) !important;
+  color: #fde68a !important;
+}
+
+.app-container.night-mode :deep(.smart-message.success) {
+  background: rgba(6, 95, 70, 0.22) !important;
+  color: #a7f3d0 !important;
+}
+
+.app-container.night-mode :deep(.smart-message.error) {
+  background: rgba(127, 29, 29, 0.22) !important;
+  color: #fecaca !important;
+}
+
+.app-container.night-mode :deep(.smart-message.success) {
+  background: rgba(6, 95, 70, 0.22) !important;
+  color: #a7f3d0 !important;
+}
+
+.app-container.night-mode :deep(.smart-message.error) {
+  background: rgba(127, 29, 29, 0.22) !important;
+  color: #fecaca !important;
+}
 .scan-panel-title {
   font-size: 22px;
   font-weight: 700;
@@ -1184,13 +1380,85 @@ onBeforeUnmount(() => {
   border: 1px solid #dcdfe6;
   border-radius: 8px;
 }
+.settings-half-card,
+.settings-full-card {
+  position: relative;
+  z-index: 1;
+}
+
+.settings-half-card:focus-within,
+.settings-full-card:focus-within {
+  z-index: 50;
+}
+
+.main-content {
+  min-height: 100vh;
+  margin-left: 228px;
+  width: calc(100vw - 228px);
+  box-sizing: border-box;
+  padding: 24px 32px 48px 0;
+  overflow-x: hidden;
+}
+
+.store-layout-row {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  margin: 20px 0 28px;
+}
+
+.store-effect-mini {
+  position: sticky;
+  top: 24px;
+  width: 100%;
+}
+
+.store-layout-main {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .store-layout-row {
+    grid-template-columns: 1fr;
+  }
+
+  .store-effect-mini {
+    position: static;
+    width: 100%;
+  }
+}
+
 @media (max-width: 768px) {
-  .app-container {
-    flex-direction: column;
+  .store-layout-row {
+    gap: 12px;
+    margin: 14px 0 22px;
+  }
+}
+@media (max-width: 768px) {
+   .main-content {
+    width: 100%;
+    margin-left: 0;
+    padding: 12px;
+    box-sizing: border-box;
   }
 
   .main-content {
     padding: 12px;
+    margin-left: 0;
+  }
+}
+@media (max-width: 900px) {
+   .settings-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-half-card {
+    position: relative;
+  }
+
+  .settings-half-card:focus-within {
+    z-index: 80;
   }
 }
 </style>
