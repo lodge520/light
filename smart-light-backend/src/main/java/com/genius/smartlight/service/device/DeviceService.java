@@ -1,5 +1,6 @@
 package com.genius.smartlight.service.device;
 
+import com.genius.smartlight.dal.dataobject.DeviceDO;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
 import com.genius.smartlight.vo.device.LightEffectReqVO;
@@ -27,4 +28,5 @@ public interface DeviceService {
     boolean locateDevice(String chipId);
 
     void sendLightEffect(String chipId, LightEffectReqVO reqVO);
+
 }

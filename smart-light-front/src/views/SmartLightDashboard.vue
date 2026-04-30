@@ -219,7 +219,7 @@ const scanStatus = ref('未扫描')
 const showAddDeviceModal = ref(false)
 const currentStoreName = ref('')
 
-const API_BASE = import.meta.env.VITE_API_BAS
+const API_BASE = import.meta.env.VITE_API_BASE
 
 const serverHost = computed(() => {
   return new URL(API_BASE).host

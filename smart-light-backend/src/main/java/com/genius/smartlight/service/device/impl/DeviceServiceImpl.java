@@ -137,8 +137,43 @@ public class DeviceServiceImpl implements DeviceService {
             throw new ServiceException("设备不存在");
         }
 
+        notifyDeviceResumeBroadcast(device);
         deviceMapper.deleteById(id);
         webSocketPushService.pushDeviceDeleted(id);
+    }
+
+    private void notifyDeviceResumeBroadcast(DeviceDO device) {
+        String ip = device.getIp();
+
+        if (ip == null || ip.trim().isEmpty()) {
+            System.out.println("设备 IP 为空，跳过恢复广播指令");
+            return;
+        }
+
+        try {
+            String baseUrl = ip.startsWith("http://") || ip.startsWith("https://")
+                    ? ip
+                    : "http://" + ip;
+            String url = baseUrl + "/resumeBroadcast";
+
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(2))
+                    .build();
+
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .timeout(java.time.Duration.ofSeconds(3))
+                    .GET()
+                    .build();
+
+            java.net.http.HttpResponse<String> response =
+                    client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+
+            System.out.println("已通知设备恢复广播：" + url + "，响应：" + response.body());
+
+        } catch (Exception e) {
+            System.out.println("通知设备恢复广播失败：" + e.getMessage());
+        }
     }
 
     @Override
