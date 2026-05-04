@@ -8,7 +8,7 @@
       type="button"
       class="select-trigger"
       :disabled="disabled"
-      @click="toggleOpen"
+      @click.stop="toggleOpen"
     >
       <span class="select-text" :class="{ placeholder: !selectedOption }">
         {{ selectedOption ? selectedOption.label : placeholder }}
@@ -26,7 +26,7 @@
             active: item.value === modelValue,
             disabled: item.disabled,
           }"
-          @click="handleSelect(item)"
+          @click.stop="handleSelect(item)"
         >
           {{ item.label }}
         </div>
@@ -210,6 +210,71 @@ onBeforeUnmount(() => {
   background: #f3f4f6;
   color: #9ca3af;
   cursor: not-allowed;
+}
+
+:global(.app-container.night-mode) .select-trigger,
+:global(body:has(.app-container.night-mode)) .select-trigger {
+  background: rgba(15, 23, 42, 0.76);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+:global(.app-container.night-mode) .select-trigger:hover,
+:global(body:has(.app-container.night-mode)) .select-trigger:hover {
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+:global(.app-container.night-mode) .open .select-trigger,
+:global(body:has(.app-container.night-mode)) .open .select-trigger {
+  border-color: rgba(96, 165, 250, 0.72);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+}
+
+:global(.app-container.night-mode) .select-text.placeholder,
+:global(body:has(.app-container.night-mode)) .select-text.placeholder {
+  color: rgba(203, 213, 225, 0.58);
+}
+
+:global(.app-container.night-mode) .select-arrow,
+:global(body:has(.app-container.night-mode)) .select-arrow {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+:global(.app-container.night-mode) .select-dropdown,
+:global(body:has(.app-container.night-mode)) .select-dropdown {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.24);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.48);
+}
+
+:global(.app-container.night-mode) .select-option,
+:global(body:has(.app-container.night-mode)) .select-option {
+  color: rgba(226, 232, 240, 0.9);
+}
+
+:global(.app-container.night-mode) .select-option:hover,
+:global(body:has(.app-container.night-mode)) .select-option:hover {
+  background: rgba(30, 41, 59, 0.92);
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(.app-container.night-mode) .select-option.active,
+:global(body:has(.app-container.night-mode)) .select-option.active {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+}
+
+:global(.app-container.night-mode) .select-option.disabled,
+:global(body:has(.app-container.night-mode)) .select-option.disabled,
+:global(.app-container.night-mode) .disabled .select-trigger,
+:global(body:has(.app-container.night-mode)) .disabled .select-trigger {
+  color: rgba(148, 163, 184, 0.62);
+}
+
+:global(.app-container.night-mode) .disabled .select-trigger,
+:global(body:has(.app-container.night-mode)) .disabled .select-trigger {
+  background: rgba(15, 23, 42, 0.48);
+  border-color: rgba(148, 163, 184, 0.16);
 }
 
 .select-fade-enter-active,

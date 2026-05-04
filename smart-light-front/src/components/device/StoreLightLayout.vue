@@ -1138,4 +1138,70 @@ onMounted(() => {
   }
 }
 
+:global(.app-container.night-mode) .layout-card {
+  background: rgba(15, 23, 42, 0.82);
+  border-color: rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  filter: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:global(.app-container.night-mode) .layout-header h2,
+:global(.app-container.night-mode) .lamp-info strong,
+:global(.app-container.night-mode) .zone-order-row strong {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(.app-container.night-mode) .layout-header p,
+:global(.app-container.night-mode) .layout-tips,
+:global(.app-container.night-mode) .lamp-info span,
+:global(.app-container.night-mode) .zone-order-row span {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+:global(.app-container.night-mode) .store-stage {
+  background: rgba(2, 6, 23, 0.78);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+:global(.app-container.night-mode) .store-bg {
+  filter: blur(2px) brightness(0.58) saturate(0.82);
+}
+
+:global(.app-container.night-mode) .reset-layout-btn,
+:global(.app-container.night-mode) .zone-order-row span {
+  background: rgba(30, 41, 59, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: rgba(226, 232, 240, 0.9);
+}
+
+:global(.app-container.night-mode) .locate-btn {
+  background: rgba(120, 53, 15, 0.26);
+  color: #fde68a;
+}
+
+:global(.app-container.night-mode) .zone-box {
+  background: rgba(37, 99, 235, 0.2);
+  border-color: rgba(96, 165, 250, 0.72);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.36);
+}
+
+:global(.app-container.night-mode) .zone-name-input,
+:global(.app-container.night-mode) .zone-count,
+:global(.app-container.night-mode) .lamp-node {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(.app-container.night-mode) .lamp-node.active,
+:global(.app-container.night-mode) .lamp-node.selected {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: rgba(251, 191, 36, 0.92);
+  box-shadow:
+    0 0 0 5px rgba(251, 191, 36, 0.18),
+    0 18px 44px rgba(0, 0, 0, 0.46);
+}
+
 </style>

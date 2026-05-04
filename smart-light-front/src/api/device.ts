@@ -1,5 +1,14 @@
 import http from './http'
-import type { DeviceCreatePayload, DeviceItem, DeviceOnlineItem } from '../types/device'
+import type {
+  DeviceCreatePayload,
+  DeviceItem,
+  DeviceOnlineItem,
+  FirmwareHistoryParams,
+  FirmwareItem,
+  FirmwareUploadResult,
+  FirmwareChannel,
+  OtaCheckResult,
+} from '../types/device'
 
 interface CommonResult<T> {
   code: number
@@ -37,10 +46,24 @@ export async function deleteDevice(id: number): Promise<boolean> {
   return res.data.data
 }
 
-export async function armControl(chipId: string, direction: string): Promise<boolean> {
-  const res = await http.post<CommonResult<boolean>>(`/admin/device/arm/${chipId}`, {
-    direction,
-  })
+export type ArmControlSpeed = 'slow' | 'normal' | 'fast'
+
+export async function armControl(
+  chipId: string,
+  action: string,
+  speed: ArmControlSpeed = 'normal',
+  position?: number,
+): Promise<boolean> {
+  const payload: { action: string; speed: ArmControlSpeed; position?: number } = {
+    action,
+    speed,
+  }
+
+  if (position !== undefined) {
+    payload.position = position
+  }
+
+  const res = await http.post<CommonResult<boolean>>(`/admin/device/arm/${chipId}`, payload)
   return res.data.data
 }
 
@@ -81,4 +104,77 @@ export async function sendLightEffect(
     payload,
   )
   return res.data.data
+}
+
+export async function updateFirmwareChannel(
+  chipId: string,
+  channel: FirmwareChannel,
+): Promise<boolean> {
+  const res = await http.put<CommonResult<boolean>>(
+    `/admin/device/${chipId}/firmware-channel`,
+    { channel },
+  )
+  return res.data.data
+}
+
+export async function checkFirmwareUpdate(
+  chipId: string,
+  channel?: FirmwareChannel,
+): Promise<OtaCheckResult> {
+  const res = await http.get<CommonResult<OtaCheckResult>>(
+    `/admin/device/${chipId}/ota/check`,
+    channel ? { params: { channel } } : undefined,
+  )
+  return res.data.data
+}
+
+export async function startOtaUpdate(
+  chipId: string,
+  firmwareId?: number,
+  channel?: FirmwareChannel,
+): Promise<OtaCheckResult> {
+  const payload: { firmwareId?: number; channel?: FirmwareChannel } = {}
+  if (firmwareId) {
+    payload.firmwareId = firmwareId
+  }
+  if (channel) {
+    payload.channel = channel
+  }
+
+  const res = await http.post<CommonResult<OtaCheckResult>>(
+    `/admin/device/${chipId}/ota/update`,
+    payload,
+  )
+  return res.data.data
+}
+
+export async function uploadFirmware(formData: FormData): Promise<FirmwareUploadResult> {
+  const res = await http.post<CommonResult<FirmwareUploadResult>>(
+    '/admin/device/ota/firmware/upload',
+    formData,
+  )
+
+  if (res.data.code !== 200) {
+    throw new Error(res.data.msg || '固件上传失败')
+  }
+
+  return res.data.data
+}
+
+export async function getFirmwareHistory(params: FirmwareHistoryParams = {}): Promise<FirmwareItem[]> {
+  const res = await http.get<CommonResult<FirmwareItem[]>>(
+    '/admin/device/ota/firmware/list',
+    {
+      params: {
+        ...(params.deviceType ? { deviceType: params.deviceType } : {}),
+        ...(params.channel ? { channel: params.channel } : {}),
+      },
+    },
+  )
+
+  if (res.data.code !== 200) {
+    throw new Error(res.data.msg || '固件历史版本加载失败')
+  }
+
+  return res.data.data || []
 }

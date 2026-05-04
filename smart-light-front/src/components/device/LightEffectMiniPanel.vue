@@ -251,4 +251,35 @@ async function stopWave() {
   color: #94a3b8;
   line-height: 1.4;
 }
+
+:global(.app-container.night-mode) .light-effect-mini-card {
+  background: rgba(15, 23, 42, 0.82);
+  border-color: rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  filter: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:global(.app-container.night-mode) .mini-title {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(.app-container.night-mode) .mini-label,
+:global(.app-container.night-mode) .mini-status {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+:global(.app-container.night-mode) .mini-select,
+:global(.app-container.night-mode) .mini-input {
+  background: rgba(15, 23, 42, 0.76);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+:global(.app-container.night-mode) .mini-btn.stop {
+  background: rgba(30, 41, 59, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: rgba(226, 232, 240, 0.9);
+}
 </style>

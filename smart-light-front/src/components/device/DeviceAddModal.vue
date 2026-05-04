@@ -1,8 +1,9 @@
 <template>
-  <Transition name="modal-overlay-fade" appear @after-leave="handleOverlayAfterLeave">
-    <div v-if="overlayVisible" class="modal-overlay" @click.self="handleClose">
-      <Transition name="ios-modal-card" appear @after-leave="handleCardAfterLeave">
-        <div v-if="visible" class="modal-card">
+  <Teleport to="body">
+    <Transition name="modal-overlay-fade" appear @after-leave="handleOverlayAfterLeave">
+      <div v-if="overlayVisible" class="modal-overlay" @click.self="handleClose">
+        <Transition name="ios-modal-card" appear @after-leave="handleCardAfterLeave">
+          <div v-if="visible" class="modal-card">
           <h3>{{ initialData ? '添加扫描到的设备' : '手动添加设备' }}</h3>
 
             <template v-if="initialData">
@@ -73,10 +74,11 @@
               取消
             </button>
           </div>
-        </div>
-      </Transition>
-    </div>
-  </Transition>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -92,6 +94,7 @@ type DeviceAddInitialData = {
 } | null
 const deviceTypeOptions = [
   { label: 'lamp', value: 'lamp' },
+  { label: 'cam', value: 'cam' },
   { label: 'camlamp', value: 'camlamp' },
 ]
 const props = defineProps<{
@@ -211,11 +214,13 @@ watch(
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 999;
+  z-index: 2000;
   animation: overlay-fade-in 220ms ease-out;
 }
 
 .modal-card {
+  position: relative;
+  z-index: 2001;
   background: #fff;
   width: 360px;
   max-width: 92vw;
@@ -363,5 +368,58 @@ watch(
   font-weight: 600;
   line-height: 1.35;
   word-break: break-all;
+}
+
+:global(body:has(.app-container.night-mode)) .modal-overlay {
+  background: rgba(2, 6, 23, 0.66);
+}
+
+:global(body:has(.app-container.night-mode)) .modal-card {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: rgba(226, 232, 240, 0.9);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48);
+  filter: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:global(body:has(.app-container.night-mode)) .modal-card h3 {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(body:has(.app-container.night-mode)) .modal-label,
+:global(body:has(.app-container.night-mode)) .readonly-label {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+:global(body:has(.app-container.night-mode)) .modal-input {
+  background: rgba(15, 23, 42, 0.76);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+:global(body:has(.app-container.night-mode)) .modal-input::placeholder {
+  color: rgba(203, 213, 225, 0.58);
+}
+
+:global(body:has(.app-container.night-mode)) .modal-input:focus {
+  border-color: rgba(96, 165, 250, 0.72);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+:global(body:has(.app-container.night-mode)) .readonly-item {
+  background: rgba(15, 23, 42, 0.62);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+:global(body:has(.app-container.night-mode)) .readonly-value {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(body:has(.app-container.night-mode)) .btn-cancel {
+  background: rgba(30, 41, 59, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: rgba(226, 232, 240, 0.9);
 }
 </style>

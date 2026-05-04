@@ -74,6 +74,15 @@ const router = createRouter({
       component: StoreProfileView,
       meta: { requiresAuth: true },
     },
+    {
+      path: '/firmware-manage',
+      name: 'FirmwareManage',
+      redirect: {
+        path: '/smartlightdashboard',
+        query: { tab: 'firmware' },
+      },
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

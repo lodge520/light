@@ -158,6 +158,10 @@
       </div>
        <SmartConfigPanel class="settings-full-card" />
     </section>
+
+    <section v-show="activeTab === 'firmware'" class="page-section">
+      <FirmwareManagePanel />
+    </section>
     </div>
   </div>
 </template>
@@ -195,6 +199,7 @@ import ArmControlPanel from '../components/settings/ArmControlPanel.vue'
 import StoreSettingsPanel from '../components/settings/StoreSettingsPanel.vue'
 import type { StoreSettingsValue } from '../components/settings/StoreSettingsPanel.vue'
 import FlowOverview from '../components/flow/FlowOverview.vue'
+import FirmwareManagePanel from '../components/firmware/FirmwareManagePanel.vue'
 import { regions } from '../constants/china-region'
 import { STORE_STYLE_MAP } from '../constants/store'
 const router = useRouter()
@@ -203,7 +208,7 @@ const route = useRoute()
 function getInitialTab(): DashboardTab {
   const tab = route.query.tab
 
-  if (tab === 'main' || tab === 'flow' || tab === 'settings') {
+  if (tab === 'main' || tab === 'flow' || tab === 'settings' || tab === 'firmware') {
     return tab
   }
 
@@ -242,6 +247,15 @@ const scannedDevices = ref<
 >([])
 
 const storeSettingsReady = ref(false)
+const NIGHT_MODE_STORAGE_KEY = 'SMART_LIGHT_NIGHT_MODE'
+
+function readPersistedNightMode() {
+  return localStorage.getItem(NIGHT_MODE_STORAGE_KEY) === '1'
+}
+
+function persistNightMode(value: boolean) {
+  localStorage.setItem(NIGHT_MODE_STORAGE_KEY, value ? '1' : '0')
+}
 
 function handleLogout() {
   localStorage.removeItem('TOKEN')
@@ -405,7 +419,7 @@ const storeSettings = ref<StoreSettingsValue>({
   },
   storeType: '高端,3500',
   storeSize: '高端,80',
-  isNightMode: false,
+  isNightMode: readPersistedNightMode(),
 })
 
 watch(
@@ -419,6 +433,7 @@ watch(
     weatherText.value = `${val.region.provinceLabel} · ${val.region.cityLabel}`
     envInfo.value.area = storeSizeInfo.area
     envInfo.value.temp = val.isNightMode ? 20 : 24
+    persistNightMode(val.isNightMode)
 
     for (const device of devices.value) {
       if (!device.autoMode) continue
@@ -450,7 +465,7 @@ watch(
 watch(
   () => route.query.tab,
   (tab) => {
-    if (tab === 'main' || tab === 'flow' || tab === 'settings') {
+    if (tab === 'main' || tab === 'flow' || tab === 'settings' || tab === 'firmware') {
       activeTab.value = tab
     }
   },
@@ -928,8 +943,8 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(148, 163, 184, 0.18);
   color: #e5e7eb;
   box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* 夜间模式：设置页内部小卡片 */
@@ -1039,6 +1054,239 @@ onBeforeUnmount(() => {
 .app-container.night-mode :deep(.smart-message.error) {
   background: rgba(127, 29, 29, 0.22) !important;
   color: #fecaca !important;
+}
+
+/* 夜间模式：高对比可读性补强 */
+.app-container.night-mode :deep(.layout-card),
+.app-container.night-mode :deep(.light-effect-mini-card),
+.app-container.night-mode :deep(.smart-config-section),
+.app-container.night-mode :deep(.smart-card),
+.app-container.night-mode :deep(.direction-pad),
+.app-container.night-mode :deep(.preset-btn),
+.app-container.night-mode :deep(.slider-card),
+.app-container.night-mode :deep(.scan-item),
+.app-container.night-mode :deep(.firmware-section),
+.app-container.night-mode :deep(.firmware-info-item),
+.app-container.night-mode :deep(.detail-info-item),
+.app-container.night-mode :deep(.readonly-item) {
+  background: rgba(15, 23, 42, 0.72) !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  color: rgba(226, 232, 240, 0.88) !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+.app-container.night-mode :deep(.smart-card),
+.app-container.night-mode :deep(.layout-card),
+.app-container.night-mode :deep(.light-effect-mini-card) {
+  background: rgba(15, 23, 42, 0.82) !important;
+}
+
+.app-container.night-mode :deep(h1),
+.app-container.night-mode :deep(h2),
+.app-container.night-mode :deep(h3),
+.app-container.night-mode :deep(h4),
+.app-container.night-mode :deep(.card-title),
+.app-container.night-mode :deep(.scan-panel-title),
+.app-container.night-mode :deep(.layout-header h2),
+.app-container.night-mode :deep(.mini-title),
+.app-container.night-mode :deep(.device-title-block h3),
+.app-container.night-mode :deep(.preset-btn strong),
+.app-container.night-mode :deep(.slider-card-header),
+.app-container.night-mode :deep(.firmware-section h4),
+.app-container.night-mode :deep(.firmware-info-item strong),
+.app-container.night-mode :deep(.detail-value),
+.app-container.night-mode :deep(.readonly-value),
+.app-container.night-mode :deep(.lamp-info strong),
+.app-container.night-mode :deep(.zone-order-row strong) {
+  color: rgba(248, 250, 252, 0.96) !important;
+}
+
+.app-container.night-mode :deep(.env-info),
+.app-container.night-mode :deep(#metaInfo),
+.app-container.night-mode :deep(#scanStatus),
+.app-container.night-mode :deep(.scan-item-info),
+.app-container.night-mode :deep(.field-label),
+.app-container.night-mode :deep(.checkbox-row),
+.app-container.night-mode :deep(.form-row label),
+.app-container.night-mode :deep(.modal-label),
+.app-container.night-mode :deep(.detail-label),
+.app-container.night-mode :deep(.firmware-info-item span),
+.app-container.night-mode :deep(.readonly-label),
+.app-container.night-mode :deep(.mini-label),
+.app-container.night-mode :deep(.lamp-info span),
+.app-container.night-mode :deep(.zone-order-row span),
+.app-container.night-mode :deep(.message-body) {
+  color: rgba(226, 232, 240, 0.88) !important;
+}
+
+.app-container.night-mode :deep(.panel-desc),
+.app-container.night-mode :deep(.last-seen-under-name),
+.app-container.night-mode :deep(.layout-header p),
+.app-container.night-mode :deep(.mini-status),
+.app-container.night-mode :deep(.preset-btn span),
+.app-container.night-mode :deep(.device-meta),
+.app-container.night-mode :deep(.detail-subtitle),
+.app-container.night-mode :deep(.modal-hint),
+.app-container.night-mode :deep(.scan-empty),
+.app-container.night-mode :deep(.empty-block),
+.app-container.night-mode :deep(.field-hint.placeholder) {
+  color: rgba(203, 213, 225, 0.72) !important;
+}
+
+.app-container.night-mode :deep(input::placeholder),
+.app-container.night-mode :deep(textarea::placeholder),
+.app-container.night-mode :deep(.select-text.placeholder) {
+  color: rgba(203, 213, 225, 0.58) !important;
+}
+
+.app-container.night-mode :deep(.scan-empty),
+.app-container.night-mode :deep(.empty-block) {
+  background: rgba(15, 23, 42, 0.58) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+.app-container.night-mode :deep(.speed-tab),
+.app-container.night-mode :deep(.compact-btn),
+.app-container.night-mode :deep(.shortcut-btn),
+.app-container.night-mode :deep(.btn-light),
+.app-container.night-mode :deep(.reset-layout-btn),
+.app-container.night-mode :deep(.scan-clear-btn),
+.app-container.night-mode :deep(.mini-btn.stop),
+.app-container.night-mode :deep(.btn-ai) {
+  background: rgba(30, 41, 59, 0.82) !important;
+  border: 1px solid rgba(148, 163, 184, 0.24) !important;
+  color: rgba(226, 232, 240, 0.9) !important;
+  box-shadow: none !important;
+}
+
+.app-container.night-mode :deep(.speed-tab.active),
+.app-container.night-mode :deep(.compact-btn.primary),
+.app-container.night-mode :deep(.btn-ai:not(.active):hover),
+.app-container.night-mode :deep(.reset-layout-btn:hover),
+.app-container.night-mode :deep(.shortcut-btn:hover),
+.app-container.night-mode :deep(.compact-btn:hover) {
+  background: rgba(37, 99, 235, 0.26) !important;
+  border-color: rgba(96, 165, 250, 0.45) !important;
+  color: #bfdbfe !important;
+}
+
+.app-container.night-mode :deep(.dir-btn) {
+  background: rgba(30, 41, 59, 0.88) !important;
+  color: #93c5fd !important;
+  border: 1px solid rgba(96, 165, 250, 0.22) !important;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28) !important;
+}
+
+.app-container.night-mode :deep(.dir-btn:hover) {
+  background: rgba(37, 99, 235, 0.28) !important;
+}
+
+.app-container.night-mode :deep(.field-hint:not(.placeholder)) {
+  color: #fcd34d !important;
+}
+
+.app-container.night-mode :deep(.smart-status.active) {
+  background: rgba(37, 99, 235, 0.28) !important;
+  border-color: rgba(96, 165, 250, 0.36) !important;
+  color: #bfdbfe !important;
+}
+
+.app-container.night-mode :deep(.smart-status.success),
+.app-container.night-mode :deep(.status-badge.online) {
+  background: rgba(6, 95, 70, 0.28) !important;
+  border-color: rgba(52, 211, 153, 0.22) !important;
+  color: #a7f3d0 !important;
+}
+
+.app-container.night-mode :deep(.smart-status.error),
+.app-container.night-mode :deep(.status-badge.offline),
+.app-container.night-mode :deep(.btn-ai.active) {
+  background: rgba(127, 29, 29, 0.28) !important;
+  border-color: rgba(248, 113, 113, 0.22) !important;
+  color: #fecaca !important;
+}
+
+.app-container.night-mode :deep(.smart-status.warning),
+.app-container.night-mode :deep(.smart-message.warning),
+.app-container.night-mode :deep(.ota-result) {
+  background: rgba(120, 53, 15, 0.26) !important;
+  border-color: rgba(245, 158, 11, 0.24) !important;
+  color: #fde68a !important;
+}
+
+.app-container.night-mode :deep(.status-badge) {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.app-container.night-mode :deep(.color-box),
+.app-container.night-mode :deep(.lux-display),
+.app-container.night-mode :deep(.zone-order-row span) {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.22) !important;
+}
+
+.app-container.night-mode :deep(.store-stage) {
+  background: rgba(2, 6, 23, 0.78) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+.app-container.night-mode :deep(.store-bg) {
+  filter: blur(2px) brightness(0.58) saturate(0.82) !important;
+}
+
+.app-container.night-mode :deep(.zone-box) {
+  background: rgba(37, 99, 235, 0.2) !important;
+  border-color: rgba(96, 165, 250, 0.72) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.36) !important;
+}
+
+.app-container.night-mode :deep(.zone-name-input),
+.app-container.night-mode :deep(.zone-count),
+.app-container.night-mode :deep(.lamp-node) {
+  background: rgba(15, 23, 42, 0.9) !important;
+  border-color: rgba(148, 163, 184, 0.3) !important;
+  color: rgba(248, 250, 252, 0.96) !important;
+}
+
+.app-container.night-mode :deep(.lamp-node.active),
+.app-container.night-mode :deep(.lamp-node.selected) {
+  border-color: rgba(251, 191, 36, 0.92) !important;
+  box-shadow:
+    0 0 0 5px rgba(251, 191, 36, 0.18),
+    0 18px 44px rgba(0, 0, 0, 0.46) !important;
+}
+
+/* 夜间模式：内容层禁止使用模糊/毛玻璃，避免整页发糊 */
+.app-container.night-mode,
+.app-container.night-mode .main-content,
+.app-container.night-mode :deep(.sidebar),
+.app-container.night-mode :deep(.env-card),
+.app-container.night-mode :deep(.lamp-card),
+.app-container.night-mode :deep(.settings-card),
+.app-container.night-mode :deep(.placeholder-card),
+.app-container.night-mode :deep(.empty-block),
+.app-container.night-mode :deep(.scan-panel),
+.app-container.night-mode :deep(.scan-item),
+.app-container.night-mode :deep(.chart-card),
+.app-container.night-mode :deep(.info-card),
+.app-container.night-mode :deep(#controls),
+.app-container.night-mode :deep(.layout-card),
+.app-container.night-mode :deep(.light-effect-mini-card),
+.app-container.night-mode :deep(.smart-config-section),
+.app-container.night-mode :deep(.smart-card),
+.app-container.night-mode :deep(.direction-pad),
+.app-container.night-mode :deep(.preset-btn),
+.app-container.night-mode :deep(.slider-card),
+.app-container.night-mode :deep(.flow-card),
+.app-container.night-mode :deep(.flow-data-item),
+.app-container.night-mode :deep(.flow-chart-box),
+.app-container.night-mode :deep(.firmware-section),
+.app-container.night-mode :deep(.firmware-info-item),
+.app-container.night-mode :deep(.detail-info-item),
+.app-container.night-mode :deep(.readonly-item) {
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .app-container.night-mode :deep(.smart-message.success) {
@@ -1460,5 +1708,38 @@ onBeforeUnmount(() => {
   .settings-half-card:focus-within {
     z-index: 80;
   }
+}
+
+/* 最终兜底：夜间模式内容层不允许模糊，背景图层除外 */
+.app-container.night-mode,
+.app-container.night-mode .main-content,
+.app-container.night-mode :deep(.sidebar),
+.app-container.night-mode :deep(.env-card),
+.app-container.night-mode :deep(.lamp-card),
+.app-container.night-mode :deep(.settings-card),
+.app-container.night-mode :deep(.placeholder-card),
+.app-container.night-mode :deep(.empty-block),
+.app-container.night-mode :deep(.scan-panel),
+.app-container.night-mode :deep(.scan-item),
+.app-container.night-mode :deep(.chart-card),
+.app-container.night-mode :deep(.info-card),
+.app-container.night-mode :deep(#controls),
+.app-container.night-mode :deep(.layout-card),
+.app-container.night-mode :deep(.light-effect-mini-card),
+.app-container.night-mode :deep(.smart-config-section),
+.app-container.night-mode :deep(.smart-card),
+.app-container.night-mode :deep(.direction-pad),
+.app-container.night-mode :deep(.preset-btn),
+.app-container.night-mode :deep(.slider-card),
+.app-container.night-mode :deep(.flow-card),
+.app-container.night-mode :deep(.flow-data-item),
+.app-container.night-mode :deep(.flow-chart-box),
+.app-container.night-mode :deep(.firmware-section),
+.app-container.night-mode :deep(.firmware-info-item),
+.app-container.night-mode :deep(.detail-info-item),
+.app-container.night-mode :deep(.readonly-item) {
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 </style>

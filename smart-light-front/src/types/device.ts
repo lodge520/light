@@ -16,6 +16,10 @@ export interface DeviceItem {
   updateTime?: string
   online?: boolean
   lastSeen?: number
+  firmwareVersion?: string
+  firmwareVersionCode?: number
+  firmwareChannel?: FirmwareChannel
+  otaStatus?: OtaStatus
 }
 
 
@@ -41,4 +45,46 @@ export interface DeviceCreatePayload {
   mainColorRgb?: string
 }
 
-export type DashboardTab = 'main' | 'flow' | 'settings'
+export type FirmwareChannel = 'stable' | 'test'
+export type FirmwareDeviceType = 'lamp' | 'cam' | 'camlamp'
+
+export type OtaStatus = 'idle' | 'updating' | 'success' | 'failed'
+
+export interface OtaCheckResult {
+  chipId: string
+  deviceType?: string
+  channel: FirmwareChannel
+  currentVersion?: string
+  currentVersionCode?: number
+  firmwareId?: number
+  latestVersion?: string
+  latestVersionCode?: number
+  fileUrl?: string
+  md5?: string
+  changelog?: string
+  hasUpdate: boolean
+  otaStatus?: OtaStatus
+}
+
+export interface FirmwareUploadResult {
+  id: number
+  deviceType: FirmwareDeviceType
+  channel: FirmwareChannel
+  version: string
+  versionCode: number
+  fileUrl: string
+  md5?: string
+  changelog?: string
+  enabled: boolean
+  createTime?: string
+  updateTime?: string
+}
+
+export type FirmwareItem = FirmwareUploadResult
+
+export interface FirmwareHistoryParams {
+  deviceType?: FirmwareDeviceType | ''
+  channel?: FirmwareChannel | ''
+}
+
+export type DashboardTab = 'main' | 'flow' | 'settings' | 'firmware'

@@ -4,7 +4,7 @@
       <div>
         <h2 class="settings-title">🎯 云台控制</h2>
         <p class="panel-desc">
-          控制摄像头云台或灯光云台方向，支持服装采集与人流追踪预设姿态
+          根据设备类型控制灯光照射云台或独立摄像头云台
         </p>
       </div>
     </div>
@@ -13,29 +13,13 @@
       <label>选择设备：</label>
       <BaseSelect
         v-model="selectedDeviceCode"
-        :options="cameraDeviceOptions"
-        placeholder="请选择摄像头灯设备"
+        :options="armDeviceOptions"
+        placeholder="请选择 lamp / cam / camlamp 设备"
       />
     </div>
 
-    <div class="form-row">
-      <label>控制对象：</label>
-      <div class="target-tabs">
-        <button
-          class="target-tab"
-          :class="{ active: controlTarget === 'camera' }"
-          @click="controlTarget = 'camera'"
-        >
-          摄像头云台
-        </button>
-        <button
-          class="target-tab"
-          :class="{ active: controlTarget === 'lamp' }"
-          @click="controlTarget = 'lamp'"
-        >
-          灯光云台
-        </button>
-      </div>
+    <div v-if="selectedDevice" class="device-meta selected-meta">
+      当前类型：{{ selectedDeviceTypeText }}
     </div>
 
     <div class="form-row">
@@ -55,74 +39,99 @@
 
     <div class="gimbal-layout">
       <div class="direction-pad">
-        <button
-          class="dir-btn up"
-          :disabled="submitting"
-          @click="send('up')"
-        >
+        <button class="dir-btn up" :disabled="isActionDisabled" @click="send('up')">
           ⬆
         </button>
 
-        <button
-          class="dir-btn left"
-          :disabled="submitting"
-          @click="send('left')"
-        >
+        <button class="dir-btn left" :disabled="isActionDisabled" @click="send('left')">
           ⬅
         </button>
 
-        <button
-          class="dir-btn center"
-          :disabled="submitting"
-          @click="send('center')"
-        >
+        <button class="dir-btn center" :disabled="isActionDisabled" @click="send('center')">
           居中
         </button>
 
-        <button
-          class="dir-btn right"
-          :disabled="submitting"
-          @click="send('right')"
-        >
+        <button class="dir-btn right" :disabled="isActionDisabled" @click="send('right')">
           ➡
         </button>
 
-        <button
-          class="dir-btn down"
-          :disabled="submitting"
-          @click="send('down')"
-        >
+        <button class="dir-btn down" :disabled="isActionDisabled" @click="send('down')">
           ⬇
         </button>
       </div>
 
-      <div class="preset-panel">
+      <div v-if="selectedDeviceType === 'lamp'" class="action-panel">
         <button
+          v-for="item in presetActions"
+          :key="item.action"
           class="preset-btn"
-          :disabled="submitting"
-          @click="send('cloth')"
+          :disabled="isActionDisabled"
+          @click="send(item.action)"
         >
-          <strong>服装采集姿态</strong>
-          <span>摄像头朝向灯下服装区域</span>
+          <strong>{{ item.label }}</strong>
+          <span>{{ item.desc }}</span>
         </button>
+      </div>
 
-        <button
-          class="preset-btn"
-          :disabled="submitting"
-          @click="send('flow')"
-        >
-          <strong>人流追踪姿态</strong>
-          <span>摄像头朝向顾客活动区域</span>
-        </button>
+      <div v-else-if="isCamDevice" class="cam-control-panel">
+        <div class="action-panel cam-preset-panel">
+          <button
+            v-for="item in camPresetActions"
+            :key="item.action"
+            class="preset-btn"
+            :disabled="isActionDisabled"
+            @click="send(item.action)"
+          >
+            <strong>{{ item.label }}</strong>
+            <span>{{ item.desc }}</span>
+          </button>
+        </div>
 
-        <button
-          class="preset-btn"
-          :disabled="submitting"
-          @click="send('home')"
-        >
-          <strong>归位</strong>
-          <span>云台回到默认初始角度</span>
-        </button>
+        <div class="slider-card">
+          <div class="slider-card-header">
+            <strong>滑轨位置</strong>
+            <span>{{ sliderPosition }} mm</span>
+          </div>
+
+          <input
+            v-model.number="sliderPosition"
+            class="slider-range"
+            type="range"
+            :min="SLIDER_MIN"
+            :max="SLIDER_MAX"
+            :step="SLIDER_STEP"
+            :disabled="isActionDisabled"
+          />
+
+          <div class="slider-actions">
+            <button
+              class="compact-btn primary"
+              :disabled="isActionDisabled"
+              @click="sendSliderPosition"
+            >
+              移动到当前位置
+            </button>
+            <button
+              class="compact-btn"
+              :disabled="isActionDisabled"
+              @click="send('slide_stop')"
+            >
+              停止
+            </button>
+          </div>
+
+          <div class="lamp-shortcuts">
+            <button
+              v-for="item in lampShortcutActions"
+              :key="item.action"
+              class="shortcut-btn"
+              :disabled="isActionDisabled"
+              @click="send(item.action)"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -134,8 +143,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { armControl } from '../../api/device'
+import { computed, ref, watch } from 'vue'
+import { armControl, type ArmControlSpeed } from '../../api/device'
 import type { DeviceItem } from '../../types/device'
 import BaseSelect from '../common/BaseSelect.vue'
 
@@ -143,38 +152,124 @@ const props = defineProps<{
   devices: DeviceItem[]
 }>()
 
-type ControlTarget = 'camera' | 'lamp'
-type GimbalSpeed = 'slow' | 'normal' | 'fast'
+type ArmDeviceType = 'lamp' | 'cam' | 'camlamp'
+type ArmAction = {
+  action: string
+  label: string
+  desc: string
+}
 
 const selectedDeviceCode = ref('')
-const controlTarget = ref<ControlTarget>('camera')
-const speed = ref<GimbalSpeed>('normal')
+const speed = ref<ArmControlSpeed>('normal')
+const sliderPosition = ref(0)
 const submitting = ref(false)
 const errorText = ref('')
 const statusText = ref('请选择设备后发送云台控制指令')
 
-const speedOptions: { label: string; value: GimbalSpeed }[] = [
+const SLIDER_MIN = 0
+const SLIDER_MAX = 500
+const SLIDER_STEP = 10
+
+const speedOptions: { label: string; value: ArmControlSpeed }[] = [
   { label: '慢', value: 'slow' },
   { label: '中', value: 'normal' },
   { label: '快', value: 'fast' },
 ]
 
-const cameraDevices = computed(() => {
-  return (props.devices || []).filter(device => {
-    const type = String(device.deviceType || '')
-      .replace(/[-_\s]/g, '')
-      .toLowerCase()
+const commonActions: ArmAction[] = [
+  { action: 'home', label: '归位', desc: '回到默认初始位置' },
+  { action: 'stop', label: '停止', desc: '停止或保持当前位置' },
+]
 
-    return type === 'camlamp'
+const lampActions: ArmAction[] = [
+  ...commonActions,
+  { action: 'aim_person', label: '一键照人', desc: '灯光云台转到照人预设角度' },
+  { action: 'aim_cloth', label: '一键照服装', desc: '灯光云台转到服装预设角度' },
+]
+
+const camPresetActions: ArmAction[] = [
+  { action: 'cam_person', label: '对人角度', desc: '摄像头转到对人预设角度' },
+  { action: 'cam_cloth', label: '对服装角度', desc: '摄像头转到对服装预设角度' },
+  ...commonActions,
+]
+
+const lampShortcutActions: ArmAction[] = [
+  { action: 'go_lamp_1', label: '灯1', desc: '移动到灯1旁指定位置' },
+  { action: 'go_lamp_2', label: '灯2', desc: '移动到灯2旁指定位置' },
+  { action: 'go_lamp_3', label: '灯3', desc: '移动到灯3旁指定位置' },
+]
+
+const armDevices = computed(() => {
+  return (props.devices || []).filter(device => {
+    return normalizeDeviceType(device.deviceType) !== ''
   })
 })
 
-const cameraDeviceOptions = computed(() => {
-  return cameraDevices.value.map(device => ({
+const armDeviceOptions = computed(() => {
+  return armDevices.value.map(device => ({
     label: buildDeviceLabel(device),
     value: getDeviceCode(device),
   }))
 })
+
+const selectedDevice = computed(() => {
+  return armDevices.value.find(device => getDeviceCode(device) === selectedDeviceCode.value)
+})
+
+const selectedDeviceType = computed<ArmDeviceType | ''>(() => {
+  return normalizeDeviceType(selectedDevice.value?.deviceType)
+})
+
+const selectedDeviceTypeText = computed(() => {
+  const type = selectedDeviceType.value
+  if (type === 'lamp') return 'lamp'
+  if (type === 'cam') return 'cam'
+  if (type === 'camlamp') return 'camlamp（按 cam 控制）'
+  return '未知'
+})
+
+const isCamDevice = computed(() => {
+  return selectedDeviceType.value === 'cam' || selectedDeviceType.value === 'camlamp'
+})
+
+const presetActions = computed(() => {
+  if (selectedDeviceType.value === 'lamp') {
+    return lampActions
+  }
+  return []
+})
+
+const isActionDisabled = computed(() => submitting.value || !selectedDevice.value)
+
+watch(
+  armDeviceOptions,
+  (options) => {
+    if (!selectedDeviceCode.value && options.length > 0) {
+      selectedDeviceCode.value = String(options[0].value)
+      return
+    }
+
+    if (
+      selectedDeviceCode.value &&
+      !options.some(option => String(option.value) === selectedDeviceCode.value)
+    ) {
+      selectedDeviceCode.value = options[0] ? String(options[0].value) : ''
+    }
+  },
+  { immediate: true },
+)
+
+function normalizeDeviceType(deviceType?: string): ArmDeviceType | '' {
+  const type = String(deviceType || '')
+    .replace(/[-_\s]/g, '')
+    .toLowerCase()
+
+  if (type === 'lamp' || type === 'cam' || type === 'camlamp') {
+    return type
+  }
+
+  return ''
+}
 
 function getDeviceCode(device: Partial<DeviceItem> | any) {
   return String(device?.chipId || device?.deviceCode || '').trim()
@@ -184,8 +279,9 @@ function buildDeviceLabel(device: DeviceItem) {
   const zoneName = device.displayName || '未分区'
   const no = device.deviceNo ? `灯具-${device.deviceNo}` : '未编号'
   const chipId = device.chipId || '未知芯片'
+  const type = device.deviceType || '未知类型'
 
-  return `${zoneName} · ${no} · ${chipId}`
+  return `${zoneName} · ${no} · ${type} · ${chipId}`
 }
 
 function getActionText(action: string) {
@@ -195,22 +291,28 @@ function getActionText(action: string) {
     left: '左',
     right: '右',
     center: '居中',
-    cloth: '服装采集姿态',
-    flow: '人流追踪姿态',
     home: '归位',
+    stop: '停止',
+    aim_person: '一键照人',
+    aim_cloth: '一键照服装',
+    slide_left: '滑轨左移',
+    slide_right: '滑轨右移',
+    slide_stop: '滑轨停止',
+    slider_position: '滑轨位置',
+    cam_person: '对人角度',
+    cam_cloth: '对服装角度',
+    go_lamp_1: '到灯1旁',
+    go_lamp_2: '到灯2旁',
+    go_lamp_3: '到灯3旁',
   }
 
   return map[action] || action
 }
 
-function getTargetText(target: ControlTarget) {
-  return target === 'camera' ? '摄像头云台' : '灯光云台'
-}
-
-async function send(action: string) {
+async function send(action: string, position?: number) {
   errorText.value = ''
 
-  if (!selectedDeviceCode.value) {
+  if (!selectedDevice.value || !selectedDeviceCode.value) {
     errorText.value = '请先选择设备'
     return
   }
@@ -218,17 +320,20 @@ async function send(action: string) {
   submitting.value = true
 
   try {
-    const command = `${controlTarget.value}:${action}:${speed.value}`
+    await armControl(selectedDeviceCode.value, action, speed.value, position)
 
-    await armControl(selectedDeviceCode.value, command)
-
-    statusText.value = `已发送：${getTargetText(controlTarget.value)} / ${getActionText(action)} / ${speed.value}`
+    const positionText = position === undefined ? '' : ` / ${position} mm`
+    statusText.value = `已发送：${selectedDeviceTypeText.value} / ${getActionText(action)} / ${speed.value}${positionText}`
   } catch (error) {
     console.error('gimbal control error =', error)
     errorText.value = '发送云台控制指令失败'
   } finally {
     submitting.value = false
   }
+}
+
+async function sendSliderPosition() {
+  await send('slider_position', sliderPosition.value)
 }
 </script>
 
@@ -264,14 +369,17 @@ async function send(action: string) {
   font-size: 14px;
 }
 
-.target-tabs,
+.selected-meta {
+  margin-top: 8px;
+  padding-left: 100px;
+}
+
 .speed-tabs {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.target-tab,
 .speed-tab {
   border: 1px solid rgba(203, 213, 225, 0.95);
   border-radius: 999px;
@@ -288,12 +396,10 @@ async function send(action: string) {
     transform 0.16s ease;
 }
 
-.target-tab:hover,
 .speed-tab:hover {
   transform: translateY(-1px);
 }
 
-.target-tab.active,
 .speed-tab.active {
   background: rgba(64, 158, 255, 0.14);
   border-color: rgba(64, 158, 255, 0.55);
@@ -372,17 +478,30 @@ async function send(action: string) {
   grid-row: 3;
 }
 
-.preset-panel {
+.action-panel {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
+  align-content: start;
+}
+
+.cam-control-panel {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.cam-preset-panel {
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
 }
 
 .preset-btn {
   width: 100%;
+  min-height: 72px;
   text-align: left;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 16px;
-  padding: 13px 14px;
+  border-radius: 12px;
+  padding: 12px 13px;
   background: rgba(255, 255, 255, 0.86);
   cursor: pointer;
   transition:
@@ -395,6 +514,11 @@ async function send(action: string) {
   transform: translateY(-1px);
   border-color: rgba(64, 158, 255, 0.45);
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.1);
+}
+
+.preset-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .preset-btn strong {
@@ -410,6 +534,81 @@ async function send(action: string) {
   color: #64748b;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.slider-card {
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 12px;
+  padding: 13px;
+  background: rgba(248, 250, 252, 0.82);
+}
+
+.slider-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.slider-card-header span {
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.slider-range {
+  width: 100%;
+  margin: 12px 0 10px;
+}
+
+.slider-actions,
+.lamp-shortcuts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lamp-shortcuts {
+  margin-top: 10px;
+}
+
+.compact-btn,
+.shortcut-btn {
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.compact-btn.primary {
+  background: rgba(64, 158, 255, 0.12);
+  border-color: rgba(64, 158, 255, 0.45);
+  color: #2563eb;
+}
+
+.shortcut-btn {
+  flex: 1 1 76px;
+}
+
+.compact-btn:hover,
+.shortcut-btn:hover {
+  border-color: rgba(64, 158, 255, 0.48);
+  color: #2563eb;
+}
+
+.compact-btn:disabled,
+.shortcut-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .result-block {
@@ -437,6 +636,10 @@ async function send(action: string) {
     flex: none;
   }
 
+  .selected-meta {
+    padding-left: 0;
+  }
+
   .gimbal-layout {
     grid-template-columns: 1fr;
   }
@@ -444,5 +647,60 @@ async function send(action: string) {
   .direction-pad {
     grid-template-columns: repeat(3, minmax(56px, 1fr));
   }
+
+  .cam-preset-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+:global(.app-container.night-mode) .panel-desc,
+:global(.app-container.night-mode) .form-row label,
+:global(.app-container.night-mode) .device-meta,
+:global(.app-container.night-mode) .preset-btn span {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+:global(.app-container.night-mode) .speed-tab,
+:global(.app-container.night-mode) .dir-btn,
+:global(.app-container.night-mode) .preset-btn,
+:global(.app-container.night-mode) .slider-card,
+:global(.app-container.night-mode) .compact-btn,
+:global(.app-container.night-mode) .shortcut-btn {
+  background: rgba(15, 23, 42, 0.68);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: rgba(226, 232, 240, 0.9);
+  box-shadow: none;
+}
+
+:global(.app-container.night-mode) .direction-pad {
+  background: rgba(15, 23, 42, 0.62);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+:global(.app-container.night-mode) .preset-btn strong,
+:global(.app-container.night-mode) .slider-card-header {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(.app-container.night-mode) .slider-card-header span,
+:global(.app-container.night-mode) .dir-btn,
+:global(.app-container.night-mode) .speed-tab.active,
+:global(.app-container.night-mode) .compact-btn.primary {
+  color: #93c5fd;
+}
+
+:global(.app-container.night-mode) .speed-tab.active,
+:global(.app-container.night-mode) .compact-btn.primary {
+  background: rgba(37, 99, 235, 0.26);
+  border-color: rgba(96, 165, 250, 0.45);
+}
+
+:global(.app-container.night-mode) .preset-btn:hover,
+:global(.app-container.night-mode) .dir-btn:hover,
+:global(.app-container.night-mode) .compact-btn:hover,
+:global(.app-container.night-mode) .shortcut-btn:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #bfdbfe;
 }
 </style>

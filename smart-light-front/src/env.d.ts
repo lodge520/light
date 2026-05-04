@@ -5,10 +5,14 @@ export {}
 declare global {
   interface Window {
     AndroidSmartConfig?: {
-      getWifiInfo: (callback: (res: any) => void) => void
-      smartConfig: (payload: any, callback: (res: any) => void) => void
-      cancel?: () => void
-      stop?: () => void
+      getWifiInfo: () => Promise<any> | any
+      startSmartConfig: (
+        ssid: string,
+        password: string,
+        serverHost?: string,
+        serverPort?: number,
+      ) => Promise<any> | any
+      stopSmartConfig: () => Promise<any> | any
     }
   }
 }

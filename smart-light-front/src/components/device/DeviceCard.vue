@@ -108,14 +108,15 @@
     </div>
   </div>
 
-<Transition name="detail-overlay-fade">
-  <div
-    v-if="showDetailModal"
-    class="device-detail-overlay"
-    @click.self="closeDetailModal"
-  >
-    <Transition name="detail-card-pop" appear>
-      <div class="device-detail-modal">
+<Teleport to="body">
+  <Transition name="detail-overlay-fade">
+    <div
+      v-if="showDetailModal"
+      class="device-detail-overlay"
+      @click.self="closeDetailModal"
+    >
+      <Transition name="detail-card-pop" appear>
+        <div class="device-detail-modal">
         <div class="detail-modal-header">
           <div>
             <h3>{{ displayNameText }}</h3>
@@ -128,6 +129,51 @@
           <span class="detail-label">设备类型</span>
           <span class="detail-value">{{ displayDeviceType }}</span>
         </div>
+
+        <section class="firmware-section">
+          <h4>固件升级</h4>
+
+          <label class="modal-label">固件通道</label>
+          <BaseSelect
+            v-model="firmwareChannel"
+            :options="firmwareChannelOptions"
+            :disabled="otaStarting || otaStatusValue === 'updating'"
+          />
+
+          <div class="firmware-info-grid">
+            <div class="firmware-info-item">
+              <span>当前固件</span>
+              <strong>{{ firmwareVersionText }}</strong>
+            </div>
+
+            <div class="firmware-info-item">
+              <span>OTA状态</span>
+              <strong>{{ otaStatusText }}</strong>
+            </div>
+          </div>
+
+          <div v-if="otaCheckResult" class="ota-result">
+            <div>{{ otaUpdateText }}</div>
+            <div v-if="otaCheckResult.changelog" class="modal-hint">
+              更新说明：{{ otaCheckResult.changelog }}
+            </div>
+          </div>
+
+          <p v-if="otaMessage" class="modal-hint">{{ otaMessage }}</p>
+
+          <div class="detail-modal-actions ota-actions">
+            <button class="btn-secondary" :disabled="otaChecking" @click="handleCheckFirmwareUpdate">
+              {{ otaChecking ? '检查中...' : '检查更新' }}
+            </button>
+            <button
+              class="btn-primary"
+              :disabled="!canStartOta"
+              @click="handleStartOtaUpdate"
+            >
+              {{ otaStarting ? '下发中...' : '确认更新' }}
+            </button>
+          </div>
+        </section>
 
         <div class="detail-info-item">
           <span class="detail-label">IP</span>
@@ -165,17 +211,19 @@
           <button class="btn-primary" @click="saveDeviceBaseInfo">保存</button>
         </div>
       </div>
-    </Transition>
-  </div>
-</Transition>
-<Transition name="detail-overlay-fade">
-  <div
-    v-if="showClothPreviewModal"
-    class="device-detail-overlay"
-    @click.self="closeClothPreviewModal"
-  >
-    <Transition name="detail-card-pop" appear>
-      <div class="cloth-preview-modal">
+      </Transition>
+    </div>
+  </Transition>
+</Teleport>
+<Teleport to="body">
+  <Transition name="detail-overlay-fade">
+    <div
+      v-if="showClothPreviewModal"
+      class="device-detail-overlay"
+      @click.self="closeClothPreviewModal"
+    >
+      <Transition name="detail-card-pop" appear>
+        <div class="cloth-preview-modal">
         <div class="detail-modal-header">
           <div>
             <h3>服装区域分割结果</h3>
@@ -196,16 +244,28 @@
           <button class="btn-secondary" @click="closeClothPreviewModal">关闭</button>
         </div>
       </div>
-    </Transition>
-  </div>
-</Transition>
+      </Transition>
+    </div>
+  </Transition>
+</Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import type { DeviceCreatePayload, DeviceItem } from '../../types/device'
+import BaseSelect from '../common/BaseSelect.vue'
+import type {
+  DeviceCreatePayload,
+  DeviceItem,
+  FirmwareChannel,
+  OtaCheckResult,
+} from '../../types/device'
 import { fabricRecognize } from '../../api/ai'
-import { setFlowUpload, locateDevice } from '../../api/device'
+import {
+  setFlowUpload,
+  locateDevice,
+  checkFirmwareUpdate,
+  startOtaUpdate,
+} from '../../api/device'
 
 const props = defineProps<{
   device: DeviceItem
@@ -241,6 +301,16 @@ const flowEnabled = ref(false)
 const annotatedImageBase64 = ref('')
 const clothDetected = ref<boolean | null>(null)
 const showClothPreviewModal = ref(false)
+const firmwareChannel = ref<FirmwareChannel>('stable')
+const otaChecking = ref(false)
+const otaStarting = ref(false)
+const otaCheckResult = ref<OtaCheckResult | null>(null)
+const otaMessage = ref('')
+
+const firmwareChannelOptions = [
+  { label: '正式版', value: 'stable' },
+  { label: '测试版', value: 'test' },
+]
 
 function openClothPreviewModal() {
   showClothPreviewModal.value = true
@@ -342,6 +412,84 @@ const lastSeenText = computed(() => {
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
 })
 
+const firmwareVersionText = computed(() => {
+  const version = props.device.firmwareVersion || 'unknown'
+  const code = props.device.firmwareVersionCode
+  return code == null ? version : `${version} (${code})`
+})
+
+const otaStatusValue = computed(() => props.device.otaStatus || 'idle')
+
+const otaStatusText = computed(() => {
+  const map: Record<string, string> = {
+    idle: '空闲',
+    updating: '更新中',
+    success: '更新成功',
+    failed: '更新失败',
+  }
+  return map[otaStatusValue.value] || otaStatusValue.value
+})
+
+const otaUpdateText = computed(() => {
+  const result = otaCheckResult.value
+  if (!result) return ''
+  if (!result.latestVersion) return '当前通道暂无可用固件'
+  if (!result.hasUpdate) {
+    return '当前已是该通道最新版本'
+  }
+  return `发现新版本 ${result.latestVersion}`
+})
+
+const canStartOta = computed(() => {
+  return Boolean(
+    otaCheckResult.value?.hasUpdate &&
+    otaCheckResult.value.firmwareId &&
+    !otaChecking.value &&
+    !otaStarting.value &&
+    otaStatusValue.value !== 'updating',
+  )
+})
+
+async function handleCheckFirmwareUpdate() {
+  if (!localForm.chipId) return
+  otaChecking.value = true
+  otaMessage.value = ''
+  otaCheckResult.value = null
+
+  try {
+    otaCheckResult.value = await checkFirmwareUpdate(localForm.chipId, firmwareChannel.value)
+  } catch (error) {
+    console.error('checkFirmwareUpdate error =', error)
+    otaMessage.value = '检查更新失败'
+  } finally {
+    otaChecking.value = false
+  }
+}
+
+async function handleStartOtaUpdate() {
+  if (!localForm.chipId || !otaCheckResult.value?.firmwareId) return
+
+  const target = otaCheckResult.value.latestVersion || 'selected firmware'
+  if (!window.confirm(`确认更新到 ${target} 吗？`)) return
+
+  otaStarting.value = true
+  otaMessage.value = ''
+
+  try {
+    otaCheckResult.value = await startOtaUpdate(
+      localForm.chipId,
+      otaCheckResult.value.firmwareId,
+      firmwareChannel.value,
+    )
+    otaMessage.value = 'OTA更新指令已下发'
+  } catch (error) {
+    console.error('startOtaUpdate error =', error)
+    otaMessage.value = 'OTA更新指令下发失败'
+  } finally {
+    otaStarting.value = false
+  }
+}
+
 function syncFromProps() {
   localForm.chipId = props.device.chipId
   localForm.ip = props.device.ip || ''
@@ -355,6 +503,7 @@ function syncFromProps() {
   localForm.recommendedTemp = props.device.recommendedTemp ?? 4000
   localForm.fabric = props.device.fabric || ''
   localForm.mainColorRgb = props.device.mainColorRgb || ''
+  firmwareChannel.value = props.device.firmwareChannel === 'test' ? 'test' : 'stable'
   flowEnabled.value = Boolean(
   (props.device as any).flowEnabled ??
   (props.device as any).flowAutoUpload ??
@@ -638,7 +787,7 @@ const textColor = computed(() => {
 .device-detail-overlay {
   position: fixed;
   inset: 0;
-  z-index: 999;
+  z-index: 2000;
   background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
@@ -647,8 +796,12 @@ const textColor = computed(() => {
 }
 
 .device-detail-modal {
+  position: relative;
+  z-index: 2001;
   width: 420px;
   max-width: 92vw;
+  max-height: 88vh;
+  overflow: auto;
   background: #fff;
   border-radius: 20px;
   padding: 22px;
@@ -705,6 +858,64 @@ const textColor = computed(() => {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 20px;
+}
+
+.firmware-section {
+  margin: 14px 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.firmware-section h4 {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.firmware-info-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.firmware-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+}
+
+.firmware-info-item span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.firmware-info-item strong {
+  color: #0f172a;
+  font-size: 13px;
+  text-align: right;
+  word-break: break-all;
+}
+
+.ota-result {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #2563eb;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ota-actions {
+  margin-top: 12px;
 }
 /* 遮罩：只淡入淡出 */
 .detail-overlay-fade-enter-active,
@@ -864,6 +1075,8 @@ const textColor = computed(() => {
 }
 
 .cloth-preview-modal {
+  position: relative;
+  z-index: 2001;
   width: min(760px, 92vw);
   max-height: 88vh;
   overflow: auto;
@@ -931,7 +1144,143 @@ const textColor = computed(() => {
 .modal-input::placeholder {
   color: #94a3b8;
 }
+:global(body:has(.app-container.night-mode)) .device-detail-overlay {
+  background: rgba(2, 6, 23, 0.68);
+}
 
+:global(body:has(.app-container.night-mode)) .device-detail-modal,
+:global(body:has(.app-container.night-mode)) .cloth-preview-modal {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: rgba(226, 232, 240, 0.9);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.5);
+  filter: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 
+:global(body:has(.app-container.night-mode)) .detail-modal-header h3,
+:global(body:has(.app-container.night-mode)) .firmware-section h4,
+:global(body:has(.app-container.night-mode)) .detail-value,
+:global(body:has(.app-container.night-mode)) .firmware-info-item strong {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(body:has(.app-container.night-mode)) .detail-subtitle,
+:global(body:has(.app-container.night-mode)) .detail-label,
+:global(body:has(.app-container.night-mode)) .modal-label,
+:global(body:has(.app-container.night-mode)) .modal-hint,
+:global(body:has(.app-container.night-mode)) .firmware-info-item span {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+:global(body:has(.app-container.night-mode)) .detail-close-btn {
+  color: rgba(226, 232, 240, 0.9);
+}
+
+:global(body:has(.app-container.night-mode)) .detail-info-item,
+:global(body:has(.app-container.night-mode)) .firmware-section,
+:global(body:has(.app-container.night-mode)) .firmware-info-item {
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+:global(body:has(.app-container.night-mode)) .modal-input {
+  background: rgba(15, 23, 42, 0.76);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+:global(body:has(.app-container.night-mode)) .modal-input:focus {
+  background: rgba(15, 23, 42, 0.86);
+  border-color: rgba(96, 165, 250, 0.72);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+:global(body:has(.app-container.night-mode)) .modal-input::placeholder {
+  color: rgba(203, 213, 225, 0.58);
+}
+
+:global(body:has(.app-container.night-mode)) .ota-result {
+  background: rgba(30, 64, 175, 0.24);
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  color: #bfdbfe;
+}
+
+:global(body:has(.app-container.night-mode)) .modal-error {
+  background: rgba(127, 29, 29, 0.26);
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  color: #fecaca;
+}
+
+:global(body:has(.app-container.night-mode)) .cloth-preview-image {
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+:global(body:has(.app-container.night-mode)) .btn-secondary {
+  background: rgba(30, 41, 59, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: rgba(226, 232, 240, 0.9);
+}
+
+:global(body:has(.app-container.night-mode)) .btn-danger {
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
+}
+
+:global(.app-container.night-mode) .lamp-card,
+:global(.app-container.night-mode) .placeholder-card {
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: rgba(226, 232, 240, 0.88);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+:global(.app-container.night-mode) .lamp-card h3,
+:global(.app-container.night-mode) .device-title-block h3 {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(.app-container.night-mode) .last-seen-under-name,
+:global(.app-container.night-mode) .field-label,
+:global(.app-container.night-mode) .checkbox-row {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+:global(.app-container.night-mode) .status-badge.online {
+  background: rgba(6, 95, 70, 0.28);
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  color: #a7f3d0;
+}
+
+:global(.app-container.night-mode) .status-badge.offline {
+  background: rgba(127, 29, 29, 0.28);
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  color: #fecaca;
+}
+
+:global(.app-container.night-mode) .btn-ai {
+  background: rgba(30, 41, 59, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: rgba(226, 232, 240, 0.9);
+}
+
+:global(.app-container.night-mode) .btn-ai:hover {
+  background: rgba(37, 99, 235, 0.26);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #bfdbfe;
+}
+
+:global(.app-container.night-mode) .btn-ai.active {
+  background: rgba(127, 29, 29, 0.28);
+  border-color: rgba(248, 113, 113, 0.22);
+  color: #fecaca;
+}
+
+:global(.app-container.night-mode) .color-box {
+  border-color: rgba(148, 163, 184, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.22);
+}
 
 </style>
