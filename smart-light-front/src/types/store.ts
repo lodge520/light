@@ -1,6 +1,6 @@
 export interface StoreInfo {
-  id: number
-  userId: number
+  id: string
+  userId: string
   storeName: string
   storeStyle: string
   area: number

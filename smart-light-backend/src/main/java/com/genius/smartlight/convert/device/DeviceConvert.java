@@ -38,6 +38,10 @@ public class DeviceConvert {
         respVO.setRecommendedTemp(device.getRecommendedTemp());
         respVO.setFabric(device.getFabric());
         respVO.setMainColorRgb(device.getMainColorRgb());
+        respVO.setFirmwareVersion(device.getFirmwareVersion());
+        respVO.setFirmwareVersionCode(device.getFirmwareVersionCode());
+        respVO.setFirmwareChannel(device.getFirmwareChannel());
+        respVO.setOtaStatus(device.getOtaStatus());
         respVO.setCreateTime(device.getCreateTime());
         respVO.setUpdateTime(device.getUpdateTime());
         // 如果 DeviceRespVO 里加了 storeId，就把这行打开

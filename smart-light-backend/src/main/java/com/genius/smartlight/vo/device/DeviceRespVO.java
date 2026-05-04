@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 public class DeviceRespVO {
 
     @Schema(description = "主键ID", example = "1")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.fasterxml.jackson.databind.ser.std.ToStringSerializer.class)
+    @tools.jackson.databind.annotation.JsonSerialize(using = tools.jackson.databind.ser.std.ToStringSerializer.class)
     private Long id;
 
     @Schema(description = "芯片唯一ID", example = "ABC123456")
@@ -47,6 +49,18 @@ public class DeviceRespVO {
 
     @Schema(description = "主颜色RGB值", example = "255,200,120")
     private String mainColorRgb;
+
+    @Schema(description = "Firmware version", example = "1.0.0")
+    private String firmwareVersion;
+
+    @Schema(description = "Firmware version code", example = "10000")
+    private Integer firmwareVersionCode;
+
+    @Schema(description = "Firmware channel stable/test", example = "stable")
+    private String firmwareChannel;
+
+    @Schema(description = "OTA status idle/updating/success/failed", example = "idle")
+    private String otaStatus;
 
     @Schema(description = "创建时间", example = "2026-04-14T10:30:00")
     private LocalDateTime createTime;

@@ -73,6 +73,8 @@ public class StoreServiceImpl implements StoreService {
         store.setArea(reqVO.getArea());
         store.setProvince(reqVO.getProvince());
         store.setCity(reqVO.getCity());
+        store.setLatitude(reqVO.getLatitude());
+        store.setLongitude(reqVO.getLongitude());
         store.setUpdateTime(now);
 
         if (store.getId() == null) {
@@ -93,6 +95,8 @@ public class StoreServiceImpl implements StoreService {
         respVO.setArea(store.getArea());
         respVO.setProvince(store.getProvince());
         respVO.setCity(store.getCity());
+        respVO.setLatitude(store.getLatitude());
+        respVO.setLongitude(store.getLongitude());
         return respVO;
     }
 }

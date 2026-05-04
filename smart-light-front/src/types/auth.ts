@@ -16,9 +16,9 @@ export interface RegisterReq {
 
 export interface LoginResp {
   token: string
-  userId: number
+  userId: string
   username: string
-  storeId: number
+  storeId: string
   storeName: string
   storeStyle: string
   province: string

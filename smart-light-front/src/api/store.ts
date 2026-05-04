@@ -7,13 +7,15 @@ interface CommonResult<T> {
 }
 
 export interface StoreItem {
-  id: number
-  userId: number
+  id: string
+  userId: string
   storeName: string
   storeStyle: string
   area: number
   province: string
   city: string
+  latitude?: number
+  longitude?: number
 }
 
 export async function getCurrentStoreApi(): Promise<StoreItem> {
@@ -27,6 +29,8 @@ export interface StoreSavePayload {
   area: number
   province: string
   city: string
+  latitude?: number
+  longitude?: number
 }
 
 export async function setupCurrentStoreApi(payload: StoreSavePayload): Promise<StoreItem> {

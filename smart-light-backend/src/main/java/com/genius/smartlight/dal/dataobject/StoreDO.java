@@ -15,6 +15,8 @@ public class StoreDO {
     private BigDecimal area;
     private String province;
     private String city;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

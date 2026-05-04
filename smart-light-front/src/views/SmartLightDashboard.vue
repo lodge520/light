@@ -4,27 +4,85 @@
 
     <div class="main-content">
       <section v-show="activeTab === 'main'" class="page-section">
-        <TopStatusBar
-          :current-time="currentTime"
-          :week-info="weekInfo"
-          :date-info="dateInfo"
-          :weather-text="weatherText"
-        />
+        <div class="dashboard-top-status">
+          <div class="current-time">{{ currentTime }}</div>
+          <div class="weather-status-row">
+            <span>{{ weatherText }}</span>
+            <span class="weather-svg-icon" :class="`weather-${weatherIconType}`" aria-hidden="true">
+              <svg viewBox="0 0 36 36" focusable="false">
+                <g v-if="weatherIconType === 'sunny'" class="weather-sunny">
+                  <circle class="sun-core" cx="18" cy="18" r="6.4" />
+                  <path class="sun-rays" d="M18 4.5v4M18 27.5v4M4.5 18h4M27.5 18h4M8.4 8.4l2.8 2.8M24.8 24.8l2.8 2.8M27.6 8.4l-2.8 2.8M11.2 24.8l-2.8 2.8" />
+                </g>
+
+                <g v-else>
+                  <g v-if="weatherIconType === 'partly-cloudy'" class="weather-sun-small">
+                    <circle class="sun-core" cx="13" cy="13" r="4.4" />
+                    <path class="sun-rays" d="M13 5.5v2.4M13 18.1v2.4M5.5 13h2.4M18.1 13h2.4M7.7 7.7l1.7 1.7M16.6 16.6l1.7 1.7M18.3 7.7l-1.7 1.7M9.4 16.6l-1.7 1.7" />
+                  </g>
+
+                  <path class="cloud-shape" d="M10.9 25.7h15.2a5.4 5.4 0 0 0 .4-10.8 8 8 0 0 0-15.3-1.8 6.4 6.4 0 0 0-.3 12.6Z" />
+
+                  <g v-if="weatherIconType === 'rain'" class="rain-lines">
+                    <path d="M14 28.2l-1.7 3.1M21 28.2l-1.7 3.1M27 28l-1.5 2.8" />
+                  </g>
+
+                  <g v-if="weatherIconType === 'snow'" class="snow-marks">
+                    <path d="M14 29.5v3M12.7 31h2.6M22 29.5v3M20.7 31h2.6" />
+                  </g>
+
+                  <g v-if="weatherIconType === 'fog'" class="fog-lines">
+                    <path d="M8.5 28.6h19M10.8 32h14.4" />
+                  </g>
+
+                  <g v-if="weatherIconType === 'thunder'" class="thunder-bolt">
+                    <path d="M19.2 27.4l-3 5h3l-1.1 3.1 4.3-5.2h-3.2l.3-2.9Z" />
+                  </g>
+                </g>
+              </svg>
+            </span>
+            <span>{{ weekInfo }}</span>
+            <span>{{ dateInfo }}</span>
+          </div>
+        </div>
 
         <div class="env-layout card-section section-space-top">
           <div class="env-card">
-            <h4>实时环境参数</h4>
-            <div class="env-info">
-              <div>温度：{{ envInfo.temp }} °C</div>
-              <div>人流量：{{ envInfo.people }} 人</div>
-              <div>面积：{{ envInfo.area }} ㎡</div>
+            <h4>实时概况</h4>
+            <div class="stat-grid">
+              <div class="stat-item">
+                <span class="stat-label">温度</span>
+                <strong class="stat-value">{{ formatWeatherMetric(envInfo.temp, '℃') }}</strong>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">体感</span>
+                <strong class="stat-value">{{ formatWeatherMetric(envInfo.apparentTemp, '℃') }}</strong>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">湿度</span>
+                <strong class="stat-value">{{ formatWeatherMetric(envInfo.humidity, '%') }}</strong>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">人流量</span>
+                <strong class="stat-value">{{ envInfo.people }} 人</strong>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">面积</span>
+                <strong class="stat-value">{{ envInfo.area }} ㎡</strong>
+              </div>
             </div>
           </div>
 
           <div class="env-card">
-            <div id="metaInfo">
-              <div>{{ holidayInfo }}</div>
-              <div>{{ workdayInfo }}</div>
+            <div class="meta-grid">
+              <div class="meta-item">
+                <span class="stat-label">节假日</span>
+                <strong class="stat-value">{{ holidayValue }}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="stat-label">工作日</span>
+                <strong class="stat-value">{{ workdayValue }}</strong>
+              </div>
             </div>
             <div id="luxDisplay" class="lux-display">
               {{ latestLuxText }}
@@ -170,7 +228,6 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import SidebarNav from '../components/layout/SidebarNav.vue'
-import TopStatusBar from '../components/layout/TopStatusBar.vue'
 import DeviceGrid from '../components/device/DeviceGrid.vue'
 import DeviceAddModal from '../components/device/DeviceAddModal.vue'
 import FlowMonitorPanel from '../components/settings/FlowMonitorPanel.vue'
@@ -188,6 +245,7 @@ import {
 } from '../api/device'
 import { getLatestLux } from '../api/lux'
 import { getCurrentStoreApi } from '../api/store'
+import { getCurrentWeather } from '../api/weather'
 import type {
   DashboardTab,
   DeviceCreatePayload,
@@ -326,19 +384,34 @@ function findRegionValue(provinceLabel: string, cityLabel: string) {
 async function loadCurrentStore() {
   try {
     const store = await getCurrentStoreApi()
-    const region = findRegionValue(store.province, store.city)
+    if (!store?.id) {
+      weatherText.value = '天气：暂无'
+      envInfo.value.weather = '暂无'
+      envInfo.value.temp = null
+      envInfo.value.apparentTemp = null
+      envInfo.value.humidity = null
+      envInfo.value.weatherCode = null
+      hasWeatherData.value = false
+      return false
+    }
+
+    const region = findRegionValue(store.province || '', store.city || '')
 
     storeSettingsReady.value = false
     storeSettings.value = {
       ...storeSettings.value,
       region,
-      storeType: buildStoreTypeValue(store.storeStyle),
+      storeType: buildStoreTypeValue(store.storeStyle || ''),
       storeSize: buildStoreSizeValue(store.area),
     }
 
     currentStoreName.value = store.storeName || ''
-    weatherText.value = `${store.province} · ${store.city}`
+    currentStoreCityName.value = store.city || store.province || ''
+    if (!hasWeatherData.value) {
+      weatherText.value = '天气：暂无'
+    }
     envInfo.value.area = Number(store.area || 80)
+    await loadWeather(store.id)
     return true
   } catch (error: any) {
     console.error('loadCurrentStore error =', error)
@@ -382,17 +455,88 @@ let scanTimer: number | null = null
 
 const { currentTime, dateInfo, weekInfo } = useClock()
 
-const weatherText = ref('天气信息待接入')
+const weatherText = ref('天气：暂无')
 const holidayInfo = ref('是否节假日：否')
 const workdayInfo = ref('是否工作日：是')
-const latestLuxText = ref('💡 光照值等待更新中...')
+const latestLuxText = ref('光照值等待更新中...')
 const latestLux = ref<number | null>(null)
-
+const currentStoreCityName = ref('')
 const envInfo = ref({
-  temp: 22,
+  temp: null as number | null,
+  apparentTemp: null as number | null,
+  humidity: null as number | null,
+  weather: '暂无',
+  weatherCode: null as number | null,
+  windSpeed: null as number | null,
   people: 0,
   area: 80,
 })
+
+const hasWeatherData = ref(false)
+type WeatherIconType = 'sunny' | 'partly-cloudy' | 'cloudy' | 'rain' | 'snow' | 'fog' | 'thunder'
+
+const holidayValue = computed(() => extractInfoValue(holidayInfo.value))
+const workdayValue = computed(() => extractInfoValue(workdayInfo.value))
+const weatherIconType = computed(() => mapOpenMeteoCodeToWeatherIcon(envInfo.value.weatherCode))
+
+function extractInfoValue(value: string) {
+  const parts = value.split(/[：:]/)
+  return (parts.length > 1 ? parts[parts.length - 1] : value).trim() || '--'
+}
+
+function formatWeatherMetric(value: number | null | undefined, unit: string) {
+  if (!hasWeatherData.value || value === null || value === undefined || Number.isNaN(Number(value))) {
+    return '暂无'
+  }
+  return `${Number(value).toFixed(1)}${unit}`
+}
+
+function buildWeatherSummary() {
+  const city = currentStoreCityName.value.trim()
+  const weather = envInfo.value.weather || '暂无'
+  return city ? `${city} · ${weather}` : weather
+}
+
+function mapOpenMeteoCodeToWeatherIcon(weatherCode?: number | null): WeatherIconType {
+  if (weatherCode === 0) return 'sunny'
+  if (weatherCode === 1 || weatherCode === 2) return 'partly-cloudy'
+  if (weatherCode === 3) return 'cloudy'
+  if (weatherCode === 45 || weatherCode === 48) return 'fog'
+  if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(Number(weatherCode))) return 'rain'
+  if ([71, 73, 75, 77].includes(Number(weatherCode))) return 'snow'
+  if ([95, 96, 99].includes(Number(weatherCode))) return 'thunder'
+  return 'cloudy'
+}
+
+async function loadWeather(storeId?: string) {
+  if (!storeId) {
+    weatherText.value = '天气：暂无'
+    envInfo.value.weather = '暂无'
+    hasWeatherData.value = false
+    return
+  }
+
+  try {
+    const weather = await getCurrentWeather(storeId)
+    envInfo.value.temp = weather.temperature ?? envInfo.value.temp
+    envInfo.value.apparentTemp = weather.apparentTemperature ?? null
+    envInfo.value.humidity = weather.humidity ?? null
+    envInfo.value.weather = weather.weatherText || '暂无'
+    envInfo.value.weatherCode = weather.weatherCode ?? null
+    envInfo.value.windSpeed = weather.windSpeed ?? null
+    weatherText.value = buildWeatherSummary()
+    hasWeatherData.value = true
+  } catch (error) {
+    console.error('load weather error =', error)
+    weatherText.value = '天气：暂无'
+    envInfo.value.weather = '暂无'
+    envInfo.value.temp = null
+    envInfo.value.apparentTemp = null
+    envInfo.value.humidity = null
+    envInfo.value.weatherCode = null
+    hasWeatherData.value = false
+  }
+}
 
 function parseStoreType(value: string) {
   const [label, temp] = value.split(',')
@@ -430,9 +574,13 @@ watch(
     const storeTypeInfo = parseStoreType(val.storeType)
     const storeSizeInfo = parseStoreSize(val.storeSize)
 
-    weatherText.value = `${val.region.provinceLabel} · ${val.region.cityLabel}`
+    if (!hasWeatherData.value) {
+      const provinceLabel = val.region?.provinceLabel || ''
+      const cityLabel = val.region?.cityLabel || ''
+      currentStoreCityName.value = cityLabel || provinceLabel || ''
+      weatherText.value = '天气：暂无'
+    }
     envInfo.value.area = storeSizeInfo.area
-    envInfo.value.temp = val.isNightMode ? 20 : 24
     persistNightMode(val.isNightMode)
 
     for (const device of devices.value) {
@@ -520,7 +668,7 @@ async function loadLatestLux() {
   try {
     if (devices.value.length === 0) {
       latestLux.value = null
-      latestLuxText.value = '💡 光照值等待更新中...'
+      latestLuxText.value = '光照值等待更新中...'
       return
     }
 
@@ -530,7 +678,7 @@ async function loadLatestLux() {
 
         if (record && record.luxValue != null) {
           latestLux.value = record.luxValue
-          latestLuxText.value = `💡 光照值：${record.luxValue} lux`
+          latestLuxText.value = `光照值：${record.luxValue} lux`
           return
         }
       } catch (error) {
@@ -539,10 +687,10 @@ async function loadLatestLux() {
     }
 
     latestLux.value = null
-    latestLuxText.value = '💡 暂无光照数据'
+    latestLuxText.value = '暂无光照数据'
   } catch (error) {
     console.error('loadLatestLux error =', error)
-    latestLuxText.value = '💡 光照数据加载失败'
+    latestLuxText.value = '光照数据加载失败'
   }
 }
 
@@ -698,7 +846,7 @@ function handleWsMessage(message: any) {
     )
 
     latestLux.value = luxValue
-    latestLuxText.value = `💡 光照值：${luxValue} lux`
+    latestLuxText.value = `光照值：${luxValue} lux`
     console.log('lux message =', message)
     return
   }
@@ -823,24 +971,114 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+.dashboard-top-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.current-time {
+  color: #111827;
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.weather-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 7px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.weather-svg-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #64748b;
+}
+
+.weather-svg-icon svg {
+  width: 36px;
+  height: 36px;
+  display: block;
+}
+
+.weather-svg-icon path,
+.weather-svg-icon circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.weather-svg-icon .sun-core {
+  fill: rgba(245, 158, 11, 0.18);
+  stroke: #f59e0b;
+}
+
+.weather-svg-icon .sun-rays,
+.weather-svg-icon.weather-sunny {
+  color: #f59e0b;
+}
+
+.weather-svg-icon .weather-sun-small {
+  color: #f59e0b;
+}
+
+.weather-svg-icon .cloud-shape {
+  color: #64748b;
+  fill: rgba(148, 163, 184, 0.14);
+}
+
+.weather-svg-icon .rain-lines {
+  color: #3b82f6;
+}
+
+.weather-svg-icon .snow-marks {
+  color: #60a5fa;
+}
+
+.weather-svg-icon .fog-lines {
+  color: #94a3b8;
+}
+
+.weather-svg-icon .thunder-bolt path {
+  color: #facc15;
+  fill: rgba(250, 204, 21, 0.24);
+}
+
 .section-space-top {
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .env-layout {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
-  margin-bottom: 24px;
+  gap: 16px;
+  margin-bottom: 22px;
 }
 
 .env-card {
   flex: 1 1 48%;
   min-width: 300px;
   background: #fff;
-  padding: 16px;
-  border-radius: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.env-card h4 {
+  margin: 0 0 10px;
+  font-size: 17px;
 }
 :deep(.env-card),
 :deep(.lamp-card),
@@ -863,6 +1101,66 @@ onBeforeUnmount(() => {
   margin-top: 12px;
 }
 
+.stat-grid {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  min-width: 0;
+  padding: 0 18px 0 0;
+  border-right: 1px solid rgba(203, 213, 225, 0.72);
+}
+
+.stat-item:last-child {
+  padding-right: 0;
+  border-right: none;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  width: 100%;
+  gap: 0;
+  margin-bottom: 14px;
+}
+
+.meta-item {
+  min-width: 0;
+  padding: 0 24px;
+}
+
+.meta-item:first-child {
+  padding-left: 0;
+}
+
+.meta-item + .meta-item {
+  border-left: 1px solid rgba(203, 213, 225, 0.72);
+}
+
+.meta-item:last-child {
+  padding-right: 0;
+}
+
+.stat-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.stat-value {
+  display: block;
+  color: #0f172a;
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 800;
+}
+
 #metaInfo {
   display: grid;
   grid-template-columns: auto auto;
@@ -871,10 +1169,79 @@ onBeforeUnmount(() => {
 }
 
 .lux-display {
-  margin-top: 1em;
-  padding: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
   background: rgba(248, 250, 252, 0.72);
-  border-radius: 8px;
+  border-radius: 13px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.page-section > h1 {
+  margin: 26px 0 16px;
+  color: #1f2937;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+#controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 28px;
+  padding: 14px 18px;
+  border-radius: 18px;
+}
+
+#controls > button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  min-height: 40px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
+}
+
+#controls > button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+#controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+#controls input {
+  width: 178px;
+  height: 36px;
+  box-sizing: border-box;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #334155;
+  font-size: 14px;
+}
+
+#scanStatus {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .settings-layout {
@@ -1102,6 +1469,7 @@ onBeforeUnmount(() => {
 }
 
 .app-container.night-mode :deep(.env-info),
+.app-container.night-mode :deep(.stat-label),
 .app-container.night-mode :deep(#metaInfo),
 .app-container.night-mode :deep(#scanStatus),
 .app-container.night-mode :deep(.scan-item-info),
@@ -1117,6 +1485,18 @@ onBeforeUnmount(() => {
 .app-container.night-mode :deep(.zone-order-row span),
 .app-container.night-mode :deep(.message-body) {
   color: rgba(226, 232, 240, 0.88) !important;
+}
+
+.app-container.night-mode :deep(.stat-item) {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+.app-container.night-mode :deep(.meta-item) {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+.app-container.night-mode :deep(.stat-value) {
+  color: rgba(248, 250, 252, 0.96) !important;
 }
 
 .app-container.night-mode :deep(.panel-desc),
@@ -1297,6 +1677,51 @@ onBeforeUnmount(() => {
 .app-container.night-mode :deep(.smart-message.error) {
   background: rgba(127, 29, 29, 0.22) !important;
   color: #fecaca !important;
+}
+
+.app-container.night-mode .current-time {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.app-container.night-mode .weather-status-row {
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.app-container.night-mode .weather-svg-icon {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.app-container.night-mode .weather-svg-icon .sun-core,
+.app-container.night-mode .weather-svg-icon .sun-rays,
+.app-container.night-mode .weather-svg-icon .weather-sun-small {
+  color: #fbbf24;
+  stroke: #fbbf24;
+}
+
+.app-container.night-mode .weather-svg-icon .sun-core {
+  fill: rgba(251, 191, 36, 0.2);
+}
+
+.app-container.night-mode .weather-svg-icon .cloud-shape {
+  color: rgba(226, 232, 240, 0.85);
+  fill: rgba(226, 232, 240, 0.1);
+}
+
+.app-container.night-mode .weather-svg-icon .rain-lines {
+  color: #60a5fa;
+}
+
+.app-container.night-mode .weather-svg-icon .snow-marks {
+  color: #bfdbfe;
+}
+
+.app-container.night-mode .weather-svg-icon .fog-lines {
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.app-container.night-mode .weather-svg-icon .thunder-bolt path {
+  color: #fde047;
+  fill: rgba(253, 224, 71, 0.22);
 }
 .scan-panel-title {
   font-size: 22px;
@@ -1650,23 +2075,33 @@ onBeforeUnmount(() => {
 
 .store-layout-row {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 0.75fr) minmax(520px, 1.55fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
   margin: 20px 0 28px;
 }
 
+.store-layout-row > * {
+  min-width: 0;
+}
+
 .store-effect-mini {
-  position: sticky;
-  top: 24px;
   width: 100%;
+  height: 100%;
 }
 
 .store-layout-main {
   min-width: 0;
+  height: 100%;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1360px) {
+  .store-layout-row {
+    grid-template-columns: minmax(340px, 0.95fr) minmax(460px, 1.15fr);
+  }
+}
+
+@media (max-width: 1180px) {
   .store-layout-row {
     grid-template-columns: 1fr;
   }
@@ -1681,6 +2116,40 @@ onBeforeUnmount(() => {
   .store-layout-row {
     gap: 12px;
     margin: 14px 0 22px;
+  }
+
+  .stat-grid {
+    gap: 10px;
+  }
+
+  .meta-grid {
+    gap: 10px;
+  }
+
+  .stat-item,
+  .meta-item {
+    flex: 1 1 120px;
+    padding-right: 10px;
+  }
+
+  #controls {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  #controls label {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #controls input {
+    width: 100%;
+  }
+
+  #scanStatus {
+    width: 100%;
+    margin-left: 0;
   }
 }
 @media (max-width: 768px) {

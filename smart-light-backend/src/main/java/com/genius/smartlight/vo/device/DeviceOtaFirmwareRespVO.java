@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 @Data
 public class DeviceOtaFirmwareRespVO {
 
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.fasterxml.jackson.databind.ser.std.ToStringSerializer.class)
+    @tools.jackson.databind.annotation.JsonSerialize(using = tools.jackson.databind.ser.std.ToStringSerializer.class)
     private Long id;
 
     private String deviceType;

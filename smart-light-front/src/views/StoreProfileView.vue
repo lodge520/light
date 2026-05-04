@@ -198,6 +198,17 @@ function handleCityChange() {
   regionValue.cityLabel = city?.label ?? ''
 }
 
+function parseCityCoordinates(value: string): { latitude?: number; longitude?: number } {
+  const [latitude, longitude] = String(value || '').split(',').map(Number)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return {}
+  }
+  return {
+    latitude,
+    longitude,
+  }
+}
+
 function validateForm() {
   if (!form.storeName) {
     errorText.value = '请输入店铺名称'
@@ -227,7 +238,12 @@ async function loadStore() {
   errorText.value = ''
   try {
     const store = await getCurrentStoreApi()
-    const region = findRegionValue(store.province, store.city)
+    if (!store) {
+      errorText.value = '店铺信息为空'
+      return
+    }
+
+    const region = findRegionValue(store.province || '', store.city || '')
 
     form.storeName = store.storeName || ''
     form.area = Number(store.area || '')
@@ -277,12 +293,16 @@ async function handleSave() {
 
   loading.value = true
   try {
+    const coordinates = regionValue.provinceLabel && regionValue.city
+      ? parseCityCoordinates(regionValue.city)
+      : {}
     const data = await setupCurrentStoreApi({
       storeName: form.storeName,
       area: Number(form.area),
       storeStyle: form.storeStyle,
       province: regionValue.provinceLabel,
       city: regionValue.cityLabel,
+      ...coordinates,
     })
 
     const storage = localStorage.getItem('TOKEN') ? localStorage : sessionStorage
@@ -299,6 +319,8 @@ async function handleSave() {
         storeStyle: data?.storeStyle ?? form.storeStyle,
         province: data?.province ?? regionValue.provinceLabel,
         city: data?.city ?? regionValue.cityLabel,
+        latitude: data?.latitude ?? coordinates.latitude,
+        longitude: data?.longitude ?? coordinates.longitude,
         area: data?.area ?? Number(form.area),
       }),
     )
@@ -314,6 +336,8 @@ async function handleSave() {
           STORE_STYLE_MAP[data?.storeStyle ?? form.storeStyle] || ''
         userInfo.province = data?.province ?? regionValue.provinceLabel
         userInfo.city = data?.city ?? regionValue.cityLabel
+        userInfo.latitude = data?.latitude ?? coordinates.latitude
+        userInfo.longitude = data?.longitude ?? coordinates.longitude
         storage.setItem('USER_INFO', JSON.stringify(userInfo))
       } catch (e) {
         console.error('USER_INFO 更新失败', e)

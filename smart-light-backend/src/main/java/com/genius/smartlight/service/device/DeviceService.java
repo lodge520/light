@@ -29,4 +29,6 @@ public interface DeviceService {
 
     void sendLightEffect(String chipId, LightEffectReqVO reqVO);
 
+    void updateFirmwareChannel(String chipId, String channel);
+
 }

@@ -11,12 +11,16 @@ public class LoginRespVO {
     private String token;
 
     @Schema(description = "用户ID", example = "1")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.fasterxml.jackson.databind.ser.std.ToStringSerializer.class)
+    @tools.jackson.databind.annotation.JsonSerialize(using = tools.jackson.databind.ser.std.ToStringSerializer.class)
     private Long userId;
 
     @Schema(description = "用户名", example = "admin")
     private String username;
 
     @Schema(description = "店铺ID", example = "1001")
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.fasterxml.jackson.databind.ser.std.ToStringSerializer.class)
+    @tools.jackson.databind.annotation.JsonSerialize(using = tools.jackson.databind.ser.std.ToStringSerializer.class)
     private Long storeId;
 
     @Schema(description = "店铺名称", example = "智慧服装体验店")

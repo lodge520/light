@@ -204,6 +204,17 @@ function handleCityChange() {
   regionValue.cityLabel = city?.label ?? ''
 }
 
+function parseCityCoordinates(value: string): { latitude?: number; longitude?: number } {
+  const [latitude, longitude] = String(value || '').split(',').map(Number)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return {}
+  }
+  return {
+    latitude,
+    longitude,
+  }
+}
+
 function validateForm() {
   if (!form.storeName) {
     alert('请输入店铺名称')
@@ -233,12 +244,16 @@ async function handleSave() {
 
   loading.value = true
   try {
+   const coordinates = regionValue.provinceLabel && regionValue.city
+    ? parseCityCoordinates(regionValue.city)
+    : {}
    const saveRes = await http.post(STORE_SETUP_URL, {
     storeName: form.storeName,
     area: Number(form.storeArea),
     storeStyle: form.storeStyle,
     province: regionValue.provinceLabel,
     city: regionValue.cityLabel,
+    ...coordinates,
   })
 
     const data = saveRes.data?.data ?? saveRes.data
@@ -254,6 +269,8 @@ async function handleSave() {
         storeStyleLabel: STORE_STYLE_MAP[data?.storeStyle ?? form.storeStyle] || selectedStoreStyleLabel.value,
         province: data?.province ?? regionValue.provinceLabel,
         city: data?.city ?? regionValue.cityLabel,
+        latitude: data?.latitude ?? coordinates.latitude,
+        longitude: data?.longitude ?? coordinates.longitude,
       }),
     )
 
@@ -269,6 +286,8 @@ async function handleSave() {
           STORE_STYLE_MAP[data?.storeStyle ?? form.storeStyle] || selectedStoreStyleLabel.value
         userInfo.province = data?.province ?? regionValue.provinceLabel
         userInfo.city = data?.city ?? regionValue.cityLabel
+        userInfo.latitude = data?.latitude ?? coordinates.latitude
+        userInfo.longitude = data?.longitude ?? coordinates.longitude
         localStorage.setItem('USER_INFO', JSON.stringify(userInfo))
       } catch (e) {
         console.error('USER_INFO 更新失败', e)

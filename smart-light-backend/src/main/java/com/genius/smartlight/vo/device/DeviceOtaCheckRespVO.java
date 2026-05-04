@@ -17,6 +17,8 @@ public class DeviceOtaCheckRespVO {
 
     private Integer currentVersionCode;
 
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.fasterxml.jackson.databind.ser.std.ToStringSerializer.class)
+    @tools.jackson.databind.annotation.JsonSerialize(using = tools.jackson.databind.ser.std.ToStringSerializer.class)
     private Long firmwareId;
 
     private String latestVersion;

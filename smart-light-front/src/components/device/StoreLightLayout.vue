@@ -712,8 +712,12 @@ onMounted(() => {
 <style scoped>
 .layout-card {
   margin:0;
-  padding: 22px;
+  padding: 18px;
   border-radius: 24px;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   background: rgba(255, 255, 255, 0.76);
   border: 1px solid rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(14px);
@@ -850,7 +854,9 @@ onMounted(() => {
 .store-stage {
   position: relative;
   width: 100%;
-  height: 420px;
+  flex: 1 1 auto;
+  height: clamp(360px, 44vh, 500px);
+  min-height: 360px;
   overflow: hidden;
   border-radius: 18px;
   background: #f8fafc;
@@ -994,29 +1000,49 @@ onMounted(() => {
 }
 
 .layout-tips {
-  display: grid;
-  gap: 10px;
-  margin-top: 14px;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 12px;
+  padding: 10px 4px;
+  overflow-x: auto;
   font-size: 13px;
   color: #64748b;
 }
 
 .zone-order-row {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: flex-start;
+  flex: 0 0 auto;
+  min-width: 220px;
+  max-width: 360px;
+  gap: 10px;
+  padding: 0 18px;
+  border-right: 1px solid rgba(203, 213, 225, 0.82);
+}
+
+.zone-order-row:first-child {
+  padding-left: 0;
+}
+
+.zone-order-row:last-child {
+  border-right: none;
 }
 
 .zone-order-row strong {
+  flex: 0 0 auto;
+  min-width: 80px;
   color: #1e293b;
+  line-height: 1.35;
 }
 
 .zone-order-row span {
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(248, 250, 252, 0.82);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   color: #475569;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .lamp-node.selected {
@@ -1108,6 +1134,16 @@ onMounted(() => {
 
   .store-stage {
     height: 320px;
+    min-height: 320px;
+  }
+
+  .layout-tips {
+    padding: 8px 0;
+  }
+
+  .zone-order-row {
+    min-width: 190px;
+    padding: 0 12px;
   }
 
   .lamp-node {
@@ -1174,6 +1210,15 @@ onMounted(() => {
   background: rgba(30, 41, 59, 0.82);
   border: 1px solid rgba(148, 163, 184, 0.24);
   color: rgba(226, 232, 240, 0.9);
+}
+
+:global(.app-container.night-mode) .zone-order-row {
+  border-right-color: rgba(148, 163, 184, 0.24);
+}
+
+:global(.app-container.night-mode) .zone-order-row span {
+  background: transparent;
+  border: none;
 }
 
 :global(.app-container.night-mode) .locate-btn {

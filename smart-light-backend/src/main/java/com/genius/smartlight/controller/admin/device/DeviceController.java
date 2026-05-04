@@ -1,7 +1,11 @@
 package com.genius.smartlight.controller.admin.device;
 
 import com.genius.smartlight.common.CommonResult;
+import com.genius.smartlight.service.device.DeviceOtaService;
 import com.genius.smartlight.service.device.DeviceService;
+import com.genius.smartlight.vo.device.DeviceFirmwareChannelReqVO;
+import com.genius.smartlight.vo.device.DeviceOtaCheckRespVO;
+import com.genius.smartlight.vo.device.DeviceOtaStartReqVO;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
 import com.genius.smartlight.vo.device.LightEffectReqVO;
@@ -24,6 +28,7 @@ import java.util.List;
 public class DeviceController {
 
     private final DeviceService deviceService;
+    private final DeviceOtaService deviceOtaService;
 
     @Operation(summary = "连通性测试")
     @GetMapping("/ping")
@@ -112,5 +117,27 @@ public class DeviceController {
     ) {
         deviceService.sendLightEffect(chipId, reqVO);
         return CommonResult.success(true);
+    }
+
+    @PutMapping("/{chipId}/firmware-channel")
+    public CommonResult<Boolean> updateFirmwareChannel(
+            @PathVariable String chipId,
+            @Valid @RequestBody DeviceFirmwareChannelReqVO reqVO) {
+        deviceService.updateFirmwareChannel(chipId, reqVO.getChannel());
+        return CommonResult.success(true);
+    }
+
+    @GetMapping("/{chipId}/ota/check")
+    public CommonResult<DeviceOtaCheckRespVO> checkOtaUpdate(
+            @PathVariable String chipId,
+            @RequestParam(required = false) String channel) {
+        return CommonResult.success(deviceOtaService.checkUpdate(chipId, channel));
+    }
+
+    @PostMapping("/{chipId}/ota/update")
+    public CommonResult<DeviceOtaCheckRespVO> startOtaUpdate(
+            @PathVariable String chipId,
+            @RequestBody(required = false) DeviceOtaStartReqVO reqVO) {
+        return CommonResult.success(deviceOtaService.startUpdate(chipId, reqVO));
     }
 }

@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -304,5 +305,29 @@ public class DeviceServiceImpl implements DeviceService {
         if (!sent) {
             throw new ServiceException("设备离线，灯效下发失败");
         }
+    }
+
+    @Override
+    public void updateFirmwareChannel(String chipId, String channel) {
+        DeviceDO device = deviceMapper.selectOne(
+                new LambdaQueryWrapper<DeviceDO>()
+                        .eq(DeviceDO::getChipId, chipId)
+        );
+        if (device == null) {
+            throw new ServiceException("Device not found");
+        }
+
+        String normalized = channel == null ? "" : channel.trim().toLowerCase(Locale.ROOT);
+        if (!"stable".equals(normalized) && !"test".equals(normalized)) {
+            throw new ServiceException("Invalid firmware channel");
+        }
+
+        device.setFirmwareChannel(normalized);
+        if (device.getOtaStatus() == null || device.getOtaStatus().isBlank()) {
+            device.setOtaStatus("idle");
+        }
+        device.setUpdateTime(LocalDateTime.now());
+        deviceMapper.updateById(device);
+        webSocketPushService.pushState(DeviceConvert.convert(device));
     }
 }

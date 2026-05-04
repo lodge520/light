@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -61,6 +62,18 @@ public class DeviceReportServiceImpl implements DeviceReportService {
         if (reqVO.getMainColorRgb() != null) {
             device.setMainColorRgb(reqVO.getMainColorRgb());
         }
+        if (reqVO.getFirmwareVersion() != null) {
+            device.setFirmwareVersion(reqVO.getFirmwareVersion());
+        }
+        if (reqVO.getFirmwareVersionCode() != null) {
+            device.setFirmwareVersionCode(reqVO.getFirmwareVersionCode());
+        }
+        if (reqVO.getFirmwareChannel() != null) {
+            device.setFirmwareChannel(normalizeChannel(reqVO.getFirmwareChannel()));
+        }
+        if (reqVO.getOtaStatus() != null) {
+            device.setOtaStatus(normalizeOtaStatus(reqVO.getOtaStatus()));
+        }
 
         device.setUpdateTime(LocalDateTime.now());
         deviceMapper.updateById(device);
@@ -70,5 +83,18 @@ public class DeviceReportServiceImpl implements DeviceReportService {
 
         DeviceRespVO respVO = DeviceConvert.convert(device);
         webSocketPushService.pushState(respVO);
+    }
+
+    private String normalizeChannel(String channel) {
+        String value = channel == null ? "" : channel.trim().toLowerCase(Locale.ROOT);
+        return "test".equals(value) ? "test" : "stable";
+    }
+
+    private String normalizeOtaStatus(String otaStatus) {
+        String value = otaStatus == null ? "" : otaStatus.trim().toLowerCase(Locale.ROOT);
+        if ("updating".equals(value) || "success".equals(value) || "failed".equals(value)) {
+            return value;
+        }
+        return "idle";
     }
 }

@@ -51,6 +51,18 @@ public class DeviceDO {
     @TableField("main_color_rgb")
     private String mainColorRgb;
 
+    @TableField("firmware_version")
+    private String firmwareVersion;
+
+    @TableField("firmware_version_code")
+    private Integer firmwareVersionCode;
+
+    @TableField("firmware_channel")
+    private String firmwareChannel;
+
+    @TableField("ota_status")
+    private String otaStatus;
+
     @TableField("create_time")
     private LocalDateTime createTime;
 

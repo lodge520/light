@@ -39,4 +39,16 @@ public class DeviceStateReportReqVO {
 
     @Schema(description = "主颜色RGB值", example = "255,200,120")
     private String mainColorRgb;
+
+    @Schema(description = "Firmware version", example = "1.0.0")
+    private String firmwareVersion;
+
+    @Schema(description = "Firmware version code", example = "10000")
+    private Integer firmwareVersionCode;
+
+    @Schema(description = "Firmware channel stable/test", example = "stable")
+    private String firmwareChannel;
+
+    @Schema(description = "OTA status idle/updating/success/failed", example = "idle")
+    private String otaStatus;
 }

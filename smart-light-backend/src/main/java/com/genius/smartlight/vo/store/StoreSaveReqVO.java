@@ -27,4 +27,10 @@ public class StoreSaveReqVO {
 
     @Schema(description = "城市", example = "长沙市")
     private String city;
+
+    @Schema(description = "纬度", example = "28.189400")
+    private BigDecimal latitude;
+
+    @Schema(description = "经度", example = "112.986100")
+    private BigDecimal longitude;
 }
