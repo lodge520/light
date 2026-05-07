@@ -77,14 +77,14 @@ public class AuthServiceImpl implements AuthService {
                         .eq(UserAccountDO::getUsername, reqVO.getUsername())
         );
         if (user == null) {
-            throw new ServiceException("用户不存在");
+            throw new ServiceException("账号或密码不正确");
         }
         if (user.getEnabled() == null || user.getEnabled() != 1) {
             throw new ServiceException("账号已禁用");
         }
 
         if (!passwordEncoder.matches(reqVO.getPassword(), user.getPasswordHash())) {
-            throw new ServiceException("密码错误");
+            throw new ServiceException("账号或密码不正确");
         }
 
         StoreDO store = storeMapper.selectOne(

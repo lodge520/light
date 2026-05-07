@@ -11,7 +11,17 @@ export interface DeviceItem {
   recommendedBrightness?: number
   recommendedTemp?: number
   fabric?: string
+  label?: string
+  confidence?: number
   mainColorRgb?: string
+  clothDetected?: boolean
+  clothX?: number
+  clothY?: number
+  clothW?: number
+  clothH?: number
+  originalImageUrl?: string
+  annotatedImageUrl?: string
+  combinedImageUrl?: string
   createTime?: string
   updateTime?: string
   online?: boolean
@@ -20,6 +30,16 @@ export interface DeviceItem {
   firmwareVersionCode?: number
   firmwareChannel?: FirmwareChannel
   otaStatus?: OtaStatus
+  personCount?: number
+  peopleCount?: number
+  flowPersonCount?: number
+  personDetected?: boolean
+  hasPerson?: boolean
+  personDetectTime?: string | number
+  flowDetectTime?: string | number
+  detectTime?: string | number
+  personConfidence?: number
+  flowProcessingTime?: number
 }
 
 

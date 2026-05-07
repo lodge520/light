@@ -9,6 +9,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -52,6 +53,8 @@ public class FabricAiClient {
                 throw new ServiceException("面料识别服务返回为空");
             }
             return response.getBody();
+        } catch (HttpStatusCodeException e) {
+            throw new ServiceException("面料识别服务请求失败：" + e.getStatusCode());
         } catch (Exception e) {
             throw new ServiceException("调用面料识别服务失败：" + e.getMessage());
         }

@@ -15,8 +15,7 @@ public class DurationCreateReqVO {
     @NotBlank(message = "芯片ID不能为空")
     private String chipId;
 
-    @Schema(description = "统计日期", example = "2026-04-14")
-    @NotNull(message = "统计日期不能为空")
+    @Schema(description = "统计日期，不传则使用服务端当天日期", example = "2026-04-14")
     private LocalDate statDate;
 
     @Schema(description = "停留时长，单位毫秒", example = "12000")

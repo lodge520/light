@@ -83,6 +83,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import http from '../api/http'
+import { loginApi } from '../api/auth'
 
 const router = useRouter()
 const loading = ref(false)
@@ -123,22 +124,22 @@ async function handleRegister() {
 
   loading.value = true
   try {
-  await http.post('/api/auth/register', {
-  username: form.username,
-  phone: form.phone,
-  password: form.password,
-  confirmPassword: form.confirmPassword,
-})
+    await http.post('/api/auth/register', {
+      username: form.username,
+      phone: form.phone,
+      password: form.password,
+      confirmPassword: form.confirmPassword,
+    })
 
-  const loginRes = await http.post('/api/auth/login', {
-    username: form.username,
-    password: form.password,
-  })
-
-  const data = loginRes.data?.data ?? loginRes.data
+    const loginRes = await loginApi({
+      username: form.username,
+      password: form.password,
+    })
+    const result = loginRes.data
+    const data = result.data
 
     if (!data?.token) {
-      throw new Error('登录成功但未返回 token')
+      throw new Error(result.msg || '登录失败，未返回 token')
     }
 
     localStorage.setItem('TOKEN', data.token)

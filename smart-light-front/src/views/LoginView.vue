@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import http from '../api/http'
+import { loginApi } from '../api/auth'
 
 const router = useRouter()
 const loading = ref(false)
@@ -125,15 +125,15 @@ async function handleLogin() {
 
   loading.value = true
   try {
-  const res = await http.post('/api/auth/login', {
-    username: form.username,
-    password: form.password,
-  })
-
-  const data = res.data?.data ?? res.data
+    const res = await loginApi({
+      username: form.username,
+      password: form.password,
+    })
+    const result = res.data
+    const data = result.data
 
     if (!data?.token) {
-      throw new Error('登录成功但未返回 token')
+      throw new Error(result.msg || '登录失败，未返回 token')
     }
 
 

@@ -16,7 +16,7 @@ interface ImageCompressionResult {
   compressedHeight: number
 }
 
-const FABRIC_UPLOAD_MAX_SIDE = 2400
+const FABRIC_UPLOAD_MAX_SIDE = 2000
 const FABRIC_UPLOAD_JPEG_QUALITY = 0.9
 
 function loadImageFromFile(file: File): Promise<HTMLImageElement> {

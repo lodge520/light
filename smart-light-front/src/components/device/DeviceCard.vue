@@ -236,7 +236,7 @@
 
         <img
           class="cloth-preview-image"
-          :src="`data:image/jpeg;base64,${annotatedImageBase64}`"
+          :src="annotatedImageSrc"
           alt="服装区域分割结果"
         />
 
@@ -299,6 +299,34 @@ const fabricLoading = ref(false)
 const flowLoading = ref(false)
 const flowEnabled = ref(false)
 const annotatedImageBase64 = ref('')
+function normalizeBase64ImageSrc(value: string) {
+  const rawValue = value.trim()
+  if (!rawValue) {
+    return ''
+  }
+
+  const dataUriMatch = rawValue.match(/^(data:image\/[a-zA-Z0-9.+-]+;base64,)([\s\S]*)$/i)
+  if (dataUriMatch) {
+    const base64Value = dataUriMatch[2].replace(/\s/g, '')
+    return base64Value ? `${dataUriMatch[1]}${base64Value}` : ''
+  }
+
+  const base64Value = rawValue.replace(/\s/g, '')
+
+  if (!base64Value) {
+    return ''
+  }
+
+  return `data:image/jpeg;base64,${base64Value}`
+}
+
+const annotatedImageSrc = computed(() => {
+  const value = annotatedImageBase64.value
+  if (!value) {
+    return ''
+  }
+  return normalizeBase64ImageSrc(value)
+})
 const clothDetected = ref<boolean | null>(null)
 const showClothPreviewModal = ref(false)
 const firmwareChannel = ref<FirmwareChannel>('stable')
@@ -581,6 +609,7 @@ async function handleFabricFileChange(event: Event) {
   }
 
   if (!localForm.chipId) {
+    window.alert('设备缺少 chipId，无法上传面料识别图片')
     input.value = ''
     return
   }
@@ -609,7 +638,7 @@ async function handleFabricFileChange(event: Event) {
     }
 
     if (result.annotatedImageBase64) {
-    annotatedImageBase64.value = result.annotatedImageBase64
+      annotatedImageBase64.value = result.annotatedImageBase64
     }
 
     if (result.clothDetected !== undefined) {
@@ -619,6 +648,10 @@ async function handleFabricFileChange(event: Event) {
     emitRealtimeUpdate()
   } catch (error) {
     console.error('面料识别失败：', error)
+    const message = error instanceof Error && error.message
+      ? error.message
+      : '面料识别失败，请稍后重试'
+    window.alert(message)
   } finally {
     fabricLoading.value = false
     input.value = ''

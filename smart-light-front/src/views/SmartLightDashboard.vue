@@ -189,6 +189,7 @@
           :devices="devices"
           :latest-lux="latestLux"
           :current-area="envInfo.area"
+          :duration-refresh-key="durationRefreshKey"
         />
       </section>
 
@@ -460,6 +461,7 @@ const holidayInfo = ref('是否节假日：否')
 const workdayInfo = ref('是否工作日：是')
 const latestLuxText = ref('光照值等待更新中...')
 const latestLux = ref<number | null>(null)
+const durationRefreshKey = ref(0)
 const currentStoreCityName = ref('')
 const envInfo = ref({
   temp: null as number | null,
@@ -832,8 +834,60 @@ function handleWsMessage(message: any) {
     return
   }
 
+  if (message.type === 'fabricRecognize' && message.data) {
+    const chipId = String(message.data.chipId ?? '').trim()
+    if (!chipId) return
+
+    updateDeviceByIncoming({
+      chipId,
+      label: message.data.label,
+      fabric: message.data.fabric ?? message.data.label,
+      confidence: message.data.confidence,
+      mainColorRgb: message.data.mainColorRgb,
+      recommendedBrightness: message.data.recommendedBrightness,
+      recommendedTemp: message.data.recommendedTemp,
+      clothDetected: message.data.clothDetected,
+      clothX: message.data.clothX,
+      clothY: message.data.clothY,
+      clothW: message.data.clothW,
+      clothH: message.data.clothH,
+      originalImageUrl: message.data.originalImageUrl,
+      annotatedImageUrl: message.data.annotatedImageUrl,
+      combinedImageUrl: message.data.combinedImageUrl,
+    })
+    return
+  }
+
   if (message.type === 'deviceDeleted' && message.data?.id) {
     devices.value = devices.value.filter(item => item.id !== message.data.id)
+    return
+  }
+
+  if (message.type === 'personDetection' && message.data) {
+    const chipId = String(message.data.chipId ?? '').trim()
+    if (!chipId) return
+
+    const count = Number(message.data.count ?? 0)
+    const timestamp = message.data.timestamp ?? new Date().toISOString()
+
+    updateDeviceByIncoming({
+      chipId,
+      personCount: count,
+      peopleCount: count,
+      flowPersonCount: count,
+      personDetected: count > 0,
+      hasPerson: count > 0,
+      personDetectTime: timestamp,
+      flowDetectTime: timestamp,
+      detectTime: timestamp,
+      personConfidence: Number(message.data.confidence ?? 0),
+      flowProcessingTime: Number(message.data.processingTime ?? 0),
+    })
+    return
+  }
+
+  if (message.type === 'durationUpdate' && message.data) {
+    durationRefreshKey.value += 1
     return
   }
 

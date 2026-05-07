@@ -92,7 +92,6 @@ public class WebSocketPushService {
         data.put("clothW", result.getClothW());
         data.put("clothH", result.getClothH());
 
-        data.put("annotatedImageBase64", result.getAnnotatedImageBase64());
         data.put("originalImagePath", result.getOriginalImagePath());
         data.put("annotatedImagePath", result.getAnnotatedImagePath());
         data.put("combinedImagePath", result.getCombinedImagePath());
@@ -111,7 +110,6 @@ public class WebSocketPushService {
         data.put("confidence", result.getConfidence());
         data.put("timestamp", result.getTimestamp());
         data.put("processingTime", result.getProcessingTime());
-        data.put("annotatedImageBase64", result.getAnnotatedImageBase64());
         broadcast("personDetection", data);
     }
 

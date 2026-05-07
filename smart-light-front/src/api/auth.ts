@@ -26,11 +26,12 @@ export interface LoginResp {
   token: string
   userId: string
   username: string
-  storeId: string
-  storeName: string
-  storeStyle: string
-  province: string
-  city: string
+  storeId?: string
+  storeName?: string
+  storeStyle?: string
+  province?: string
+  city?: string
+  storeConfigured?: boolean
 }
 
 export function registerApi(data: RegisterReq) {

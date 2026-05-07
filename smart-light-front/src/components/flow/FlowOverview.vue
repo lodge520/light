@@ -52,6 +52,7 @@ const props = defineProps<{
   devices: DeviceItem[]
   latestLux: number | null
   currentArea: number
+  durationRefreshKey?: number
 }>()
 
 const durationRows = ref<DurationSummaryItem[]>([])
@@ -128,6 +129,13 @@ watch(
     loadMultiLux()
   },
   { immediate: true, deep: true },
+)
+
+watch(
+  () => props.durationRefreshKey,
+  () => {
+    loadDurationSummary()
+  },
 )
 
 onMounted(() => {

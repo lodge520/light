@@ -1,12 +1,37 @@
 import axios from 'axios'
 
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE ,
+  baseURL: import.meta.env.VITE_API_BASE,
   timeout: 10000,
 })
 
-console.log('VITE_API_BASE =', import.meta.env.VITE_API_BASE)
-console.log('axios baseURL =', http.defaults.baseURL)
+interface CommonResultLike {
+  code?: number
+  msg?: string
+  data?: unknown
+}
+
+function isCommonResultLike(value: unknown): value is CommonResultLike {
+  return Boolean(value && typeof value === 'object' && 'code' in value)
+}
+
+function clearAuthStorage() {
+  window.localStorage.removeItem('TOKEN')
+  window.localStorage.removeItem('USER_INFO')
+  window.localStorage.removeItem('STORE_NAME')
+  window.localStorage.removeItem('storeSetup')
+
+  window.sessionStorage.removeItem('TOKEN')
+  window.sessionStorage.removeItem('USER_INFO')
+  window.sessionStorage.removeItem('STORE_NAME')
+  window.sessionStorage.removeItem('storeSetup')
+}
+
+function redirectToLogin() {
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login'
+  }
+}
 
 http.interceptors.request.use((config) => {
   const token =
@@ -19,31 +44,34 @@ http.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`
   }
 
-  console.log('请求地址:', `${config.baseURL || ''}${config.url || ''}`)
-  console.log('axios token =', token)
-
   return config
 })
 
 http.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const result = response.data
+
+    if (isCommonResultLike(result)) {
+      const code = Number(result.code)
+
+      if (code !== 200) {
+        if (code === 401) {
+          clearAuthStorage()
+          redirectToLogin()
+        }
+
+        return Promise.reject(new Error(result.msg || '请求失败'))
+      }
+    }
+
+    return response
+  },
   (error) => {
     console.error('API error:', error)
 
     if (error?.response?.status === 401) {
-      window.localStorage.removeItem('TOKEN')
-      window.localStorage.removeItem('USER_INFO')
-      window.localStorage.removeItem('STORE_NAME')
-      window.localStorage.removeItem('storeSetup')
-
-      window.sessionStorage.removeItem('TOKEN')
-      window.sessionStorage.removeItem('USER_INFO')
-      window.sessionStorage.removeItem('STORE_NAME')
-      window.sessionStorage.removeItem('storeSetup')
-
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
-      }
+      clearAuthStorage()
+      redirectToLogin()
     }
 
     return Promise.reject(error)
