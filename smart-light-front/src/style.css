@@ -9,10 +9,23 @@
   --transition: 0.3s ease;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+* {
   margin: 0;
   padding: 0;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -31,7 +44,10 @@ input {
   position: relative;
   z-index: 1;
   flex: 1;
-  overflow: auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 20px;
   background: transparent;
 }
@@ -274,4 +290,3 @@ body:has(.app-container.night-mode) input[type='range']:disabled {
 .dashboard-page {
   padding: 24px;
 }
-

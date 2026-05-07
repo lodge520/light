@@ -21,7 +21,7 @@ public class FabricAiClient {
     @Value("${ai.fabric.url}")
     private String fabricUrl;
 
-    public FabricRecognizeRespVO recognize(MultipartFile file) {
+    public FabricRecognizeRespVO recognize(MultipartFile file, String chipId) {
         try {
             ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
                 @Override
@@ -32,6 +32,9 @@ public class FabricAiClient {
 
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("image", resource);
+            if (chipId != null && !chipId.isBlank()) {
+                body.add("chipId", chipId);
+            }
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);

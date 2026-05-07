@@ -93,6 +93,12 @@ public class WebSocketPushService {
         data.put("clothH", result.getClothH());
 
         data.put("annotatedImageBase64", result.getAnnotatedImageBase64());
+        data.put("originalImagePath", result.getOriginalImagePath());
+        data.put("annotatedImagePath", result.getAnnotatedImagePath());
+        data.put("combinedImagePath", result.getCombinedImagePath());
+        data.put("originalImageUrl", result.getOriginalImageUrl());
+        data.put("annotatedImageUrl", result.getAnnotatedImageUrl());
+        data.put("combinedImageUrl", result.getCombinedImageUrl());
 
         broadcast("fabricRecognize", data);
     }

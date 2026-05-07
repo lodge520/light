@@ -70,7 +70,7 @@
       :disabled="fabricLoading"
       @click.stop="openFabricUpload"
     >
-      {{ fabricLoading ? '识别中...' : '上传图片识别面料' }}
+      {{ fabricLoading ? '识别中...' : '上传服装图片' }}
     </button>
     <button
       v-if="annotatedImageBase64"

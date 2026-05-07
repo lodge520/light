@@ -42,4 +42,22 @@ public class FabricRecognizeRespVO {
 
     @Schema(description = "带SegFormer分割结果的标注图Base64")
     private String annotatedImageBase64;
+
+    @Schema(description = "原始上传图服务器路径")
+    private String originalImagePath;
+
+    @Schema(description = "分割效果图服务器路径")
+    private String annotatedImagePath;
+
+    @Schema(description = "拼接对比图服务器路径")
+    private String combinedImagePath;
+
+    @Schema(description = "原始上传图访问地址")
+    private String originalImageUrl;
+
+    @Schema(description = "分割效果图访问地址")
+    private String annotatedImageUrl;
+
+    @Schema(description = "拼接对比图访问地址")
+    private String combinedImageUrl;
 }

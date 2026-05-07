@@ -56,7 +56,7 @@
           <p class="field-hint placeholder">占位</p>
         </div>
 
-        <div class="form-row host-field">
+        <!-- <div class="form-row host-field">
           <label>服务器地址</label>
           <input
             v-model="serverHost"
@@ -75,7 +75,7 @@
             placeholder="例如 3000"
           />
           <p class="field-hint placeholder">占位</p>
-        </div>
+        </div> -->
       </div>
 
       <div class="smart-actions">
@@ -107,7 +107,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 const ssid = ref('')
 const bssid = ref('')
 const password = ref('')
-const serverPort = ref(3000)
+const serverPort = ref(Number(import.meta.env.VITE_DEVICE_SERVER_PORT || 80))
 const serverHost = ref(resolveDefaultServerHost())
 
 const configing = ref(false)
@@ -160,22 +160,15 @@ function getEspTouchPlugin() {
 }
 
 function resolveDefaultServerHost() {
-  const base = String(import.meta.env.VITE_API_BASE || '').trim()
-  if (!base) return ''
+  const host = String(import.meta.env.VITE_DEVICE_SERVER_HOST || '').trim()
 
-  try {
-    const url = new URL(base)
-    const host = url.hostname
-    serverPort.value = Number(url.port) || (url.protocol === 'https:' ? 443 : 80)
+  if (!host) return ''
 
-    if (isLocalOnlyHost(host)) {
-      return ''
-    }
-
-    return host
-  } catch {
+  if (isLocalOnlyHost(host)) {
     return ''
   }
+
+  return host
 }
 
 function isLocalOnlyHost(host: string) {
@@ -259,13 +252,21 @@ async function startSmartConfig() {
     return
   }
 
-  if (!serverHost.value.trim()) {
-    setMessage('请输入电脑局域网 IP，Android 真机不能使用 127.0.0.1 / localhost。', false, 'failed')
+  const host = serverHost.value.trim()
+  const port = Number(serverPort.value) || 80
+
+  if (!host) {
+    setMessage('设备服务器地址未配置，请检查 VITE_DEVICE_SERVER_HOST。', false, 'failed')
     return
   }
 
-  if (isLocalOnlyHost(serverHost.value)) {
-    setMessage('Android 真机里 127.0.0.1 / localhost / 10.0.2.2 不是电脑后端，请填写电脑局域网 IP。', false, 'failed')
+  if (isLocalOnlyHost(host)) {
+    setMessage('设备服务器地址不能是 127.0.0.1 / localhost / 10.0.2.2，请检查 VITE_DEVICE_SERVER_HOST。', false, 'failed')
+    return
+  }
+
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    setMessage('设备服务器端口配置错误，请检查 VITE_DEVICE_SERVER_PORT。', false, 'failed')
     return
   }
 
@@ -277,8 +278,8 @@ async function startSmartConfig() {
       esptouch.startSmartConfig(
         ssid.value.trim(),
         password.value,
-        serverHost.value.trim(),
-        Number(serverPort.value) || 3000,
+        host,
+        port,
       ),
     )
 
@@ -296,7 +297,11 @@ async function startSmartConfig() {
       return
     }
 
-    setMessage(res?.message || statusMessageMap.preparing, false, String(res?.status || 'preparing'))
+    setMessage(
+      res?.message || statusMessageMap.preparing,
+      false,
+      String(res?.status || 'preparing'),
+    )
   } catch (e) {
     console.error(e)
     configing.value = false

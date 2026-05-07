@@ -917,9 +917,12 @@ onBeforeUnmount(() => {
   position: relative;
   isolation: isolate;
   display: block;
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
   background: #eef4fb;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .app-container::before {
@@ -2067,7 +2070,9 @@ onBeforeUnmount(() => {
 .main-content {
   min-height: 100vh;
   margin-left: 228px;
-  width: calc(100vw - 228px);
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
   padding: 24px 32px 48px 0;
   overflow-x: hidden;
@@ -2156,13 +2161,11 @@ onBeforeUnmount(() => {
    .main-content {
     width: 100%;
     margin-left: 0;
+    min-width: 0;
+    max-width: 100%;
     padding: 12px;
     box-sizing: border-box;
-  }
-
-  .main-content {
-    padding: 12px;
-    margin-left: 0;
+    overflow-x: hidden;
   }
 }
 @media (max-width: 900px) {

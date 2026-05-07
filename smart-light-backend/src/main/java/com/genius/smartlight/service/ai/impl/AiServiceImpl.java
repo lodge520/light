@@ -29,14 +29,27 @@ public class AiServiceImpl implements AiService {
     private final WebSocketPushService webSocketPushService;
     private final MainColorService mainColorService;
     @Override
-    public FabricRecognizeRespVO fabricRecognize(String id, MultipartFile file) {
+    public FabricRecognizeRespVO fabricRecognize(String chipId, MultipartFile file) {
+        long totalStart = System.currentTimeMillis();
+        String filename = file == null ? "" : file.getOriginalFilename();
+        long fileSize = file == null ? 0L : file.getSize();
+        log.info("fabricRecognize start chipId={} filename={} fileSize={}", chipId, filename, fileSize);
+        try {
         validateFile(file);
 
         // 1. Python 完成 SegFormer 分割 + ViT 面料识别
-        FabricRecognizeRespVO result = fabricAiClient.recognize(file);
+        long pythonStart = System.currentTimeMillis();
+        FabricRecognizeRespVO result;
+        try {
+            result = fabricAiClient.recognize(file, chipId);
+        } finally {
+            log.info("fabricRecognize cost step=pythonRecognize chipId={} filename={} fileSize={} costMs={}",
+                    chipId, filename, fileSize, System.currentTimeMillis() - pythonStart);
+        }
 
         // 2. Java 主色提取：优先使用透明背景 PNG，只统计衣服像素
         MainColorResult colorResult;
+        long mainColorStart = System.currentTimeMillis();
         try {
             String maskedBase64 = result.getClothMaskedPngBase64();
 
@@ -47,23 +60,45 @@ public class AiServiceImpl implements AiService {
                 colorResult = mainColorService.extract(file.getInputStream());
             }
         } catch (Exception e) {
+            log.warn("fabricRecognize main color extract failed chipId={} filename={} fileSize={}",
+                    chipId, filename, fileSize, e);
             colorResult = new MainColorResult("128,128,128", 60, 4500);
+        } finally {
+            log.info("fabricRecognize cost step=mainColorExtract chipId={} filename={} fileSize={} costMs={}",
+                    chipId, filename, fileSize, System.currentTimeMillis() - mainColorStart);
         }
 
         result.setMainColorRgb(colorResult.getMainColorRgb());
         result.setRecommendedBrightness(colorResult.getRecommendedBrightness());
         result.setRecommendedTemp(colorResult.getRecommendedTemp());
 
-        if (id != null && !id.isBlank()) {
-            updateDeviceAiResult(id, result);
+        long updateStart = System.currentTimeMillis();
+        try {
+            if (chipId != null && !chipId.isBlank()) {
+                updateDeviceAiResult(chipId, result);
+            }
+        } finally {
+            log.info("fabricRecognize cost step=updateDeviceAndPushState chipId={} filename={} fileSize={} costMs={} skipped={}",
+                    chipId, filename, fileSize, System.currentTimeMillis() - updateStart,
+                    chipId == null || chipId.isBlank());
         }
 
-        webSocketPushService.pushFabricRecognize(id, file.getOriginalFilename(), result);
+        long wsStart = System.currentTimeMillis();
+        try {
+            webSocketPushService.pushFabricRecognize(chipId, file.getOriginalFilename(), result);
+        } finally {
+            log.info("fabricRecognize cost step=pushFabricRecognize chipId={} filename={} fileSize={} costMs={}",
+                    chipId, filename, fileSize, System.currentTimeMillis() - wsStart);
+        }
 
         // 主色已经算完，避免返回体太大，可以不把透明 PNG 返回给前端
         result.setClothMaskedPngBase64(null);
 
         return result;
+        } finally {
+            log.info("fabricRecognize cost step=total chipId={} filename={} fileSize={} costMs={}",
+                    chipId, filename, fileSize, System.currentTimeMillis() - totalStart);
+        }
     }
 
     @Override

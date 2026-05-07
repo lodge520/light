@@ -17,9 +17,9 @@ public class MainColorServiceImpl implements MainColorService {
     /**
      * Mean Shift 参数
      */
-    private static final int MAX_SAMPLES = 1800;
+    private static final int MAX_SAMPLES = 1400;
     private static final int MAX_ITERATIONS = 8;
-    private static final double BANDWIDTH = 18.0;
+    private static final double BANDWIDTH = 20.0;
     private static final double BANDWIDTH_SQUARE = BANDWIDTH * BANDWIDTH;
     private static final double MERGE_DISTANCE = 6.0;
 
@@ -81,7 +81,7 @@ public class MainColorServiceImpl implements MainColorService {
                 int argb = image.getRGB(x, y);
 
                 int alpha = (argb >> 24) & 0xff;
-                if (alpha < 20) {
+                if (alpha < 150) {
                     continue;
                 }
 
@@ -123,7 +123,7 @@ public class MainColorServiceImpl implements MainColorService {
         for (ColorSample seed : samples) {
             double currentL = seed.l;
             double currentA = seed.a;
-            double currentB = seed.b;
+            double currentB = seed.bLab;
 
             for (int iter = 0; iter < MAX_ITERATIONS; iter++) {
                 double sumWeight = 0;
@@ -134,7 +134,7 @@ public class MainColorServiceImpl implements MainColorService {
                 for (ColorSample sample : samples) {
                     double distSquare = labDistanceSquare(
                             currentL, currentA, currentB,
-                            sample.l, sample.a, sample.b
+                            sample.l, sample.a, sample.bLab
                     );
 
                     if (distSquare <= BANDWIDTH_SQUARE) {
@@ -144,7 +144,7 @@ public class MainColorServiceImpl implements MainColorService {
                         sumWeight += w;
                         sumL += sample.l * w;
                         sumA += sample.a * w;
-                        sumB += sample.b * w;
+                        sumB += sample.bLab * w;
                     }
                 }
 
@@ -201,9 +201,14 @@ public class MainColorServiceImpl implements MainColorService {
     private int calcRecommendedBrightness(int r, int g, int b) {
         double luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
-        int brightness = (int) Math.round(40 + (1 - luminance / 255.0) * 45);
+        int minBrightness = 45;
+        int maxBrightness = 100;
 
-        return clamp(brightness, 35, 90);
+        int brightness = (int) Math.round(
+                minBrightness + (1 - luminance / 255.0) * (maxBrightness - minBrightness)
+        );
+
+        return clamp(brightness, minBrightness, maxBrightness);
     }
 
     /**
@@ -222,7 +227,6 @@ public class MainColorServiceImpl implements MainColorService {
             return 4500;
         }
 
-        // 色相角，范围转换到 0~360
         double hue = Math.toDegrees(Math.atan2(bLab, a));
         if (hue < 0) {
             hue += 360;
@@ -352,6 +356,8 @@ public class MainColorServiceImpl implements MainColorService {
             this.modeB = modeB;
         }
 
+        double modeWeight;
+
         void add(ColorSample sample, double finalL, double finalA, double finalB) {
             double w = sample.weight;
 
@@ -365,9 +371,13 @@ public class MainColorServiceImpl implements MainColorService {
             aSum += sample.a * w;
             bLabSum += sample.bLab * w;
 
-            modeL = (modeL + finalL) / 2.0;
-            modeA = (modeA + finalA) / 2.0;
-            modeB = (modeB + finalB) / 2.0;
+            double newModeWeight = modeWeight + w;
+
+            modeL = (modeL * modeWeight + finalL * w) / newModeWeight;
+            modeA = (modeA * modeWeight + finalA * w) / newModeWeight;
+            modeB = (modeB * modeWeight + finalB * w) / newModeWeight;
+
+            modeWeight = newModeWeight;
         }
 
         double score() {
