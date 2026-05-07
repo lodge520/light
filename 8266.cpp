@@ -17,6 +17,9 @@ WebSocketsClient webSocket;
 ESP8266WebServer server(80);
 WiFiUDP udp;
 
+#define nanoSerial Serial
+#define DEBUG_SERIAL Serial1
+
 // ===================== 引脚定义 =====================
 #define LED_COLD_PIN D2
 #define LED_WARM_PIN D1
@@ -25,24 +28,28 @@ WiFiUDP udp;
 #define TOF_SCL_PIN  D6
 
 // ===================== 固件信息 =====================
-#define FW_TYPE    "light8266"
-#define FW_VERSION "1.0.0"
+#define FW_DEVICE_TYPE  "lamp"
+#define FW_TYPE         FW_DEVICE_TYPE
+#define FW_VERSION      "1.0.0"
+#define FW_VERSION_CODE 10000
+#define FW_CHANNEL      "stable"
 
 // ===================== 默认服务器配置 =====================
-const char* DEFAULT_SERVER_HOST = "192.168.31.171";
-const uint16_t DEFAULT_HTTP_PORT = 3000;
-const uint16_t DEFAULT_WS_PORT   = 3000;
+const char* DEFAULT_SERVER_HOST = "device.genius.show";
+const uint16_t DEFAULT_HTTP_PORT = 80;
+const uint16_t DEFAULT_WS_PORT   = 80;
 
 // ===================== 定时参数 =====================
 const unsigned long lightSendInterval    = 30000;    // 30秒上传一次光照
 const unsigned long lightUpdateInterval  = 50;     // 最小灯光刷新间隔
 const unsigned long wifiConnectTimeout   = 15000;  // 已保存WiFi连接超时
-const unsigned long smartConfigTimeout   = 30000;  // SmartConfig超时
+const unsigned long smartConfigTimeout   = 60000;  // SmartConfig超时
 const unsigned long announceInterval     = 5000;   // 上报间隔
 const unsigned long broadcastInterval    = 5000;   // UDP广播间隔
 const unsigned long wsPingInterval       = 5000;  // WebSocket心跳间隔
 
 const int udpPort = 4210;
+static const uint32_t NANO_BAUD = 57600;
 
 // ===================== 运行状态 =====================
 bool bh1750Ready = false;
@@ -51,6 +58,8 @@ bool enableBroadcast = true;
 bool enableAnnounce = true;
 bool portalMode = false;
 bool otaInProgress = false;
+String firmwareChannel = FW_CHANNEL;
+String otaStatus = "idle";
 
 unsigned long lastLightSend = 0;
 unsigned long lastLightUpdate = 0;
@@ -65,6 +74,23 @@ bool autoMode = true;
 int recommendedBrightness = 80;
 int recommendedTemp = 4000;
 char fabric[16] = "unknown";
+
+// ===================== Nano 云台 / 滑轨控制参数 =====================
+static const int PAN_MIN = -90;
+static const int PAN_MAX = 90;
+static const int TILT_MIN = -45;
+static const int TILT_MAX = 45;
+static const int SLIDER_MIN = 0;
+static const int SLIDER_MAX = 1200;
+
+int panDeg = 0;
+int tiltDeg = 0;
+int sliderMm = 0;
+int angleStep = 5;
+int sliderStep = 50;
+int panSpeedDeg = 60;
+int tiltSpeedDeg = 60;
+int sliderSpeedMm = 100;
 
 // ===================== 设备配置 =====================
 struct DeviceConfig {
@@ -82,6 +108,9 @@ String deviceId;
 
 void beginWebSocketClient();
 void locateBreath(int times, int cycleMs);
+void sendDeviceStateReport();
+void handleArmAction(const String& action, const String& speed);
+void pollNano();
 // ===================== 工具函数 =====================
 String configPath() {
   return "/config.json";
@@ -239,21 +268,21 @@ bool connectWiFi(const String& ssid, const String& password, unsigned long timeo
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str());
 
-  Serial.println("\n[WiFi] 正在连接: " + ssid);
+  DEBUG_SERIAL.println("\n[WiFi] 正在连接: " + ssid);
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < timeoutMs) {
     delay(500);
-    Serial.print(".");
+    DEBUG_SERIAL.print(".");
     yield();
   }
-  Serial.println();
+  DEBUG_SERIAL.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("[WiFi] 连接成功: " + WiFi.localIP().toString());
+    DEBUG_SERIAL.println("[WiFi] 连接成功: " + WiFi.localIP().toString());
     return true;
   }
 
-  Serial.println("[WiFi] 连接失败");
+  DEBUG_SERIAL.println("[WiFi] 连接失败");
   return false;
 }
 
@@ -263,20 +292,20 @@ bool connectSavedWiFi() {
 }
 
 bool smartConfigProvision(unsigned long timeoutMs) {
-  Serial.println("[SmartConfig] 等待批量配网...");
+  DEBUG_SERIAL.println("[SmartConfig] 等待批量配网...");
   WiFi.mode(WIFI_STA);
   WiFi.beginSmartConfig();
 
   unsigned long start = millis();
   while (!WiFi.smartConfigDone() && millis() - start < timeoutMs) {
     delay(500);
-    Serial.print("#");
+    DEBUG_SERIAL.print("#");
     yield();
   }
-  Serial.println();
+  DEBUG_SERIAL.println();
 
   if (!WiFi.smartConfigDone()) {
-    Serial.println("[SmartConfig] 超时");
+    DEBUG_SERIAL.println("[SmartConfig] 超时");
 
     // 关键：停止 SmartConfig，否则后面切 AP 可能失败
     WiFi.stopSmartConfig();
@@ -287,17 +316,17 @@ bool smartConfigProvision(unsigned long timeoutMs) {
     return false;
   }
 
-  Serial.println("[SmartConfig] 已收到配网信息，等待联网...");
+  DEBUG_SERIAL.println("[SmartConfig] 已收到配网信息，等待联网...");
   start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
     delay(500);
-    Serial.print(".");
+    DEBUG_SERIAL.print(".");
     yield();
   }
-  Serial.println();
+  DEBUG_SERIAL.println();
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[SmartConfig] 联网失败");
+    DEBUG_SERIAL.println("[SmartConfig] 联网失败");
 
     // 这里也要停
     WiFi.stopSmartConfig();
@@ -319,7 +348,7 @@ bool smartConfigProvision(unsigned long timeoutMs) {
 
   WiFi.stopSmartConfig();
 
-  Serial.println("[SmartConfig] 成功，已保存配置");
+  DEBUG_SERIAL.println("[SmartConfig] 成功，已保存配置");
   return true;
 }
 
@@ -342,25 +371,25 @@ void startConfigPortal() {
   IPAddress subnet(255, 255, 255, 0);
 
   bool configOk = WiFi.softAPConfig(apIP, gateway, subnet);
-  Serial.println(configOk ? "[AP] IP配置成功" : "[AP] IP配置失败");
+  DEBUG_SERIAL.println(configOk ? "[AP] IP配置成功" : "[AP] IP配置失败");
 
   String apName = "LightConfig_" + deviceId;
 
   bool apOk = WiFi.softAP(apName.c_str(), "12345678", 1, false, 4);
 
-  Serial.println("[AP] 进入网页配网模式");
-  Serial.println("[AP] 热点名称: " + apName);
-  Serial.println("[AP] 密码: 12345678");
+  DEBUG_SERIAL.println("[AP] 进入网页配网模式");
+  DEBUG_SERIAL.println("[AP] 热点名称: " + apName);
+  DEBUG_SERIAL.println("[AP] 密码: 12345678");
 
   if (!apOk) {
-    Serial.println("[AP] 热点启动失败！");
+    DEBUG_SERIAL.println("[AP] 热点启动失败！");
     return;
   }
 
   delay(500);
 
-  Serial.println("[AP] IP: " + WiFi.softAPIP().toString());
-  Serial.println("[AP] 打开: http://" + WiFi.softAPIP().toString());
+  DEBUG_SERIAL.println("[AP] IP: " + WiFi.softAPIP().toString());
+  DEBUG_SERIAL.println("[AP] 打开: http://" + WiFi.softAPIP().toString());
 
   server.on("/", HTTP_GET, []() {
     server.send(200, "text/html; charset=utf-8", getPortalHtml());
@@ -405,61 +434,80 @@ void startConfigPortal() {
 
 // ===================== OTA =====================
 void otaStarted() {
-  Serial.println("[OTA] 开始升级");
+  DEBUG_SERIAL.println("[OTA] 开始升级");
 }
 void otaFinished() {
-  Serial.println("[OTA] 升级完成");
+  DEBUG_SERIAL.println("[OTA] 升级完成");
 }
 void otaProgress(int cur, int total) {
-  Serial.printf("[OTA] 进度: %d / %d\n", cur, total);
+  DEBUG_SERIAL.printf("[OTA] 进度: %d / %d\n", cur, total);
 }
 void otaError(int err) {
-  Serial.printf("[OTA] 错误码: %d\n", err);
+  DEBUG_SERIAL.printf("[OTA] 错误码: %d\n", err);
 }
 
-void doOtaUpdate(const String& url, const String& version) {
+void doOtaUpdate(const String& url, const String& version, int versionCode, const String& channel, const String& md5) {
   if (otaInProgress) return;
   otaInProgress = true;
+  otaStatus = "updating";
+  firmwareChannel = FW_CHANNEL;
+  sendDeviceStateReport();
 
-  Serial.println("[OTA] 收到升级通知");
-  Serial.println("[OTA] 当前版本: " + String(FW_VERSION));
-  Serial.println("[OTA] 目标版本: " + version);
-  Serial.println("[OTA] 下载地址: " + url);
+  DEBUG_SERIAL.println("[OTA] 收到升级通知");
+  DEBUG_SERIAL.println("[OTA] 当前版本: " + String(FW_VERSION));
+  DEBUG_SERIAL.println("[OTA] 目标版本: " + version);
+  DEBUG_SERIAL.println("[OTA] 下载地址: " + url);
 
   webSocket.disconnect();
   delay(200);
 
   WiFiClient client;
   ESPhttpUpdate.setClientTimeout(12000);
+  ESPhttpUpdate.rebootOnUpdate(false);
   ESPhttpUpdate.onStart(otaStarted);
   ESPhttpUpdate.onEnd(otaFinished);
   ESPhttpUpdate.onProgress(otaProgress);
   ESPhttpUpdate.onError(otaError);
+  if (md5.length() > 0) {
+    ESPhttpUpdate.setMD5sum(md5.c_str());
+  }
 
   t_httpUpdate_return ret = ESPhttpUpdate.update(client, url);
 
   switch (ret) {
     case HTTP_UPDATE_FAILED:
-      Serial.printf("[OTA] 升级失败 (%d): %s\n",
+      DEBUG_SERIAL.printf("[OTA] 升级失败 (%d): %s\n",
                     ESPhttpUpdate.getLastError(),
                     ESPhttpUpdate.getLastErrorString().c_str());
+      otaStatus = "failed";
+      sendDeviceStateReport();
       otaInProgress = false;
       beginWebSocketClient();
       break;
 
     case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("[OTA] 没有更新");
+      otaStatus = "failed";
+      sendDeviceStateReport();
+      DEBUG_SERIAL.println("[OTA] 没有更新");
       otaInProgress = false;
       beginWebSocketClient();
       break;
 
     case HTTP_UPDATE_OK:
-      Serial.println("[OTA] 升级成功，设备将自动重启");
+      otaStatus = "success";
+      sendDeviceStateReport();
+      delay(300);
+      ESP.restart();
+      DEBUG_SERIAL.println("[OTA] 升级成功，设备将自动重启");
       break;
   }
 }
 
 // ===================== HTTP 接口 =====================
+void doOtaUpdate(const String& url, const String& version) {
+  doOtaUpdate(url, version, 0, FW_CHANNEL, "");
+}
+
 void handleStatus() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", "{\"status\":\"已配网\"}");
@@ -495,7 +543,7 @@ void handleSetLight() {
   recommendedTemp = doc["recommendedTemp"] | recommendedTemp;
   safeCopyFabric(doc["fabric"]);
 
-  Serial.printf("收到 HTTP 控制: bri=%d temp=%d auto=%d recB=%d recT=%d fabric=%s\n",
+  DEBUG_SERIAL.printf("收到 HTTP 控制: bri=%d temp=%d auto=%d recB=%d recT=%d fabric=%s\n",
                 brightness, temp, autoMode,
                 recommendedBrightness, recommendedTemp, fabric);
 
@@ -507,21 +555,21 @@ void handleResumeBroadcast() {
   enableAnnounce = true;
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", "{\"status\":\"resumed\"}");
-  Serial.println("接收到网页指令：恢复广播");
+  DEBUG_SERIAL.println("接收到网页指令：恢复广播");
 }
 
 void handleStopBroadcast() {
   enableBroadcast = false;
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", "{\"result\":\"Broadcast stopped\"}");
-  Serial.println("接收到网页指令：停止广播");
+  DEBUG_SERIAL.println("接收到网页指令：停止广播");
 }
 
 void handleStopAnnounce() {
   enableAnnounce = false;
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", "{\"result\":\"Announce stopped\"}");
-  Serial.println("接收到网页指令：停止上报");
+  DEBUG_SERIAL.println("接收到网页指令：停止上报");
 }
 
 void handleResetWifi() {
@@ -554,38 +602,198 @@ void setupDeviceHttpServer() {
   server.begin();
 }
 
+// ===================== Nano 云台 / 滑轨控制 =====================
+void sendNano(char cmd, const String& value = "") {
+  nanoSerial.print(cmd);
+  if (value.length() > 0) {
+    nanoSerial.print(value);
+  }
+  nanoSerial.print('\n');
+
+  delay(25);
+  pollNano();
+
+
+  DEBUG_SERIAL.print("[NANO] TX ");
+  DEBUG_SERIAL.print(cmd);
+  DEBUG_SERIAL.println(value);
+}
+
+void pollNano() {
+  static String line;
+
+  while (nanoSerial.available() > 0) {
+    char ch = (char)nanoSerial.read();
+    if (ch == '\r') {
+      continue;
+    }
+    if (ch == '\n') {
+      if (line.length() > 0) {
+        DEBUG_SERIAL.println("[NANO] RX " + line);
+        line = "";
+      }
+      continue;
+    }
+
+    if (line.length() < 120) {
+      line += ch;
+    } else {
+      line = "";
+      DEBUG_SERIAL.println("[NANO] RX line too long, dropped");
+    }
+  }
+}
+
+int clampArmValue(int value, int minValue, int maxValue) {
+  if (value < minValue) return minValue;
+  if (value > maxValue) return maxValue;
+  return value;
+}
+
+void sendPanTilt() {
+  panDeg = clampArmValue(panDeg, PAN_MIN, PAN_MAX);
+  tiltDeg = clampArmValue(tiltDeg, TILT_MIN, TILT_MAX);
+  sendNano('p', String(panDeg));
+  sendNano('t', String(tiltDeg));
+}
+
+void sendSlider() {
+  sliderMm = clampArmValue(sliderMm, SLIDER_MIN, SLIDER_MAX);
+  sendNano('x', String(sliderMm));
+}
+
+void applyArmSpeed(const String& speed) {
+  String normalized = speed;
+  normalized.toLowerCase();
+
+  if (normalized == "slow") {
+    angleStep = 2;
+    sliderStep = 20;
+    panSpeedDeg = 20;
+    tiltSpeedDeg = 20;
+    sliderSpeedMm = 40;
+  } else if (normalized == "fast") {
+    angleStep = 10;
+    sliderStep = 100;
+    panSpeedDeg = 120;
+    tiltSpeedDeg = 120;
+    sliderSpeedMm = 200;
+  } else {
+    angleStep = 5;
+    sliderStep = 50;
+    panSpeedDeg = 60;
+    tiltSpeedDeg = 60;
+    sliderSpeedMm = 100;
+  }
+
+  sendNano('s', String(panSpeedDeg));
+  sendNano('S', String(tiltSpeedDeg));
+  sendNano('X', String(sliderSpeedMm));
+}
+
+void handleArmAction(const String& action, const String& speed) {
+  String normalizedAction = action;
+  normalizedAction.trim();
+  normalizedAction.toLowerCase();
+
+  String normalizedSpeed = speed;
+  normalizedSpeed.trim();
+  if (normalizedSpeed.length() == 0) {
+    normalizedSpeed = "normal";
+  }
+
+  if (normalizedAction == "slider_position") {
+    DEBUG_SERIAL.println("[ARM] slider_position ignored by lamp firmware");
+    return;
+  }
+
+  applyArmSpeed(normalizedSpeed);
+
+  if (normalizedAction == "up") {
+    tiltDeg += angleStep;
+    tiltDeg = clampArmValue(tiltDeg, TILT_MIN, TILT_MAX);
+    sendNano('t', String(tiltDeg));
+  } else if (normalizedAction == "down") {
+    tiltDeg -= angleStep;
+    tiltDeg = clampArmValue(tiltDeg, TILT_MIN, TILT_MAX);
+    sendNano('t', String(tiltDeg));
+  } else if (normalizedAction == "left") {
+    panDeg -= angleStep;
+    panDeg = clampArmValue(panDeg, PAN_MIN, PAN_MAX);
+    sendNano('p', String(panDeg));
+  } else if (normalizedAction == "right") {
+    panDeg += angleStep;
+    panDeg = clampArmValue(panDeg, PAN_MIN, PAN_MAX);
+    sendNano('p', String(panDeg));
+  } else if (normalizedAction == "center") {
+    panDeg = 0;
+    tiltDeg = 0;
+    sendPanTilt();
+  } else if (normalizedAction == "home") {
+    sendNano('A');
+  } else if (normalizedAction == "stop") {
+    DEBUG_SERIAL.println("[ARM] stop: keep current pan/tilt");
+    sendPanTilt();
+  } else if (normalizedAction == "aim_person") {
+    panDeg = 0;
+    tiltDeg = -10;
+    sendPanTilt();
+  } else if (normalizedAction == "aim_cloth") {
+    panDeg = 0;
+    tiltDeg = 20;
+    sendPanTilt();
+  } else {
+    DEBUG_SERIAL.println("[ARM] unsupported lamp action: " + normalizedAction);
+    return;
+  }
+
+  DEBUG_SERIAL.printf(
+    "[ARM] action=%s speed=%s pan=%d tilt=%d slider=%d angleStep=%d sliderStep=%d\n",
+    normalizedAction.c_str(),
+    normalizedSpeed.c_str(),
+    panDeg,
+    tiltDeg,
+    sliderMm,
+    angleStep,
+    sliderStep
+  );
+}
+
 // ===================== WebSocket =====================
 void sendWsRegister() {
   StaticJsonDocument<256> doc;
   doc["type"] = "register";
   doc["id"] = deviceId;
   doc["chipId"] = deviceId;
-  doc["deviceType"] = "lamp";
-  doc["fwType"] = FW_TYPE;
+  doc["deviceType"] = FW_DEVICE_TYPE;
   doc["fwVersion"] = FW_VERSION;
+  doc["fwVersionCode"] = FW_VERSION_CODE;
+  doc["firmwareChannel"] = FW_CHANNEL;
   doc["ip"] = WiFi.localIP().toString();
   doc["mac"] = WiFi.macAddress();
 
   String msg;
   serializeJson(doc, msg);
   webSocket.sendTXT(msg);
-  Serial.println("[WS] register: " + msg);
+  DEBUG_SERIAL.println("[WS] register: " + msg);
 }
 
 void handleWsMessage(const String& text) {
-  Serial.println("[WS] 收到消息: " + text);
+  DEBUG_SERIAL.println("[WS] 收到消息: " + text);
 
   StaticJsonDocument<768> doc;
   DeserializationError err = deserializeJson(doc, text);
   if (err) {
-    Serial.println("[WS] JSON解析失败");
+    DEBUG_SERIAL.println("[WS] JSON解析失败");
     return;
   }
 
   JsonObject root = doc.as<JsonObject>();
   JsonObject payload = root;
 
-  if (root["data"].is<JsonObject>()) {
+  if (root["payload"].is<JsonObject>()) {
+    payload = root["payload"].as<JsonObject>();
+  } else if (root["data"].is<JsonObject>()) {
     payload = root["data"].as<JsonObject>();
   }
 
@@ -596,7 +804,7 @@ void handleWsMessage(const String& text) {
     String chipId = payload["chipId"] | "";
 
     if (targetId != deviceId && chipId != deviceId) {
-      Serial.println("[WS] state 不是发给本设备，忽略");
+      DEBUG_SERIAL.println("[WS] state 不是发给本设备，忽略");
       return;
     }
 
@@ -612,8 +820,9 @@ void handleWsMessage(const String& text) {
     }
 
     safeCopyFabric(payload["fabric"]);
+    sendDeviceStateReport();
 
-    Serial.printf("WS控制：亮度=%d 色温=%d 自动=%d 推荐亮度=%d 推荐色温=%d 面料=%s\n",
+    DEBUG_SERIAL.printf("WS控制：亮度=%d 色温=%d 自动=%d 推荐亮度=%d 推荐色温=%d 面料=%s\n",
                   brightness, temp, autoMode,
                   recommendedBrightness, recommendedTemp, fabric);
     return;
@@ -629,47 +838,77 @@ void handleWsMessage(const String& text) {
       cycleMs = payload["interval"] | cycleMs;
     }
 
-    Serial.printf("[LOCATE] 收到呼吸定位指令 times=%d cycleMs=%d\n", times, cycleMs);
+    DEBUG_SERIAL.printf("[LOCATE] 收到呼吸定位指令 times=%d cycleMs=%d\n", times, cycleMs);
 
     locateBreath(times, cycleMs);
     return;
   }
 
-  if (type == "ota:update") {
-    String fwType = root["fwType"] | payload["fwType"] | "";
-    String version = root["version"] | payload["version"] | "";
-    String url = root["url"] | payload["url"] | "";
+  if (type == "arm") {
+    String action = payload["action"] | "";
+    String speed = payload["speed"] | "normal";
 
-    if (fwType != FW_TYPE) {
-      Serial.println("[OTA] 固件类型不匹配，忽略");
+    if (action.length() == 0) {
+      action = payload["direction"] | "";
+    }
+
+    if (action.length() == 0) {
+      DEBUG_SERIAL.println("[ARM] missing action");
       return;
     }
 
-    if (version.length() == 0 || url.length() == 0) {
-      Serial.println("[OTA] OTA消息缺少 version/url");
-      return;
-    }
-
-    if (compareVersion(version, FW_VERSION) <= 0) {
-      Serial.println("[OTA] 当前版本已不低于目标版本，忽略");
-      return;
-    }
-
-    doOtaUpdate(url, version);
+    handleArmAction(action, speed);
     return;
   }
 
-  Serial.println("[WS] 未处理消息类型: " + type);
+  if (type == "ota_update" || type == "ota:update") {
+    String version = payload["version"] | "";
+    String url = payload["url"] | "";
+    int versionCode = payload["versionCode"] | 0;
+    String channel = payload["channel"] | "";
+    String md5 = payload["md5"] | "";
+
+    if (channel.length() == 0) {
+      channel = FW_CHANNEL;
+    }
+    channel.toLowerCase();
+
+    if (version.length() == 0 || url.length() == 0 || versionCode <= 0) {
+      DEBUG_SERIAL.println("[OTA] OTA message missing version/url/versionCode");
+      otaStatus = "failed";
+      sendDeviceStateReport();
+      return;
+    }
+
+    bool sameChannel = (channel == String(FW_CHANNEL));
+
+    if (sameChannel && versionCode <= FW_VERSION_CODE) {
+      DEBUG_SERIAL.println("[OTA] Same channel and target versionCode is not newer, ignore");
+      otaStatus = "idle";
+      sendDeviceStateReport();
+      return;
+    }
+
+    if (!sameChannel) {
+      DEBUG_SERIAL.println("[OTA] Cross-channel OTA allowed");
+    }
+
+    doOtaUpdate(url, version, versionCode, channel, md5);
+    return;
+  }
+
+
+  DEBUG_SERIAL.println("[WS] 未处理消息类型: " + type);
 }
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
-      Serial.println("[WS] 已断开");
+      DEBUG_SERIAL.println("[WS] 已断开");
       break;
 
     case WStype_CONNECTED:
-      Serial.printf("[WS] 已连接: %s\n", payload);
+      DEBUG_SERIAL.printf("[WS] 已连接: %s\n", payload);
       sendWsRegister();
       break;
 
@@ -678,7 +917,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
       break;
 
     case WStype_PONG:
-      Serial.println("[WS] PONG");
+      DEBUG_SERIAL.println("[WS] PONG");
       break;
 
     default:
@@ -690,11 +929,11 @@ void beginWebSocketClient() {
   webSocket.disconnect();
   delay(100);
 
-  Serial.println("[WS] 准备连接:");
-  Serial.println("host = " + cfg.serverHost);
-  Serial.println("port = " + String(cfg.wsPort));
-  Serial.println("path = /ws/device");
-  Serial.println("url  = ws://" + cfg.serverHost + ":" + String(cfg.wsPort) + "/ws/device");
+  DEBUG_SERIAL.println("[WS] 准备连接:");
+  DEBUG_SERIAL.println("host = " + cfg.serverHost);
+  DEBUG_SERIAL.println("port = " + String(cfg.wsPort));
+  DEBUG_SERIAL.println("path = /ws/device");
+  DEBUG_SERIAL.println("url  = ws://" + cfg.serverHost + ":" + String(cfg.wsPort) + "/ws/device");
 
   webSocket.begin(cfg.serverHost.c_str(), cfg.wsPort, "/ws/device");
   webSocket.onEvent(webSocketEvent);
@@ -714,7 +953,7 @@ void applyLightSettings(int br, int tp) {
 
   analogWrite(LED_COLD_PIN, 1024 - pwmCold);
   analogWrite(LED_WARM_PIN, 1024 - pwmWarm);
-  //Serial.printf("PWM Cold=%d, Warm=%d\n", pwmCold, pwmWarm);
+  //DEBUG_SERIAL.printf("PWM Cold=%d, Warm=%d\n", pwmCold, pwmWarm);
 }
 
 void locateBreath(int times, int cycleMs) {
@@ -731,7 +970,7 @@ void locateBreath(int times, int cycleMs) {
   int steps = 36;
   int stepDelay = cycleMs / steps;
 
-  Serial.printf(
+  DEBUG_SERIAL.printf(
     "[LOCATE] 呼吸灯开始 times=%d cycleMs=%d restoreB=%d restoreT=%d\n",
     times,
     cycleMs,
@@ -757,7 +996,7 @@ void locateBreath(int times, int cycleMs) {
 
   applyLightSettings(oldBrightness, oldTemp);
 
-  Serial.println("[LOCATE] 呼吸定位结束，已恢复原灯光");
+  DEBUG_SERIAL.println("[LOCATE] 呼吸定位结束，已恢复原灯光");
 }
 
 void sendStayRecordToServer(unsigned long durationSeconds) {
@@ -776,9 +1015,9 @@ void sendStayRecordToServer(unsigned long durationSeconds) {
   serializeJson(doc, payload);
 
   int httpCode = http.POST(payload);
-  Serial.printf("[HTTP] /admin/duration/create -> %d\n", httpCode);
+  DEBUG_SERIAL.printf("[HTTP] /admin/duration/create -> %d\n", httpCode);
   if (httpCode > 0) {
-    Serial.println(http.getString());
+    DEBUG_SERIAL.println(http.getString());
   }
 
   http.end();
@@ -796,8 +1035,8 @@ void updateLightingByToF() {
       digitalWrite(BLUR, HIGH);
     }
 
-    int level = digitalRead(BLUR);
-    //Serial.printf("BLUR电平 = %d (%s)\n", level, level ? "HIGH" : "LOW");
+    //int level = digitalRead(BLUR);
+    //DEBUG_SERIAL.printf("BLUR电平 = %d (%s)\n", level, level ? "HIGH" : "LOW");
 
     if (now - lastLightUpdate > lightUpdateInterval) {
       applyLightSettings(br, tp);
@@ -819,7 +1058,7 @@ void updateLightingByToF() {
   bool currentNearby = (measure.RangeMilliMeter < 2000);
   unsigned long now = millis();
 
-  Serial.printf("测距: %d mm\n", measure.RangeMilliMeter);
+  DEBUG_SERIAL.printf("测距: %d mm\n", measure.RangeMilliMeter);
 
   if (autoMode) {
     if (currentNearby && !wasNearby) {
@@ -883,15 +1122,52 @@ void broadcastDevice() {
     lastBroadcast = millis();
 
     IPAddress broadcastIP = calcBroadcastIP();
-    String msg = "{\"type\":\"announce\",\"device\":\"lamp\",\"id\":\"" + deviceId +
+    String msg = "{\"type\":\"announce\",\"device\":\"" + String(FW_DEVICE_TYPE) + "\",\"id\":\"" + deviceId +
                  "\",\"ip\":\"" + WiFi.localIP().toString() + "\"}";
 
     udp.beginPacket(broadcastIP, udpPort);
     udp.write((const uint8_t*)msg.c_str(), msg.length());
     udp.endPacket();
 
-    Serial.println("广播: " + msg);
+    DEBUG_SERIAL.println("广播: " + msg);
   }
+}
+
+void sendDeviceStateReport() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  WiFiClient client;
+  HTTPClient http;
+  http.begin(client, httpUrl("/admin/device/state-report"));
+  http.addHeader("Content-Type", "application/json");
+
+  StaticJsonDocument<384> doc;
+  doc["chipId"] = deviceId;
+  doc["deviceType"] = FW_DEVICE_TYPE;
+  doc["ip"] = WiFi.localIP().toString();
+  doc["brightness"] = brightness;
+  doc["temp"] = temp;
+  doc["autoMode"] = autoMode;
+  doc["recommendedBrightness"] = recommendedBrightness;
+  doc["recommendedTemp"] = recommendedTemp;
+  doc["fabric"] = fabric;
+  doc["firmwareVersion"] = FW_VERSION;
+  doc["firmwareVersionCode"] = FW_VERSION_CODE;
+  doc["firmwareChannel"] = FW_CHANNEL;
+  doc["otaStatus"] = otaStatus;
+
+  String json;
+  serializeJson(doc, json);
+
+  int httpCode = http.POST(json);
+  if (httpCode > 0) {
+    DEBUG_SERIAL.printf("[STATE] report code: %d\n", httpCode);
+    DEBUG_SERIAL.println(http.getString());
+  } else {
+    DEBUG_SERIAL.printf("[STATE] report failed: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
 }
 
 void sendAnnounce() {
@@ -905,7 +1181,7 @@ void sendAnnounce() {
   StaticJsonDocument<256> doc;
   doc["chipId"] = deviceId;
   doc["ip"] = WiFi.localIP().toString();
-  doc["deviceType"] = "lamp";
+  doc["deviceType"] = FW_DEVICE_TYPE;
 
   String json;
   serializeJson(doc, json);
@@ -913,15 +1189,15 @@ void sendAnnounce() {
   int httpCode = http.POST(json);
   if (httpCode > 0) {
     String payload = http.getString();
-    Serial.println("服务器回应: " + payload);
+    DEBUG_SERIAL.println("服务器回应: " + payload);
 
     if (payload.indexOf("\"added\":true") >= 0) {
       enableAnnounce = false;
       enableBroadcast = false;
-      Serial.println("成功上报且已添加，停止上报和广播");
+      DEBUG_SERIAL.println("成功上报且已添加，停止上报和广播");
     }
   } else {
-    Serial.printf("上报失败: %s\n", http.errorToString(httpCode).c_str());
+    DEBUG_SERIAL.printf("上报失败: %s\n", http.errorToString(httpCode).c_str());
   }
 
   http.end();
@@ -931,7 +1207,7 @@ void sendLightLevelToServer() {
   if (!bh1750Ready || WiFi.status() != WL_CONNECTED) return;
 
   float lux = lightMeter.readLightLevel();
-  Serial.printf("当前光照值：%.2f lux\n", lux);
+  DEBUG_SERIAL.printf("当前光照值：%.2f lux\n", lux);
 
   WiFiClient client;
   HTTPClient http;
@@ -948,10 +1224,10 @@ void sendLightLevelToServer() {
   int httpCode = http.POST(json);
 
   if (httpCode > 0) {
-    Serial.printf("光照上传成功，返回码: %d\n", httpCode);
-    Serial.println(http.getString());
+    DEBUG_SERIAL.printf("光照上传成功，返回码: %d\n", httpCode);
+    DEBUG_SERIAL.println(http.getString());
   } else {
-    Serial.printf("光照上传失败: %s\n", http.errorToString(httpCode).c_str());
+    DEBUG_SERIAL.printf("光照上传失败: %s\n", http.errorToString(httpCode).c_str());
   }
 
   http.end();
@@ -969,17 +1245,17 @@ void setupHardwareAndSensors() {
   Wire.setClock(400000);
 
   if (!lox.begin()) {
-    Serial.println("VL53L0X 初始化失败");
+    DEBUG_SERIAL.println("VL53L0X 初始化失败");
   } else {
-    Serial.println("VL53L0X 初始化成功");
+    DEBUG_SERIAL.println("VL53L0X 初始化成功");
     tofReady = true;
   }
 
   if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-    Serial.println("BH1750 初始化成功");
+    DEBUG_SERIAL.println("BH1750 初始化成功");
     bh1750Ready = true;
   } else {
-    Serial.println("BH1750 初始化失败");
+    DEBUG_SERIAL.println("BH1750 初始化失败");
   }
 
   udp.begin(udpPort);
@@ -988,32 +1264,33 @@ void setupHardwareAndSensors() {
 bool ensureWiFiReady() {
   if (WiFi.status() == WL_CONNECTED) return true;
 
-  Serial.println("[WiFi] 已断开，尝试重连已保存网络...");
+  DEBUG_SERIAL.println("[WiFi] 已断开，尝试重连已保存网络...");
   if (connectSavedWiFi()) return true;
 
-  Serial.println("[WiFi] 已保存网络重连失败，尝试 SmartConfig...");
+  DEBUG_SERIAL.println("[WiFi] 已保存网络重连失败，尝试 SmartConfig...");
   if (smartConfigProvision(smartConfigTimeout)) return true;
 
-  Serial.println("[WiFi] 进入 AP 配网模式");
+  DEBUG_SERIAL.println("[WiFi] 进入 AP 配网模式");
   startConfigPortal();
   return false;
 }
 
 // ===================== setup / loop =====================
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(NANO_BAUD);
+  DEBUG_SERIAL.begin(115200);
   delay(200);
 
   deviceId = makeDeviceId();
 
-  Serial.println("\n========================");
-  Serial.println("设备启动");
-  Serial.println("ID = " + deviceId);
-  Serial.println("FW = " + String(FW_VERSION));
-  Serial.println("========================");
+  DEBUG_SERIAL.println("\n========================");
+  DEBUG_SERIAL.println("设备启动");
+  DEBUG_SERIAL.println("ID = " + deviceId);
+  DEBUG_SERIAL.println("FW = " + String(FW_VERSION));
+  DEBUG_SERIAL.println("========================");
 
   if (!LittleFS.begin()) {
-    Serial.println("[FS] LittleFS 挂载失败");
+    DEBUG_SERIAL.println("[FS] LittleFS 挂载失败");
   }
 
   setupHardwareAndSensors();
@@ -1022,10 +1299,10 @@ void setup() {
   bool wifiOk = false;
 
   if (hasConfig) {
-    Serial.println("[BOOT] 检测到本地配置，尝试直连");
+    DEBUG_SERIAL.println("[BOOT] 检测到本地配置，尝试直连");
     wifiOk = connectSavedWiFi();
   } else {
-    Serial.println("[BOOT] 没有本地配置");
+    DEBUG_SERIAL.println("[BOOT] 没有本地配置");
   }
 
   if (!wifiOk) {
@@ -1040,10 +1317,12 @@ void setup() {
   setupDeviceHttpServer();
   beginWebSocketClient();
   sendAnnounce();
+  sendDeviceStateReport();
 }
 
 void loop() {
   server.handleClient();
+  pollNano();
 
   if (portalMode) {
     return;
@@ -1075,7 +1354,7 @@ void loop() {
   serializeJson(doc, pingMsg);
   webSocket.sendTXT(pingMsg);
 
-  Serial.println("发送 WebSocket 心跳: " + pingMsg);
+  DEBUG_SERIAL.println("发送 WebSocket 心跳: " + pingMsg);
 }
 
   if (now - lastAnnounce > announceInterval) {
