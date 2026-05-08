@@ -107,10 +107,10 @@
         </div>
 
 <Transition name="ios-panel">
-  <div v-if="scanning || scannedDevices.length > 0" class="scan-panel">
+  <div v-if="scanning || scanFinished || scannedDevices.length > 0" class="scan-panel">
     <div class="scan-panel-header">
       <div class="scan-panel-title">
-        {{ scanning ? '扫描结果（进行中）' : '扫描结果（已结束）' }}
+        {{ scanPanelTitle }}
       </div>
 
       <button
@@ -123,7 +123,7 @@
     </div>
 
     <div v-if="scannedDevices.length === 0" class="scan-empty">
-      正在等待设备广播...
+      {{ scanEmptyText }}
     </div>
 
     <TransitionGroup name="ios-card" tag="div" class="scan-list">
@@ -155,6 +155,7 @@
           <LightEffectMiniPanel
             class="store-effect-mini"
             :devices="devices"
+            :server-state="lightEffectState"
           />
 
           <StoreLightLayout
@@ -190,6 +191,7 @@
           :latest-lux="latestLux"
           :current-area="envInfo.area"
           :duration-refresh-key="durationRefreshKey"
+          :lux-refresh-key="luxRefreshKey"
         />
       </section>
 
@@ -245,6 +247,7 @@ import {
   updateDevice,
 } from '../api/device'
 import { getLatestLux } from '../api/lux'
+import type { LightEffectState } from '../api/lightEffect'
 import { getCurrentStoreApi } from '../api/store'
 import { getCurrentWeather } from '../api/weather'
 import type {
@@ -276,6 +279,7 @@ function getInitialTab(): DashboardTab {
 
 const activeTab = ref<DashboardTab>(getInitialTab())
 const devices = ref<DeviceItem[]>([])
+const lightEffectState = ref<LightEffectState | null>(null)
 const loading = ref(false)
 const creating = ref(false)
 const deletingId = ref<number | null>(null)
@@ -304,6 +308,18 @@ const scannedDevices = ref<
     added?: boolean
   }>
 >([])
+
+const scanPanelTitle = computed(() => {
+  if (scanning.value) return '扫描结果（进行中）'
+  if (scanFinished.value) return '扫描结果（已结束）'
+  return '扫描结果'
+})
+
+const scanEmptyText = computed(() => {
+  if (scanning.value) return '正在等待设备广播...'
+  if (scanFinished.value) return '未扫描到设备'
+  return '暂无扫描结果'
+})
 
 const storeSettingsReady = ref(false)
 const NIGHT_MODE_STORAGE_KEY = 'SMART_LIGHT_NIGHT_MODE'
@@ -438,13 +454,15 @@ function removeScannedDevice(chipId: string) {
   scannedDevices.value = scannedDevices.value.filter(item => item.chipId !== chipId)
 
   if (scanning.value) {
-    scanStatus.value = `扫描中，已发现 ${scannedDevices.value.length} 台待添加设备`
+    updateScanningStatusText()
   } else {
     scanStatus.value = `扫描结束，发现 ${scannedDevices.value.length} 台待添加设备`
   }
 }
 
 const scanning = ref(false)
+const scanCountdown = ref(0)
+const scanFinished = ref(false)
 const pendingScannedDevice = ref<{
   chipId: string
   ip: string
@@ -453,6 +471,8 @@ const pendingScannedDevice = ref<{
 } | null>(null)
 
 let scanTimer: number | null = null
+let scanCountdownTimer: number | null = null
+let scanResultTipTimer: number | null = null
 
 const { currentTime, dateInfo, weekInfo } = useClock()
 
@@ -462,7 +482,11 @@ const workdayInfo = ref('是否工作日：是')
 const latestLuxText = ref('光照值等待更新中...')
 const latestLux = ref<number | null>(null)
 const durationRefreshKey = ref(0)
+const luxRefreshKey = ref(0)
 const currentStoreCityName = ref('')
+const FLOW_REFRESH_THROTTLE_MS = 5000
+let lastDurationRefreshAt = 0
+let lastLuxTrendRefreshAt = 0
 const envInfo = ref({
   temp: null as number | null,
   apparentTemp: null as number | null,
@@ -643,7 +667,9 @@ function mergeDeviceOnline(deviceList: DeviceItem[], onlineList: DeviceOnlineIte
 
 async function loadDevices() {
   loading.value = true
-  scanStatus.value = scanning.value ? '扫描中（10秒）...' : '加载中...'
+  if (!scanning.value && !scanFinished.value) {
+    scanStatus.value = '加载中...'
+  }
 
   try {
     const [deviceList, onlineList] = await Promise.all([
@@ -696,21 +722,79 @@ async function loadLatestLux() {
   }
 }
 
-function handleScan() {
-  scannedDevices.value = []
-  scanning.value = true
-  scanStatus.value = '扫描中（10秒）...'
+function clearScanTimers() {
+  if (scanTimer) {
+    window.clearTimeout(scanTimer)
+    scanTimer = null
+  }
+  if (scanCountdownTimer) {
+    window.clearInterval(scanCountdownTimer)
+    scanCountdownTimer = null
+  }
+  if (scanResultTipTimer) {
+    window.clearTimeout(scanResultTipTimer)
+    scanResultTipTimer = null
+  }
+}
+
+function getNormalScanStatusText() {
+  return connected.value ? '实时连接已建立' : 'WebSocket 未连接'
+}
+
+function updateScanningStatusText() {
+  const foundText = scannedDevices.value.length > 0
+    ? ` · 已发现 ${scannedDevices.value.length} 台待添加设备`
+    : ''
+  scanStatus.value = `扫描中（${scanCountdown.value}秒）...${foundText}`
+}
+
+function finishScan() {
+  scanning.value = false
+  scanFinished.value = true
+  scanCountdown.value = 0
 
   if (scanTimer) {
     window.clearTimeout(scanTimer)
     scanTimer = null
   }
+  if (scanCountdownTimer) {
+    window.clearInterval(scanCountdownTimer)
+    scanCountdownTimer = null
+  }
+
+  if (scannedDevices.value.length > 0) {
+    scanStatus.value = `扫描结束，发现 ${scannedDevices.value.length} 台待添加设备`
+  } else {
+    scanStatus.value = '未扫描到设备'
+  }
+
+  if (scanResultTipTimer) {
+    window.clearTimeout(scanResultTipTimer)
+  }
+  scanResultTipTimer = window.setTimeout(() => {
+    scanFinished.value = false
+    scanStatus.value = getNormalScanStatusText()
+    scanResultTipTimer = null
+  }, 3000)
+}
+
+function handleScan() {
+  clearScanTimers()
+  scannedDevices.value = []
+  scanning.value = true
+  scanFinished.value = false
+  scanCountdown.value = 10
+  updateScanningStatusText()
 
   scanTimer = window.setTimeout(() => {
-    scanning.value = false
-    scanStatus.value = `扫描结束，发现 ${scannedDevices.value.length} 台待添加设备`
-    scanTimer = null
+    finishScan()
   }, 10000)
+
+  scanCountdownTimer = window.setInterval(() => {
+    if (!scanning.value) return
+    scanCountdown.value = Math.max(scanCountdown.value - 1, 1)
+    updateScanningStatusText()
+  }, 1000)
 }
 
 function openManualAdd() {
@@ -816,11 +900,30 @@ function updateDeviceByIncoming(incoming: Partial<DeviceItem>) {
   }
 }
 
+function requestDurationSummaryRefresh() {
+  const now = Date.now()
+  if (now - lastDurationRefreshAt < FLOW_REFRESH_THROTTLE_MS) return
+  lastDurationRefreshAt = now
+  durationRefreshKey.value += 1
+}
+
+function requestLuxTrendRefresh() {
+  const now = Date.now()
+  if (now - lastLuxTrendRefreshAt < FLOW_REFRESH_THROTTLE_MS) return
+  lastLuxTrendRefreshAt = now
+  luxRefreshKey.value += 1
+}
+
 function handleWsMessage(message: any) {
   if (!message?.type) return
 
   if (message.type === 'state' && message.data) {
     updateDeviceByIncoming(message.data)
+    return
+  }
+
+  if (message.type === 'lightEffectState' && message.data) {
+    lightEffectState.value = message.data
     return
   }
 
@@ -887,7 +990,7 @@ function handleWsMessage(message: any) {
   }
 
   if (message.type === 'durationUpdate' && message.data) {
-    durationRefreshKey.value += 1
+    requestDurationSummaryRefresh()
     return
   }
 
@@ -901,6 +1004,7 @@ function handleWsMessage(message: any) {
 
     latestLux.value = luxValue
     latestLuxText.value = `光照值：${luxValue} lux`
+    requestLuxTrendRefresh()
     console.log('lux message =', message)
     return
   }
@@ -936,7 +1040,7 @@ function handleWsMessage(message: any) {
       },
     ]
 
-    scanStatus.value = `扫描中，已发现 ${scannedDevices.value.length} 台待添加设备`
+    updateScanningStatusText()
     return
   }
 }
@@ -944,6 +1048,8 @@ function handleWsMessage(message: any) {
 const { connected } = useWebSocket(wsUrl, handleWsMessage)
 
 watch(connected, (val) => {
+  if (scanning.value || scanFinished.value) return
+
   if (val) {
     scanStatus.value = '实时连接已建立'
     loadDevices()
@@ -953,10 +1059,7 @@ watch(connected, (val) => {
 })
 
 onBeforeUnmount(() => {
-  if (scanTimer) {
-    window.clearTimeout(scanTimer)
-    scanTimer = null
-  }
+  clearScanTimers()
 
   updateTimerMap.forEach(timer => {
     window.clearTimeout(timer)

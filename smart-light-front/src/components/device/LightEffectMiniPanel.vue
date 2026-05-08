@@ -31,6 +31,22 @@
       </button>
     </div>
 
+    <div class="effect-brightness-control">
+      <div class="effect-brightness-header">
+        <span class="mini-label">灯效亮度</span>
+        <strong>{{ effectBrightness }}%</strong>
+      </div>
+      <input
+        class="effect-brightness-slider"
+        type="range"
+        min="0"
+        max="100"
+        :value="effectBrightness"
+        @input="handleEffectBrightnessInput"
+      />
+      <p class="effect-brightness-hint">{{ effectBrightnessHint }}</p>
+    </div>
+
     <div class="mini-status">
       {{ statusText }}
     </div>
@@ -52,6 +68,42 @@
           </div>
 
           <div class="effect-form">
+            <div class="form-field temp-range-field">
+              <div class="temp-range-header">
+                <span class="mini-label">色温范围</span>
+                <strong class="temp-range-value">{{ minTemp }}K - {{ maxTemp }}K</strong>
+              </div>
+              <div
+                class="dual-temp-slider"
+                :class="{
+                  'dragging-min': activeTempHandle === 'min',
+                  'dragging-max': activeTempHandle === 'max',
+                }"
+              >
+                <div class="dual-temp-track"></div>
+                <div class="dual-temp-selected" :style="tempRangeStyle"></div>
+                <input
+                  class="dual-temp-input dual-temp-min"
+                  type="range"
+                  :min="TEMP_MIN"
+                  :max="TEMP_MAX"
+                  :step="100"
+                  :value="minTemp"
+                  @pointerdown="setActiveTempHandle('min')"
+                  @input="handleMinTempInput"
+                />
+                <input
+                  class="dual-temp-input dual-temp-max"
+                  type="range"
+                  :min="TEMP_MIN"
+                  :max="TEMP_MAX"
+                  :step="100"
+                  :value="maxTemp"
+                  @pointerdown="setActiveTempHandle('max')"
+                  @input="handleMaxTempInput"
+                />
+              </div>
+            </div>
             <label class="form-field">
               <span class="mini-label">基础色温</span>
               <input
@@ -82,6 +134,30 @@
                 type="number"
                 min="0"
                 max="100"
+              />
+            </label>
+
+            <label class="form-field">
+              <span class="mini-label">速度</span>
+              <input
+                v-model.number="speed"
+                class="mini-input"
+                type="number"
+                min="0.2"
+                max="5"
+                step="0.1"
+              />
+            </label>
+
+            <label class="form-field">
+              <span class="mini-label">相位间隔</span>
+              <input
+                v-model.number="phaseGap"
+                class="mini-input"
+                type="number"
+                min="0"
+                max="3"
+                step="0.1"
               />
             </label>
           </div>
@@ -117,13 +193,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { sendLightEffect, updateDevice } from '../../api/device'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { updateDevice } from '../../api/device'
+import {
+  closeLightEffectState,
+  getLightEffectState,
+  saveLightEffectState,
+  type LightEffectState,
+} from '../../api/lightEffect'
 import type { DeviceCreatePayload, DeviceItem } from '../../types/device'
 import BaseSelect from '../common/BaseSelect.vue'
 
 const props = defineProps<{
   devices: DeviceItem[]
+  serverState?: LightEffectState | null
 }>()
 
 type ActiveEffect = 'warm' | 'neutral' | 'cool' | 'auto' | 'loop' | null
@@ -133,11 +216,35 @@ const selectedScope = ref('all')
 const baseTemp = ref(3800)
 const range = ref(500)
 const brightness = ref(70)
+const effectBrightness = ref(70)
+const minTemp = ref(3300)
+const maxTemp = ref(4300)
 const speed = ref(1)
+const phaseIndex = ref(0)
+const phaseGap = ref(0.8)
 const submitting = ref(false)
 const showSettings = ref(false)
 const activeEffect = ref<ActiveEffect>(null)
 const statusText = ref('未启动')
+const effectBrightnessInteracting = ref(false)
+const applyingServerState = ref(false)
+const activeTempHandle = ref<'min' | 'max' | null>(null)
+
+const EFFECT_BRIGHTNESS_PRESET_KEY = 'smartlight_effect_brightness_preset'
+const EFFECT_BRIGHTNESS_DEBOUNCE_MS = 300
+const TEMP_MIN = 2700
+const TEMP_MAX = 6500
+const TEMP_GAP_MIN = 500
+
+let brightnessTimer: number | undefined
+let brightnessInteractionTimer: number | undefined
+let scopeTimer: number | undefined
+let tempHandleTimer: number | undefined
+
+interface EffectBrightnessPresetStore {
+  global?: number
+  scopes?: Record<string, number>
+}
 
 const quickActions: Array<{ key: QuickActionKey; label: string; desc: string }> = [
   { key: 'warm', label: '暖光', desc: '3000K' },
@@ -190,12 +297,201 @@ const targetDevices = computed(() => {
     .sort((a, b) => Number(a.deviceNo || 9999) - Number(b.deviceNo || 9999))
 })
 
+const effectBrightnessHint = computed(() => {
+  if (activeEffect.value && targetDevices.value.length === 0) {
+    return '当前范围暂无可同步灯具，亮度会先保存为预设'
+  }
+  if (activeEffect.value) {
+    return '拖动后将同步当前灯效范围内灯具亮度'
+  }
+  return '当前为灯效预设亮度，下次开启灯效时生效'
+})
+
+const tempRangeStyle = computed(() => {
+  const left = ((minTemp.value - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)) * 100
+  const right = ((maxTemp.value - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)) * 100
+  return {
+    left: `${left}%`,
+    width: `${Math.max(right - left, 0)}%`,
+  }
+})
+
 function getZoneName(device: DeviceItem) {
   return device.displayName?.trim() || '未分区'
 }
 
 function clamp(num: number, min: number, max: number) {
   return Math.min(Math.max(num, min), max)
+}
+
+function syncWaveBaseFromTempRange() {
+  baseTemp.value = Math.round((minTemp.value + maxTemp.value) / 2)
+  range.value = Math.round((maxTemp.value - minTemp.value) / 2)
+}
+
+function setTempRangeFromBaseAndRange(nextBaseTemp: number, nextRange: number) {
+  const base = clamp(Math.round(nextBaseTemp), TEMP_MIN, TEMP_MAX)
+  const waveRange = Math.max(0, Math.round(nextRange))
+  let nextMin = clamp(base - waveRange, TEMP_MIN, TEMP_MAX)
+  let nextMax = clamp(base + waveRange, TEMP_MIN, TEMP_MAX)
+
+  if (nextMax - nextMin < TEMP_GAP_MIN) {
+    nextMin = Math.round(base - TEMP_GAP_MIN / 2)
+    nextMax = nextMin + TEMP_GAP_MIN
+
+    if (nextMin < TEMP_MIN) {
+      nextMin = TEMP_MIN
+      nextMax = TEMP_MIN + TEMP_GAP_MIN
+    }
+    if (nextMax > TEMP_MAX) {
+      nextMax = TEMP_MAX
+      nextMin = TEMP_MAX - TEMP_GAP_MIN
+    }
+  }
+
+  minTemp.value = clamp(nextMin, TEMP_MIN, TEMP_MAX - TEMP_GAP_MIN)
+  maxTemp.value = clamp(nextMax, TEMP_MIN + TEMP_GAP_MIN, TEMP_MAX)
+  syncWaveBaseFromTempRange()
+}
+
+function setActiveTempHandle(handle: 'min' | 'max') {
+  activeTempHandle.value = handle
+  if (tempHandleTimer) {
+    window.clearTimeout(tempHandleTimer)
+  }
+}
+
+function scheduleClearActiveTempHandle() {
+  if (tempHandleTimer) {
+    window.clearTimeout(tempHandleTimer)
+  }
+  tempHandleTimer = window.setTimeout(() => {
+    activeTempHandle.value = null
+  }, 160)
+}
+
+function handleMinTempInput(event: Event) {
+  setActiveTempHandle('min')
+  const target = event.target as HTMLInputElement
+  const currentMin = minTemp.value
+  const rawMin = clamp(Number(target.value), TEMP_MIN, TEMP_MAX)
+  let nextMin = clamp(rawMin, TEMP_MIN, TEMP_MAX - TEMP_GAP_MIN)
+  let nextMax = maxTemp.value
+
+  if (nextMin > nextMax - TEMP_GAP_MIN) {
+    const boundaryMin = nextMax - TEMP_GAP_MIN
+    const delta = nextMin - boundaryMin
+    if (nextMax + delta <= TEMP_MAX) {
+      nextMax += delta
+    } else {
+      nextMax = TEMP_MAX
+      nextMin = TEMP_MAX - TEMP_GAP_MIN
+    }
+  }
+
+  minTemp.value = Math.round(nextMin)
+  maxTemp.value = Math.round(nextMax)
+  target.value = String(minTemp.value)
+  if (minTemp.value === currentMin && rawMin < currentMin) {
+    target.value = String(currentMin)
+  }
+  syncWaveBaseFromTempRange()
+  scheduleClearActiveTempHandle()
+}
+
+function handleMaxTempInput(event: Event) {
+  setActiveTempHandle('max')
+  const target = event.target as HTMLInputElement
+  const currentMax = maxTemp.value
+  const rawMax = clamp(Number(target.value), TEMP_MIN, TEMP_MAX)
+  let nextMax = clamp(rawMax, TEMP_MIN + TEMP_GAP_MIN, TEMP_MAX)
+  let nextMin = minTemp.value
+
+  if (nextMax < nextMin + TEMP_GAP_MIN) {
+    const boundaryMax = nextMin + TEMP_GAP_MIN
+    const delta = boundaryMax - nextMax
+    if (nextMin - delta >= TEMP_MIN) {
+      nextMin -= delta
+    } else {
+      nextMin = TEMP_MIN
+      nextMax = TEMP_MIN + TEMP_GAP_MIN
+    }
+  }
+
+  minTemp.value = Math.round(nextMin)
+  maxTemp.value = Math.round(nextMax)
+  target.value = String(maxTemp.value)
+  if (maxTemp.value === currentMax && rawMax > currentMax) {
+    target.value = String(currentMax)
+  }
+  syncWaveBaseFromTempRange()
+  scheduleClearActiveTempHandle()
+}
+
+function normalizeBrightness(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return undefined
+  }
+  return clamp(Math.round(value), 0, 100)
+}
+
+function readEffectBrightnessPresetStore(): EffectBrightnessPresetStore {
+  try {
+    const raw = localStorage.getItem(EFFECT_BRIGHTNESS_PRESET_KEY)
+    if (!raw) return {}
+
+    const parsed = JSON.parse(raw) as EffectBrightnessPresetStore
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function getEffectBrightnessPreset(scope = selectedScope.value): number | undefined {
+  const store = readEffectBrightnessPresetStore()
+  const globalValue = normalizeBrightness(store.global)
+
+  if (scope === 'all') {
+    return globalValue
+  }
+
+  const scopeValue = normalizeBrightness(store.scopes?.[scope])
+  return scopeValue ?? globalValue
+}
+
+function saveEffectBrightnessPreset(value: number, scope = selectedScope.value) {
+  const nextValue = clamp(Math.round(value), 0, 100)
+  const store = readEffectBrightnessPresetStore()
+
+  if (scope === 'all') {
+    store.global = nextValue
+  } else {
+    store.scopes = {
+      ...(store.scopes || {}),
+      [scope]: nextValue,
+    }
+  }
+
+  localStorage.setItem(EFFECT_BRIGHTNESS_PRESET_KEY, JSON.stringify(store))
+}
+
+function resolveEffectBrightness() {
+  return getEffectBrightnessPreset()
+    ?? normalizeBrightness(targetDevices.value[0]?.brightness)
+    ?? 70
+}
+
+function syncEffectBrightnessFromScope() {
+  const nextValue = resolveEffectBrightness()
+  effectBrightness.value = nextValue
+  brightness.value = nextValue
+}
+
+function prepareEffectBrightnessForEffect() {
+  const nextValue = resolveEffectBrightness()
+  effectBrightness.value = nextValue
+  brightness.value = nextValue
+  return nextValue
 }
 
 function buildDevicePayload(device: DeviceItem, next: Partial<DeviceCreatePayload>): DeviceCreatePayload {
@@ -215,6 +511,56 @@ function buildDevicePayload(device: DeviceItem, next: Partial<DeviceCreatePayloa
   }
 }
 
+function buildWavePayload(enabled = activeEffect.value === 'loop') {
+  syncWaveBaseFromTempRange()
+  return {
+    effect: 'wave',
+    enabled,
+    baseTemp: clamp(baseTemp.value, 2700, 6500),
+    range: clamp(range.value, 0, 1200),
+    speed: clamp(speed.value, 0.2, 5),
+    brightness: clamp(effectBrightness.value, 0, 100),
+    phaseIndex: phaseIndex.value,
+    phaseGap: clamp(phaseGap.value, 0, 3),
+    selectedScope: selectedScope.value || 'all',
+  }
+}
+
+function applyLightEffectState(state?: LightEffectState | null) {
+  if (!state) return
+
+  applyingServerState.value = true
+  selectedScope.value = state.selectedScope || 'all'
+  baseTemp.value = clamp(Number(state.baseTemp ?? 3800), 2700, 6500)
+  range.value = clamp(Number(state.range ?? 500), 0, 1200)
+  setTempRangeFromBaseAndRange(baseTemp.value, range.value)
+  speed.value = clamp(Number(state.speed ?? 1), 0.2, 5)
+  phaseIndex.value = Number(state.phaseIndex ?? 0)
+  phaseGap.value = clamp(Number(state.phaseGap ?? 0.8), 0, 3)
+
+  const nextBrightness = clamp(Number(state.brightness ?? 70), 0, 100)
+  effectBrightness.value = nextBrightness
+  brightness.value = nextBrightness
+  saveEffectBrightnessPreset(nextBrightness, selectedScope.value)
+
+  activeEffect.value = state.enabled && state.effect === 'wave' ? 'loop' : null
+  statusText.value = state.enabled && state.effect === 'wave'
+    ? `Wave 灯效运行中，phase ${Math.round(phaseIndex.value)}`
+    : '灯效未开启'
+
+  window.setTimeout(() => {
+    applyingServerState.value = false
+  }, 0)
+}
+
+async function loadLightEffectState() {
+  try {
+    applyLightEffectState(await getLightEffectState())
+  } catch (error) {
+    console.error('load light effect state error =', error)
+  }
+}
+
 async function handleQuickAction(action: QuickActionKey) {
   if (action === 'settings') {
     showSettings.value = true
@@ -226,6 +572,8 @@ async function handleQuickAction(action: QuickActionKey) {
     return
   }
 
+  const presetBrightness = prepareEffectBrightnessForEffect()
+
   if (action === 'loop') {
     await startWave()
     return
@@ -234,7 +582,8 @@ async function handleQuickAction(action: QuickActionKey) {
   if (action === 'auto') {
     await applyDeviceMode({
       autoMode: true,
-      recommendedBrightness: brightness.value,
+      brightness: presetBrightness,
+      recommendedBrightness: presetBrightness,
       recommendedTemp: baseTemp.value,
     }, '自动模式', 'auto')
     return
@@ -254,10 +603,10 @@ async function handleQuickAction(action: QuickActionKey) {
 
   await applyDeviceMode({
     temp: tempMap[action],
-    brightness: brightness.value,
+    brightness: presetBrightness,
     autoMode: false,
     recommendedTemp: tempMap[action],
-    recommendedBrightness: brightness.value,
+    recommendedBrightness: presetBrightness,
   }, labelMap[action], action)
 }
 
@@ -312,10 +661,23 @@ async function applyDeviceMode(
   }
 }
 
-function saveSettings() {
-  baseTemp.value = clamp(baseTemp.value, 2700, 6500)
-  range.value = clamp(range.value, 0, 1200)
-  brightness.value = clamp(brightness.value, 0, 100)
+async function saveSettings() {
+  syncWaveBaseFromTempRange()
+  effectBrightness.value = clamp(effectBrightness.value, 0, 100)
+  brightness.value = effectBrightness.value
+  saveEffectBrightnessPreset(effectBrightness.value)
+  if (activeEffect.value === 'loop') {
+    try {
+      const state = await saveLightEffectState(buildWavePayload(true))
+      applyLightEffectState(state)
+      statusText.value = 'Wave 灯效设置已同步'
+      return
+    } catch (error) {
+      console.error('save wave settings error =', error)
+      statusText.value = 'Wave 灯效设置同步失败'
+      return
+    }
+  }
   statusText.value = '循环设置已保存'
 }
 
@@ -329,25 +691,16 @@ function isNightMode() {
 
 async function startWave() {
   submitting.value = true
+  const waveBrightness = prepareEffectBrightnessForEffect()
 
   try {
-    for (let index = 0; index < targetDevices.value.length; index++) {
-      const device = targetDevices.value[index]
-      if (!device.chipId) continue
-
-      await sendLightEffect(device.chipId, {
-        effect: 'wave',
-        enabled: true,
-        baseTemp: clamp(baseTemp.value, 2700, 6500),
-        range: clamp(range.value, 0, 1200),
-        speed: clamp(speed.value, 0.2, 5),
-        brightness: clamp(brightness.value, 0, 100),
-        phaseIndex: index,
-        phaseGap: 0.8,
-      })
-    }
-
+    effectBrightness.value = waveBrightness
+    brightness.value = waveBrightness
+    const state = await saveLightEffectState(buildWavePayload(true))
+    applyLightEffectState(state)
     activeEffect.value = 'loop'
+    statusText.value = `Wave 灯效已启动，${targetDevices.value.length} 盏`
+    return
     statusText.value = `循环已启动 ${targetDevices.value.length} 盏`
   } catch (error) {
     console.error('start wave effect error =', error)
@@ -361,16 +714,11 @@ async function stopWave() {
   submitting.value = true
 
   try {
-    for (const device of targetDevices.value) {
-      if (!device.chipId) continue
-
-      await sendLightEffect(device.chipId, {
-        effect: 'wave',
-        enabled: false,
-      })
-    }
-
+    const state = await closeLightEffectState()
+    applyLightEffectState(state)
     activeEffect.value = null
+    statusText.value = 'Wave 灯效已停止'
+    return
     statusText.value = '循环已停止'
   } catch (error) {
     console.error('stop wave effect error =', error)
@@ -379,6 +727,154 @@ async function stopWave() {
     submitting.value = false
   }
 }
+
+function handleEffectBrightnessInput(event: Event) {
+  const target = event.target as HTMLInputElement
+  const nextValue = clamp(Number(target.value), 0, 100)
+
+  effectBrightness.value = nextValue
+  brightness.value = nextValue
+  effectBrightnessInteracting.value = true
+  saveEffectBrightnessPreset(nextValue)
+
+  if (brightnessInteractionTimer) {
+    window.clearTimeout(brightnessInteractionTimer)
+  }
+  brightnessInteractionTimer = window.setTimeout(() => {
+    effectBrightnessInteracting.value = false
+  }, EFFECT_BRIGHTNESS_DEBOUNCE_MS + 120)
+
+  if (brightnessTimer) {
+    window.clearTimeout(brightnessTimer)
+  }
+
+  if (!activeEffect.value) {
+    return
+  }
+
+  brightnessTimer = window.setTimeout(() => {
+    if (!activeEffect.value) return
+    if (!targetDevices.value.length) return
+    submitEffectBrightness(nextValue)
+  }, EFFECT_BRIGHTNESS_DEBOUNCE_MS)
+}
+
+async function submitEffectBrightness(value: number) {
+  if (!activeEffect.value) {
+    return
+  }
+
+  if (activeEffect.value === 'loop') {
+    const previousBrightness = effectBrightness.value
+    try {
+      brightness.value = value
+      effectBrightness.value = value
+      const state = await saveLightEffectState({
+        ...buildWavePayload(true),
+        brightness: value,
+      })
+      applyLightEffectState(state)
+      statusText.value = 'Wave 灯效亮度已同步'
+    } catch (error) {
+      console.error('update wave brightness error =', error)
+      effectBrightness.value = previousBrightness
+      brightness.value = previousBrightness
+      statusText.value = 'Wave 灯效亮度更新失败，请稍后重试'
+    }
+    return
+  }
+
+  const devices = targetDevices.value
+  if (devices.length === 0) {
+    return
+  }
+
+  const previousBrightness = normalizeBrightness(devices[0]?.brightness) ?? resolveEffectBrightness()
+
+  try {
+    for (const device of devices) {
+      if (!device.id) continue
+      await updateDevice(
+        device.id,
+        buildDevicePayload(device, {
+          brightness: value,
+          recommendedBrightness: value,
+        }),
+      )
+      device.brightness = value
+      device.recommendedBrightness = value
+    }
+
+    brightness.value = value
+    statusText.value = `灯效亮度已同步 ${devices.length} 盏`
+  } catch (error) {
+    console.error('update effect brightness error =', error)
+    effectBrightness.value = previousBrightness
+    brightness.value = previousBrightness
+    statusText.value = '灯效亮度更新失败，请稍后重试'
+  }
+}
+
+watch(
+  () => props.serverState,
+  (state) => {
+    applyLightEffectState(state)
+  },
+)
+
+watch(
+  () => [
+    selectedScope.value,
+    targetDevices.value[0]?.id,
+    targetDevices.value[0]?.brightness,
+    targetDevices.value.length,
+  ],
+  () => {
+    if (!effectBrightnessInteracting.value && activeEffect.value !== 'loop') {
+      syncEffectBrightnessFromScope()
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => selectedScope.value,
+  () => {
+    if (applyingServerState.value || activeEffect.value !== 'loop') {
+      return
+    }
+    if (scopeTimer) {
+      window.clearTimeout(scopeTimer)
+    }
+    scopeTimer = window.setTimeout(() => {
+      saveLightEffectState(buildWavePayload(true))
+        .then(applyLightEffectState)
+        .catch((error) => {
+          console.error('update wave scope error =', error)
+          statusText.value = 'Wave 灯效范围更新失败'
+        })
+    }, EFFECT_BRIGHTNESS_DEBOUNCE_MS)
+  },
+)
+
+onMounted(() => {
+  loadLightEffectState()
+})
+
+onBeforeUnmount(() => {
+  if (brightnessTimer) {
+    window.clearTimeout(brightnessTimer)
+  }
+  if (brightnessInteractionTimer) {
+    window.clearTimeout(brightnessInteractionTimer)
+  }
+  if (tempHandleTimer) {
+    window.clearTimeout(tempHandleTimer)
+  }
+  if (scopeTimer) {
+    window.clearTimeout(scopeTimer)
+  }
+})
 </script>
 
 <style scoped>
@@ -655,6 +1151,45 @@ async function stopWave() {
   box-shadow: none;
 }
 
+.effect-brightness-control {
+  margin-top: 14px;
+  padding: 13px 14px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.78);
+  border: 1px solid rgba(226, 232, 240, 0.88);
+}
+
+.effect-brightness-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.effect-brightness-header .mini-label {
+  margin: 0;
+}
+
+.effect-brightness-header strong {
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.effect-brightness-slider {
+  width: 100%;
+  margin: 9px 0 0;
+  accent-color: #2563eb;
+}
+
+.effect-brightness-hint {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
 .mini-status {
   margin-top: 10px;
   font-size: 12px;
@@ -681,9 +1216,9 @@ async function stopWave() {
   box-sizing: border-box;
   padding: 22px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.98);
+  box-shadow: 0 28px 78px rgba(15, 23, 42, 0.32);
 }
 
 .effect-modal-header {
@@ -731,6 +1266,155 @@ async function stopWave() {
 
 .form-field {
   min-width: 0;
+}
+
+.effect-form > .form-field:nth-child(2),
+.effect-form > .form-field:nth-child(3),
+.effect-form > .form-field:nth-child(4) {
+  display: none;
+}
+
+.temp-range-field {
+  grid-column: 1 / -1;
+}
+
+.temp-range-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.temp-range-value {
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.dual-temp-slider {
+  position: relative;
+  height: 42px;
+  padding: 0 15px;
+}
+
+.dual-temp-track,
+.dual-temp-selected {
+  position: absolute;
+  left: 15px;
+  right: 15px;
+  top: 18px;
+  height: 6px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.dual-temp-track {
+  background: rgba(203, 213, 225, 0.9);
+}
+
+.dual-temp-selected {
+  right: auto;
+  background: linear-gradient(90deg, #f59e0b, #3b82f6);
+}
+
+.dual-temp-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.dual-temp-input::-webkit-slider-runnable-track {
+  height: 6px;
+  background: transparent;
+}
+
+.dual-temp-input::-webkit-slider-thumb {
+  width: 30px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 9px;
+  border: 3px solid #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 45%),
+    #2563eb;
+  box-shadow:
+    0 7px 16px rgba(37, 99, 235, 0.32),
+    inset 0 -2px 4px rgba(15, 23, 42, 0.18);
+  pointer-events: auto;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.dual-temp-input::-moz-range-track {
+  height: 6px;
+  background: transparent;
+}
+
+.dual-temp-input::-moz-range-thumb {
+  width: 30px;
+  height: 20px;
+  border-radius: 9px;
+  border: 3px solid #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 45%),
+    #2563eb;
+  box-shadow:
+    0 7px 16px rgba(37, 99, 235, 0.32),
+    inset 0 -2px 4px rgba(15, 23, 42, 0.18);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.dual-temp-min {
+  z-index: 2;
+}
+
+.dual-temp-max {
+  z-index: 3;
+}
+
+.dual-temp-slider.dragging-min .dual-temp-min {
+  z-index: 5;
+}
+
+.dual-temp-slider.dragging-max .dual-temp-max {
+  z-index: 5;
+}
+
+.effect-form > .form-field:nth-child(6) > .mini-label {
+  font-size: 0;
+}
+
+.effect-form > .form-field:nth-child(5) > .mini-label {
+  font-size: 0;
+}
+
+.effect-form > .form-field:nth-child(5) > .mini-label::after {
+  content: "速度";
+  font-size: 12px;
+}
+
+.effect-form > .form-field:nth-child(6) > .mini-label::after {
+  content: "灯间延迟";
+  font-size: 12px;
+}
+
+.effect-form > .form-field:nth-child(6)::after {
+  content: "用于控制多盏灯之间波动的错开程度，数值越大，流水感越明显。";
+  display: block;
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 700;
 }
 
 .mini-label {
@@ -841,6 +1525,23 @@ async function stopWave() {
   color: rgba(219, 234, 254, 0.82);
 }
 
+:global(.app-container.night-mode) .effect-brightness-control {
+  background: rgba(30, 41, 59, 0.62);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+:global(.app-container.night-mode) .effect-brightness-header strong {
+  color: #bfdbfe;
+}
+
+:global(.app-container.night-mode) .effect-brightness-slider {
+  accent-color: #60a5fa;
+}
+
+:global(.app-container.night-mode) .effect-brightness-hint {
+  color: rgba(203, 213, 225, 0.72);
+}
+
 :global(.app-container.night-mode) .effect-warm {
   background: linear-gradient(135deg, rgba(67, 42, 12, 0.9), rgba(245, 158, 11, 0.22));
   border-color: rgba(245, 158, 11, 0.34);
@@ -895,7 +1596,7 @@ async function stopWave() {
 }
 
 .effect-modal-night .effect-modal-card {
-  background: rgba(15, 23, 42, 0.94);
+  background: rgba(15, 23, 42, 0.99);
   border-color: rgba(148, 163, 184, 0.22);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
 }
@@ -913,6 +1614,15 @@ async function stopWave() {
   background: rgba(15, 23, 42, 0.76);
   border-color: rgba(148, 163, 184, 0.28);
   color: rgba(226, 232, 240, 0.92);
+}
+
+.effect-modal-night .dual-temp-track {
+  background: rgba(51, 65, 85, 0.92);
+}
+
+.effect-modal-night .temp-range-value,
+.effect-modal-night .effect-form > .form-field:nth-child(6)::after {
+  color: rgba(191, 219, 254, 0.9);
 }
 
 .effect-modal-night .modal-close-btn,

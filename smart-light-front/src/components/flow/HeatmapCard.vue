@@ -1,49 +1,69 @@
 <template>
-  <div class="chart-card">
+  <div class="chart-card heat-card">
     <div class="card-title">热区时长分布</div>
 
-    <div v-if="rows.length === 0" class="empty-block">暂无热区数据</div>
+    <div v-if="heatItems.length === 0" class="empty-block">暂无热区时长数据</div>
 
     <template v-else>
-      <div class="heatmap-list">
-        <div
-          v-for="item in rows"
-          :key="item.chipId"
-          class="heatmap-row"
-        >
-          <div class="heatmap-label">{{ item.chipId }}</div>
-          <div class="heatmap-bar-wrap">
-            <div
-              class="heatmap-bar"
-              :style="{ width: `${getPercent(item.totalDuration)}%` }"
-            />
-          </div>
-          <div class="heatmap-value">{{ formatSeconds(item.totalDuration) }} 秒</div>
-        </div>
+      <div class="heat-legend" aria-label="热区图例">
+        <span><i class="legend-dot legend-cold"></i>冷区</span>
+        <span><i class="legend-dot legend-mid"></i>中等</span>
+        <span><i class="legend-dot legend-hot"></i>热区</span>
       </div>
 
-      <div class="heat-circle-section">
-        <div class="heat-circle-title">热区圆形分布</div>
-
-        <div class="heat-circle-grid">
-          <div
-            v-for="item in rows"
-            :key="`${item.chipId}-circle`"
-            class="heat-circle-item"
+      <div class="heat-zone-grid">
+        <button
+          v-for="item in heatItems"
+          :key="item.chipId"
+          class="heat-zone-item"
+          type="button"
+          :title="`${item.name} | 停留时长 ${item.durationText} | 占比 ${item.percentText}`"
+          @click="selectedChipId = selectedChipId === item.chipId ? '' : item.chipId"
+        >
+          <span v-if="item.rank <= 3" class="rank-badge" :class="`rank-${item.rank}`">Top {{ item.rank }}</span>
+          <span
+            class="heat-bubble"
+            :style="{
+              width: `${item.size}px`,
+              height: `${item.size}px`,
+              background: item.background,
+              boxShadow: item.shadow,
+            }"
           >
-            <div
-              class="heat-circle"
-              :style="{
-                width: `${getCircleSize(item.totalDuration)}px`,
-                height: `${getCircleSize(item.totalDuration)}px`,
-                opacity: getCircleOpacity(item.totalDuration),
-              }"
-            >
-              {{ formatSeconds(item.totalDuration) }}
-            </div>
-            <div class="heat-circle-device">{{ item.chipId }}</div>
-            <div class="heat-circle-time">{{ formatSeconds(item.totalDuration) }} 秒</div>
+            <span class="heat-bubble-value">{{ item.shortDurationText }}</span>
+          </span>
+          <span class="heat-zone-name">{{ item.name }}</span>
+          <span class="heat-zone-time">{{ item.durationText }}</span>
+          <span class="heat-zone-percent">{{ item.percentText }}</span>
+
+          <span v-if="selectedChipId === item.chipId" class="heat-detail-popover">
+            <strong>{{ item.name }}</strong>
+            <span>停留时长：{{ item.durationText }}</span>
+            <span>占比：{{ item.percentText }}</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="heat-rank-list">
+        <div
+          v-for="item in heatItems"
+          :key="`${item.chipId}-bar`"
+          class="heat-rank-row"
+        >
+          <div class="heat-rank-meta">
+            <span class="heat-rank-index">#{{ item.rank }}</span>
+            <span class="heat-rank-name">{{ item.name }}</span>
           </div>
+          <div class="heat-bar-track">
+            <div
+              class="heat-bar-fill"
+              :style="{
+                width: `${Math.max(item.ratio * 100, 4)}%`,
+                background: item.background,
+              }"
+            />
+          </div>
+          <div class="heat-rank-duration">{{ item.durationText }}</div>
         </div>
       </div>
     </template>
@@ -51,127 +71,320 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import type { DurationSummaryItem } from '../../types/duration'
 
 const props = defineProps<{
   rows: DurationSummaryItem[]
 }>()
 
+const selectedChipId = ref('')
+
 function toDisplaySeconds(value: number) {
   if (!Number.isFinite(value)) return 0
   return value > 10000 ? value / 1000 : value
 }
 
-function formatSeconds(value: number) {
-  return Math.round(toDisplaySeconds(value))
+function formatDuration(seconds: number) {
+  const rounded = Math.round(seconds)
+  if (rounded < 60) {
+    return `${rounded}秒`
+  }
+
+  const minutes = Math.floor(rounded / 60)
+  const remainSeconds = rounded % 60
+  if (minutes < 60) {
+    return remainSeconds > 0 ? `${minutes}分${remainSeconds}秒` : `${minutes}分`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  const remainMinutes = minutes % 60
+  return remainMinutes > 0 ? `${hours}小时${remainMinutes}分` : `${hours}小时`
 }
 
-function getMaxValue() {
-  return Math.max(...props.rows.map(item => toDisplaySeconds(item.totalDuration)), 1)
+function interpolateColor(start: string, end: string, ratio: number) {
+  const parse = (hex: string) => [1, 3, 5].map(index => Number.parseInt(hex.slice(index, index + 2), 16))
+  const [sr, sg, sb] = parse(start)
+  const [er, eg, eb] = parse(end)
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * ratio)
+  return `rgb(${mix(sr, er)}, ${mix(sg, eg)}, ${mix(sb, eb)})`
 }
 
-function getPercent(value: number) {
-  const max = getMaxValue()
-  const current = toDisplaySeconds(value)
-  return Math.max(8, Math.round((current / max) * 100))
+function getHeatColor(ratio: number) {
+  if (ratio <= 0.33) {
+    return interpolateColor('#38bdf8', '#22d3ee', ratio / 0.33)
+  }
+
+  if (ratio <= 0.66) {
+    return interpolateColor('#22d3ee', '#facc15', (ratio - 0.33) / 0.33)
+  }
+
+  return interpolateColor('#facc15', '#ef4444', (ratio - 0.66) / 0.34)
 }
 
-function getCircleSize(value: number) {
-  const max = getMaxValue()
-  const current = toDisplaySeconds(value)
-  const minSize = 48
-  const maxSize = 110
-  return Math.round(minSize + (current / max) * (maxSize - minSize))
-}
+const heatItems = computed(() => {
+  const validRows = props.rows
+    .map(item => ({
+      chipId: item.chipId,
+      name: item.chipId || '未命名热区',
+      seconds: toDisplaySeconds(item.totalDuration),
+    }))
+    .filter(item => item.seconds > 0)
+    .sort((a, b) => b.seconds - a.seconds)
 
-function getCircleOpacity(value: number) {
-  const max = getMaxValue()
-  const current = toDisplaySeconds(value)
-  const minOpacity = 0.45
-  const maxOpacity = 0.95
-  return minOpacity + (current / max) * (maxOpacity - minOpacity)
-}
+  const maxDuration = Math.max(...validRows.map(item => item.seconds), 1)
+  const totalDuration = validRows.reduce((sum, item) => sum + item.seconds, 0)
+
+  return validRows.map((item, index) => {
+    const ratio = Math.min(item.seconds / maxDuration, 1)
+    const color = getHeatColor(ratio)
+    const shadowOpacity = 0.16 + ratio * 0.28
+    const size = Math.round(34 + ratio * 42)
+
+    return {
+      ...item,
+      rank: index + 1,
+      ratio,
+      size,
+      background: `radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.72), ${color} 42%, ${color} 100%)`,
+      shadow: `0 10px ${Math.round(18 + ratio * 18)}px rgba(${ratio > 0.66 ? '239, 68, 68' : '14, 165, 233'}, ${shadowOpacity})`,
+      durationText: formatDuration(item.seconds),
+      shortDurationText: formatDuration(item.seconds),
+      percentText: totalDuration > 0 ? `${Math.round((item.seconds / totalDuration) * 100)}%` : '0%',
+    }
+  })
+})
 </script>
 
 <style scoped>
-.heatmap-list {
-  display: grid;
-  gap: 12px;
+.heat-card {
+  overflow: visible;
 }
 
-.heatmap-row {
-  display: grid;
-  grid-template-columns: 100px 1fr 80px;
-  gap: 12px;
-  align-items: center;
-}
-
-.heatmap-label,
-.heatmap-value {
-  font-size: 14px;
+.heat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 18px;
   color: #606266;
+  font-size: 13px;
 }
 
-.heatmap-bar-wrap {
-  height: 14px;
-  background: #f2f3f5;
+.heat-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  overflow: hidden;
+  display: inline-block;
 }
 
-.heatmap-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #ffb347 0%, #ff6b6b 100%);
-  border-radius: 999px;
+.legend-cold {
+  background: #38bdf8;
 }
 
-.heat-circle-section {
-  margin-top: 24px;
+.legend-mid {
+  background: #facc15;
 }
 
-.heat-circle-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 14px;
+.legend-hot {
+  background: #ef4444;
 }
 
-.heat-circle-grid {
+.heat-zone-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 18px;
-  align-items: end;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 16px;
+  align-items: stretch;
 }
 
-.heat-circle-item {
+.heat-zone-item {
+  position: relative;
+  border: 1px solid #edf0f5;
+  border-radius: 12px;
+  background: #fbfcff;
+  padding: 14px 10px 12px;
+  min-height: 162px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 6px;
+  color: inherit;
 }
 
-.heat-circle {
+.heat-zone-item:hover,
+.heat-zone-item:focus-visible {
+  border-color: #c7d2fe;
+  outline: none;
+}
+
+.rank-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.rank-1 {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.rank-2 {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.rank-3 {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.heat-bubble {
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #ffcc80 0%, #ff7043 55%, #ef5350 100%);
   color: #fff;
-  font-weight: 700;
-  box-shadow: 0 10px 24px rgba(239, 83, 80, 0.28);
-  min-width: 48px;
-  min-height: 48px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  transition: transform 0.18s ease;
 }
 
-.heat-circle-device {
-  font-size: 14px;
-  font-weight: 600;
+.heat-zone-item:hover .heat-bubble,
+.heat-zone-item:focus-visible .heat-bubble {
+  transform: translateY(-2px) scale(1.04);
+}
+
+.heat-bubble-value {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.heat-zone-name {
+  max-width: 100%;
   color: #303133;
-  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.heat-circle-time {
-  font-size: 12px;
+.heat-zone-time,
+.heat-zone-percent {
   color: #606266;
-  text-align: center;
+  font-size: 12px;
+}
+
+.heat-detail-popover {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 220px;
+  border-radius: 10px;
+  background: rgba(17, 24, 39, 0.94);
+  color: #fff;
+  padding: 9px 10px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.22);
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.heat-rank-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.heat-rank-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 140px) 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.heat-rank-meta {
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.heat-rank-index {
+  color: #909399;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.heat-rank-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #303133;
+  font-size: 13px;
+}
+
+.heat-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #edf2f7;
+  overflow: hidden;
+}
+
+.heat-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.heat-rank-duration {
+  color: #606266;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .heat-zone-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .heat-zone-item {
+    min-height: 150px;
+    padding-inline: 8px;
+  }
+
+  .heat-rank-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .heat-rank-duration {
+    justify-self: end;
+  }
+
+  .heat-detail-popover {
+    left: 8px;
+    right: 8px;
+    bottom: calc(100% + 6px);
+    transform: none;
+    width: auto;
+  }
 }
 </style>

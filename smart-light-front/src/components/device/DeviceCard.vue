@@ -117,100 +117,109 @@
     >
       <Transition name="detail-card-pop" appear>
         <div class="device-detail-modal">
-        <div class="detail-modal-header">
-          <div>
-            <h3>{{ displayNameText }}</h3>
-            <p class="detail-subtitle">{{ device.online ? '在线' : '离线' }}</p>
+          <div class="detail-modal-header">
+            <div>
+              <h3>{{ displayNameText }}</h3>
+              <p class="detail-subtitle">{{ device.online ? '在线' : '离线' }}</p>
+            </div>
+            <button class="detail-close-btn" @click="closeDetailModal">×</button>
           </div>
-          <button class="detail-close-btn" @click="closeDetailModal">×</button>
-        </div>
 
-        <div class="detail-info-item">
-          <span class="detail-label">设备类型</span>
-          <span class="detail-value">{{ displayDeviceType }}</span>
-        </div>
-
-        <section class="firmware-section">
-          <h4>固件升级</h4>
-
-          <label class="modal-label">固件通道</label>
-          <BaseSelect
-            v-model="firmwareChannel"
-            :options="firmwareChannelOptions"
-            :disabled="otaStarting || otaStatusValue === 'updating'"
-          />
-
-          <div class="firmware-info-grid">
-            <div class="firmware-info-item">
-              <span>当前固件</span>
-              <strong>{{ firmwareVersionText }}</strong>
+          <div class="detail-modal-body">
+            <div class="detail-info-item">
+              <span class="detail-label">设备类型</span>
+              <span class="detail-value">{{ displayDeviceType }}</span>
             </div>
 
-            <div class="firmware-info-item">
-              <span>OTA状态</span>
-              <strong>{{ otaStatusText }}</strong>
+            <section class="firmware-section">
+              <h4>固件升级</h4>
+
+              <label class="modal-label">固件通道</label>
+              <BaseSelect
+                v-model="firmwareChannel"
+                :options="firmwareChannelOptions"
+                :disabled="otaStarting || otaStatusValue === 'updating'"
+              />
+
+              <div class="firmware-info-grid">
+                <div class="firmware-info-item">
+                  <span>当前固件</span>
+                  <strong>{{ firmwareVersionText }}</strong>
+                </div>
+
+                <div class="firmware-info-item">
+                  <span>OTA状态</span>
+                  <strong>{{ otaStatusText }}</strong>
+                </div>
+              </div>
+
+              <div
+                v-if="otaCheckResult || otaMessage"
+                class="ota-feedback-slot"
+              >
+                <div v-if="otaCheckResult" class="ota-result">
+                  <div>{{ otaUpdateText }}</div>
+                  <div v-if="otaCheckResult.changelog" class="modal-hint">
+                    更新说明：{{ otaCheckResult.changelog }}
+                  </div>
+                </div>
+
+                <p v-if="otaMessage" class="modal-hint ota-message">
+                  {{ otaMessage }}
+                </p>
+              </div>
+
+              <div class="detail-modal-actions ota-actions">
+                <button class="btn-secondary" :disabled="otaChecking" @click="handleCheckFirmwareUpdate">
+                  {{ otaChecking ? '检查中...' : '检查更新' }}
+                </button>
+                <button
+                  class="btn-primary"
+                  :disabled="!canStartOta"
+                  @click="handleStartOtaUpdate"
+                >
+                  {{ otaStarting ? '下发中...' : '确认更新' }}
+                </button>
+              </div>
+            </section>
+
+            <div class="detail-info-item">
+              <span class="detail-label">IP</span>
+              <span class="detail-value">{{ localForm.ip || '未设置' }}</span>
             </div>
+
+            <label class="modal-label">所属分区</label>
+            <input
+              v-model.trim="localForm.displayName"
+              class="modal-input"
+              type="text"
+              placeholder="如 新品展示区、橱窗区、主通道区"
+            />
+
+            <label class="modal-label">分区内编号</label>
+            <input
+              v-model.trim="localForm.deviceNo"
+              class="modal-input"
+              type="text"
+              inputmode="numeric"
+              pattern="[1-9][0-9]*"
+              placeholder="从 1 开始，如 1、2、3"
+            />
+
+            <p class="modal-hint">
+              编号从 1 开始，同一分区内不能重复。
+            </p>
+
+            <p v-if="deviceNoError" class="modal-error">
+              {{ deviceNoError }}
+            </p>
           </div>
 
-          <div v-if="otaCheckResult" class="ota-result">
-            <div>{{ otaUpdateText }}</div>
-            <div v-if="otaCheckResult.changelog" class="modal-hint">
-              更新说明：{{ otaCheckResult.changelog }}
-            </div>
+          <div class="detail-modal-actions detail-modal-footer">
+            <button class="btn-secondary" @click="closeDetailModal">取消</button>
+            <button class="btn-primary" @click="saveDeviceBaseInfo">保存</button>
           </div>
-
-          <p v-if="otaMessage" class="modal-hint">{{ otaMessage }}</p>
-
-          <div class="detail-modal-actions ota-actions">
-            <button class="btn-secondary" :disabled="otaChecking" @click="handleCheckFirmwareUpdate">
-              {{ otaChecking ? '检查中...' : '检查更新' }}
-            </button>
-            <button
-              class="btn-primary"
-              :disabled="!canStartOta"
-              @click="handleStartOtaUpdate"
-            >
-              {{ otaStarting ? '下发中...' : '确认更新' }}
-            </button>
-          </div>
-        </section>
-
-        <div class="detail-info-item">
-          <span class="detail-label">IP</span>
-          <span class="detail-value">{{ localForm.ip || '未设置' }}</span>
         </div>
-
-       <label class="modal-label">所属分区</label>
-        <input
-          v-model.trim="localForm.displayName"
-          class="modal-input"
-          type="text"
-          placeholder="如 新品展示区、橱窗区、主通道区"
-        />
-
-        <label class="modal-label">分区内编号</label>
-        <input
-          v-model.trim="localForm.deviceNo"
-          class="modal-input"
-          type="text"
-          inputmode="numeric"
-          pattern="[1-9][0-9]*"
-          placeholder="从 1 开始，如 1、2、3"
-        />
-
-        <p class="modal-hint">
-          编号从 1 开始，同一分区内不能重复。
-        </p>
-
-        <p v-if="deviceNoError" class="modal-error">
-          {{ deviceNoError }}
-        </p>
-
-        <div class="detail-modal-actions">
-          <button class="btn-secondary" @click="closeDetailModal">取消</button>
-          <button class="btn-primary" @click="saveDeviceBaseInfo">保存</button>
-        </div>
-      </div>
       </Transition>
     </div>
   </Transition>
@@ -879,6 +888,7 @@ const textColor = computed(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  overflow: hidden;
 }
 
 .device-detail-modal {
@@ -886,19 +896,22 @@ const textColor = computed(() => {
   z-index: 2001;
   width: 420px;
   max-width: 92vw;
-  max-height: 88vh;
-  overflow: auto;
+  max-height: calc(100vh - 80px);
+  overflow: hidden;
   background: #fff;
   border-radius: 20px;
-  padding: 22px;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
 }
 
 .detail-modal-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 16px;
+  padding: 22px 22px 14px;
+  flex-shrink: 0;
 }
 
 .detail-modal-header h3 {
@@ -909,6 +922,25 @@ const textColor = computed(() => {
   margin: 6px 0 0;
   font-size: 14px;
   color: #8a8a8a;
+}
+
+.detail-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 22px 16px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+.detail-modal-footer {
+  position: sticky;
+  bottom: 0;
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: 14px 22px 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), #ffffff 34%);
+  border-top: 1px solid #eef2f7;
 }
 
 .detail-close-btn {
@@ -947,8 +979,8 @@ const textColor = computed(() => {
 }
 
 .firmware-section {
-  margin: 14px 0;
-  padding: 14px;
+  margin: 12px 0;
+  padding: 12px;
   border-radius: 14px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -990,18 +1022,32 @@ const textColor = computed(() => {
   word-break: break-all;
 }
 
-.ota-result {
+.ota-feedback-slot {
   margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ota-result {
   padding: 9px 10px;
   border-radius: 10px;
   background: #eef4ff;
   color: #2563eb;
   font-size: 13px;
   line-height: 1.5;
+  max-height: 92px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.ota-message {
+  margin-top: 0;
 }
 
 .ota-actions {
-  margin-top: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
 /* 遮罩：只淡入淡出 */
 .detail-overlay-fade-enter-active,

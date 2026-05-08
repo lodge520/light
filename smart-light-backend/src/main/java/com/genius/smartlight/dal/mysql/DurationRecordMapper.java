@@ -7,20 +7,25 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Mapper
 public interface DurationRecordMapper extends BaseMapper<DurationRecordDO> {
 
     @Insert("""
         INSERT INTO duration_record
-        (chip_id, stat_date, duration_value, create_time, update_time)
+        (device_id, store_id, chip_id, stat_date, duration_value, collect_time, create_time, update_time)
         VALUES
-        (#{chipId}, #{statDate}, #{durationValue}, NOW(), NOW())
+        (#{deviceId}, #{storeId}, #{chipId}, #{statDate}, #{durationValue}, #{collectTime}, NOW(), NOW())
         ON DUPLICATE KEY UPDATE
         duration_value = duration_value + VALUES(duration_value),
+        collect_time = VALUES(collect_time),
         update_time = NOW()
         """)
-    int insertOrIncrease(@Param("chipId") String chipId,
+    int insertOrIncrease(@Param("deviceId") Long deviceId,
+                         @Param("storeId") Long storeId,
+                         @Param("chipId") String chipId,
                          @Param("statDate") LocalDate statDate,
-                         @Param("durationValue") Long durationValue);
+                         @Param("durationValue") Long durationValue,
+                         @Param("collectTime") LocalDateTime collectTime);
 }

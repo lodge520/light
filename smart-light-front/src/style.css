@@ -215,6 +215,7 @@ input {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   padding: 16px;
   min-height: 320px;
+  /* min-width: 400px; */
 }
 
 .card-title {

@@ -137,6 +137,18 @@ async function handleQuery() {
 </script>
 
 <style scoped>
+:global(.settings-card) {
+  overflow: visible;
+}
+
+.settings-card {
+  overflow: visible;
+}
+
+.form-row {
+  overflow: visible;
+}
+
 .query-actions {
   margin: 16px 0;
 }

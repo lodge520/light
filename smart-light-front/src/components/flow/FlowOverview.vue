@@ -53,12 +53,17 @@ const props = defineProps<{
   latestLux: number | null
   currentArea: number
   durationRefreshKey?: number
+  luxRefreshKey?: number
 }>()
 
 const durationRows = ref<DurationSummaryItem[]>([])
 const luxTrendData = ref<MultiLuxRespVO | null>(null)
 const tempPeopleData = ref<TempPeopleTrendData | null>(null)
 const strategyData = ref<StrategyCompareData | null>(null)
+
+const analyticsChipId = computed(() => {
+  return props.devices.find(item => item.chipId)?.chipId
+})
 
 function pad(n: number) {
   return String(n).padStart(2, '0')
@@ -94,11 +99,11 @@ async function loadMultiLux() {
 }
 
 async function loadTempPeopleTrend() {
-  tempPeopleData.value = await getTempPeopleTrend()
+  tempPeopleData.value = await getTempPeopleTrend(analyticsChipId.value)
 }
 
 async function loadStrategyCompare() {
-  strategyData.value = await getStrategyCompare()
+  strategyData.value = await getStrategyCompare(analyticsChipId.value)
 }
 
 const luxLabels = computed(() => luxTrendData.value?.labels || [])
@@ -123,18 +128,26 @@ const avgBrightness = computed(() => {
 })
 
 watch(
-  () => props.devices,
-  () => {
-    loadDurationSummary()
-    loadMultiLux()
-  },
-  { immediate: true, deep: true },
-)
-
-watch(
   () => props.durationRefreshKey,
   () => {
     loadDurationSummary()
+  },
+)
+
+watch(
+  () => props.luxRefreshKey,
+  () => {
+    loadMultiLux()
+  },
+)
+
+watch(
+  analyticsChipId,
+  (chipId, oldChipId) => {
+    if (chipId && chipId !== oldChipId) {
+      loadTempPeopleTrend()
+      loadStrategyCompare()
+    }
   },
 )
 

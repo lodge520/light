@@ -34,26 +34,24 @@ public class LuxServiceImpl implements LuxService {
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
                         .eq(DeviceDO::getChipId, reqVO.getChipId())
+                        .last("limit 1")
         );
 
         if (device == null) {
-            throw new ServiceException("设备不存在");
+            throw new ServiceException("设备不存在，请先添加设备");
         }
         if (device.getStoreId() == null) {
-            throw new ServiceException("设备未绑定店铺");
+            throw new ServiceException("设备未绑定店铺，请先绑定设备");
         }
 
         LuxRecordDO record = LuxConvert.convert(reqVO);
         record.setChipId(device.getChipId());
         record.setDeviceId(device.getId());
         record.setStoreId(device.getStoreId());
-
-        if (record.getCollectTime() == null) {
-            record.setCollectTime(LocalDateTime.now());
-        }
+        record.setCollectTime(LocalDateTime.now());
         record.setCreateTime(LocalDateTime.now());
 
-        luxRecordMapper.insert(record);
+        luxRecordMapper.insertDeviceLux(record);
 
         webSocketPushService.pushLux(LuxConvert.convert(record));
         return record.getId();
@@ -113,6 +111,7 @@ public class LuxServiceImpl implements LuxService {
                 new LambdaQueryWrapper<DeviceDO>()
                         .eq(DeviceDO::getChipId, chipId)
                         .eq(DeviceDO::getStoreId, currentStoreId)
+                        .last("limit 1")
         );
 
         if (device == null) {

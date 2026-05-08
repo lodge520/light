@@ -21,7 +21,7 @@ import {
   Legend,
   Tooltip,
 } from 'chart.js'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 Chart.register(
   LineController,
@@ -42,25 +42,56 @@ const props = defineProps<{
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let chart: Chart | null = null
 
-const hasData = computed(() => {
-  return props.labels.length > 0 && (props.tempSeries.length > 0 || props.peopleSeries.length > 0)
+function isValidValue(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+const chartLabels = computed(() => {
+  const length = Math.max(props.labels.length, props.tempSeries.length, props.peopleSeries.length)
+  return Array.from({ length }, (_, index) => props.labels[index] || String(index + 1))
 })
+
+const normalizedTempSeries = computed(() => {
+  return chartLabels.value.map((_, index) => {
+    const value = props.tempSeries[index]
+    return isValidValue(value) ? value : null
+  })
+})
+
+const normalizedPeopleSeries = computed(() => {
+  return chartLabels.value.map((_, index) => {
+    const value = props.peopleSeries[index]
+    return isValidValue(value) ? value : null
+  })
+})
+
+const validTempCount = computed(() => normalizedTempSeries.value.filter(isValidValue).length)
+const validPeopleCount = computed(() => normalizedPeopleSeries.value.filter(isValidValue).length)
+
+const hasData = computed(() => {
+  return chartLabels.value.length > 0 && (validTempCount.value > 0 || validPeopleCount.value > 0)
+})
+
+function destroyChart() {
+  if (chart) {
+    chart.destroy()
+    chart = null
+  }
+}
 
 function renderChart() {
   if (!canvasRef.value || !hasData.value) return
 
-  if (chart) {
-    chart.destroy()
-  }
+  destroyChart()
 
   chart = new Chart(canvasRef.value, {
     type: 'line',
     data: {
-      labels: props.labels,
+      labels: chartLabels.value,
       datasets: [
         {
           label: '温度',
-          data: props.tempSeries,
+          data: normalizedTempSeries.value,
           tension: 0.35,
           borderColor: '#409EFF',
           backgroundColor: '#409EFF',
@@ -70,10 +101,11 @@ function renderChart() {
           pointHoverRadius: 6,
           borderWidth: 2,
           spanGaps: true,
+          showLine: validTempCount.value > 1,
         },
         {
           label: '人流',
-          data: props.peopleSeries,
+          data: normalizedPeopleSeries.value,
           tension: 0.35,
           borderColor: '#67C23A',
           backgroundColor: '#67C23A',
@@ -83,6 +115,7 @@ function renderChart() {
           pointHoverRadius: 6,
           borderWidth: 2,
           spanGaps: true,
+          showLine: validPeopleCount.value > 1,
         },
       ],
     },
@@ -98,25 +131,36 @@ function renderChart() {
           position: 'top',
         },
       },
+      scales: {
+        x: {
+          offset: chartLabels.value.length === 1,
+        },
+        y: {
+          suggestedMin: 0,
+        },
+      },
     },
   })
 }
 
-onMounted(renderChart)
+async function renderChartAfterDomUpdate() {
+  destroyChart()
+
+  if (!hasData.value) {
+    return
+  }
+
+  await nextTick()
+  renderChart()
+}
+
+onMounted(renderChartAfterDomUpdate)
 
 watch(
   () => [props.labels, props.tempSeries, props.peopleSeries],
-  () => {
-    if (chart) {
-      chart.destroy()
-      chart = null
-    }
-    renderChart()
-  },
+  renderChartAfterDomUpdate,
   { deep: true },
 )
 
-onBeforeUnmount(() => {
-  if (chart) chart.destroy()
-})
+onBeforeUnmount(destroyChart)
 </script>

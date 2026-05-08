@@ -6,6 +6,7 @@ import com.genius.smartlight.vo.ai.PersonDetectRespVO;
 import com.genius.smartlight.vo.device.DeviceOnlineStatusRespVO;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.duration.DurationRespVO;
+import com.genius.smartlight.vo.lighteffect.LightEffectStateRespVO;
 import com.genius.smartlight.vo.lux.LuxRespVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -120,6 +121,10 @@ public class WebSocketPushService {
         data.put("deviceType", deviceType);
         data.put("added", added);
         broadcast("announce", data);
+    }
+
+    public void pushLightEffectState(LightEffectStateRespVO data) {
+        broadcast("lightEffectState", data);
     }
 
     private void broadcast(String type, Object data) {

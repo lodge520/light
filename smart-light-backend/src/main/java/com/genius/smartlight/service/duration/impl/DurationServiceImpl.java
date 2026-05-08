@@ -3,7 +3,9 @@ package com.genius.smartlight.service.duration.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.genius.smartlight.common.ServiceException;
 import com.genius.smartlight.convert.duration.DurationConvert;
+import com.genius.smartlight.dal.dataobject.DeviceDO;
 import com.genius.smartlight.dal.dataobject.DurationRecordDO;
+import com.genius.smartlight.dal.mysql.DeviceMapper;
 import com.genius.smartlight.dal.mysql.DurationRecordMapper;
 import com.genius.smartlight.service.duration.DurationService;
 import com.genius.smartlight.vo.duration.DurationCreateReqVO;
@@ -26,6 +28,7 @@ public class DurationServiceImpl implements DurationService {
 
     private final WebSocketPushService webSocketPushService;
     private final DurationRecordMapper durationRecordMapper;
+    private final DeviceMapper deviceMapper;
 
     @Override
     public Long createOrIncrease(DurationCreateReqVO reqVO) {
@@ -39,10 +42,27 @@ public class DurationServiceImpl implements DurationService {
             reqVO.setStatDate(LocalDate.now());
         }
 
+        DeviceDO device = deviceMapper.selectOne(
+                new LambdaQueryWrapper<DeviceDO>()
+                        .eq(DeviceDO::getChipId, reqVO.getChipId())
+                        .last("limit 1")
+        );
+        if (device == null) {
+            throw new ServiceException("设备不存在，请先添加设备");
+        }
+        if (device.getStoreId() == null) {
+            throw new ServiceException("设备未绑定店铺，请先绑定设备");
+        }
+
+        LocalDateTime collectTime = LocalDateTime.now();
+
         durationRecordMapper.insertOrIncrease(
+                device.getId(),
+                device.getStoreId(),
                 reqVO.getChipId(),
                 reqVO.getStatDate(),
-                reqVO.getDurationValue()
+                reqVO.getDurationValue(),
+                collectTime
         );
 
         DurationRecordDO latest = durationRecordMapper.selectOne(

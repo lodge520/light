@@ -16,8 +16,14 @@
       <span class="select-arrow">⌄</span>
     </button>
 
-    <transition name="select-fade">
-      <div v-if="open" class="select-dropdown">
+    <Teleport to="body">
+      <transition name="select-fade">
+        <div
+          v-if="open"
+          ref="dropdownRef"
+          class="select-dropdown"
+          :style="dropdownStyle"
+        >
         <div
           v-for="item in options"
           :key="String(item.value)"
@@ -30,13 +36,14 @@
         >
           {{ item.label }}
         </div>
-      </div>
-    </transition>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 export interface BaseSelectOption {
   label: string
@@ -64,6 +71,8 @@ const emit = defineEmits<{
 
 const open = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
+const dropdownRef = ref<HTMLElement | null>(null)
+const dropdownStyle = ref<Record<string, string>>({})
 
 const selectedOption = computed(() => {
   return props.options.find(item => item.value === props.modelValue)
@@ -78,6 +87,28 @@ function closeOpen() {
   open.value = false
 }
 
+function updateDropdownPosition() {
+  if (!rootRef.value) return
+
+  const rect = rootRef.value.getBoundingClientRect()
+  const gap = 8
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+  const spaceBelow = viewportHeight - rect.bottom - gap
+  const spaceAbove = rect.top - gap
+  const maxHeight = Math.min(240, Math.max(160, Math.max(spaceBelow, spaceAbove) - 12))
+  const openUp = spaceBelow < 180 && spaceAbove > spaceBelow
+
+  dropdownStyle.value = {
+    position: 'fixed',
+    left: `${rect.left}px`,
+    top: openUp ? 'auto' : `${rect.bottom + gap}px`,
+    bottom: openUp ? `${viewportHeight - rect.top + gap}px` : 'auto',
+    width: `${rect.width}px`,
+    maxHeight: `${maxHeight}px`,
+    zIndex: '99999',
+  }
+}
+
 function handleSelect(item: BaseSelectOption) {
   if (item.disabled) return
   emit('update:modelValue', item.value)
@@ -88,17 +119,29 @@ function handleSelect(item: BaseSelectOption) {
 function handleClickOutside(event: MouseEvent) {
   const target = event.target as Node | null
   if (!rootRef.value || !target) return
-  if (!rootRef.value.contains(target)) {
+  if (!rootRef.value.contains(target) && !dropdownRef.value?.contains(target)) {
     closeOpen()
   }
 }
 
+watch(open, async (value) => {
+  if (!value) return
+  await nextTick()
+  updateDropdownPosition()
+})
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('resize', updateDropdownPosition)
+  window.addEventListener('orientationchange', updateDropdownPosition)
+  window.addEventListener('scroll', updateDropdownPosition, true)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('resize', updateDropdownPosition)
+  window.removeEventListener('orientationchange', updateDropdownPosition)
+  window.removeEventListener('scroll', updateDropdownPosition, true)
 })
 </script>
 
@@ -164,17 +207,11 @@ onBeforeUnmount(() => {
 }
 
 .select-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  width: 100%;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
   padding: 8px;
-  z-index: 9999;
-  max-height: 240px;
   overflow-y: auto;
   box-sizing: border-box;
 }
