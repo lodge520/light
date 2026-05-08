@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Service
 @Slf4j
@@ -68,9 +69,11 @@ public class AiServiceImpl implements AiService {
                     chipId, filename, fileSize, System.currentTimeMillis() - mainColorStart);
         }
 
-        result.setMainColorRgb(colorResult.getMainColorRgb());
-        result.setRecommendedBrightness(colorResult.getRecommendedBrightness());
-        result.setRecommendedTemp(colorResult.getRecommendedTemp());
+        MainColorResult adjustedColorResult = applyFabricAdjustment(colorResult, result.getLabel());
+
+        result.setMainColorRgb(adjustedColorResult.getMainColorRgb());
+        result.setRecommendedBrightness(adjustedColorResult.getRecommendedBrightness());
+        result.setRecommendedTemp(adjustedColorResult.getRecommendedTemp());
 
         long updateStart = System.currentTimeMillis();
         try {
@@ -134,6 +137,45 @@ public class AiServiceImpl implements AiService {
 
         // 推送给对应设备 /ws/device
         webSocketPushService.pushStateToDevice(chipId, respVO);
+    }
+
+    private MainColorResult applyFabricAdjustment(MainColorResult colorResult, String fabric) {
+        MainColorResult baseResult = colorResult == null
+                ? new MainColorResult("128,128,128", 60, 4500)
+                : colorResult;
+
+        int brightness = baseResult.getRecommendedBrightness() == null
+                ? 60
+                : baseResult.getRecommendedBrightness();
+        int temp = baseResult.getRecommendedTemp() == null
+                ? 4500
+                : baseResult.getRecommendedTemp();
+
+        String normalizedFabric = normalizeFabric(fabric);
+        if (normalizedFabric.contains("cotton")) {
+            brightness += 5;
+            temp += 100;
+        } else if (normalizedFabric.contains("polyester")) {
+            brightness -= 5;
+            temp += 150;
+        } else if (normalizedFabric.contains("wool") || normalizedFabric.contains("cashmere")) {
+            brightness -= 3;
+            temp -= 250;
+        }
+
+        return new MainColorResult(
+                baseResult.getMainColorRgb(),
+                clamp(brightness, 30, 95),
+                clamp(temp, 2700, 6500)
+        );
+    }
+
+    private String normalizeFabric(String fabric) {
+        return fabric == null ? "" : fabric.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private DeviceRespVO buildDeviceRespVO(DeviceDO device) {

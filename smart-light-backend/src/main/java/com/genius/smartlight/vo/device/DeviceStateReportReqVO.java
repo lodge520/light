@@ -4,51 +4,51 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
-@Schema(description = "设备状态上报请求")
+@Schema(description = "设备状态上报请求。由单片机端调用，用于同步亮度、色温、自动模式、AI 推荐和 OTA 状态")
 @Data
 public class DeviceStateReportReqVO {
 
-    @Schema(description = "芯片唯一ID", example = "ABC123456")
+    @Schema(description = "芯片唯一ID，后端根据该字段定位设备", example = "ABC123456", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "芯片ID不能为空")
     private String chipId;
 
-    @Schema(description = "设备类型 lamp/camlamp", example = "lamp")
+    @Schema(description = "设备类型：lamp 或 camlamp", example = "lamp", allowableValues = {"lamp", "camlamp"}, requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "设备类型不能为空")
     private String deviceType;
 
-    @Schema(description = "设备IP地址", example = "192.168.1.10")
+    @Schema(description = "设备局域网 IP 地址", example = "192.168.1.10")
     private String ip;
 
-    @Schema(description = "当前亮度", example = "80")
+    @Schema(description = "当前亮度，范围 0-100", example = "80")
     private Integer brightness;
 
-    @Schema(description = "当前色温", example = "4500")
+    @Schema(description = "当前色温，单位 K", example = "4500")
     private Integer temp;
 
-    @Schema(description = "是否自动模式", example = "true")
+    @Schema(description = "是否开启自动模式", example = "true")
     private Boolean autoMode;
 
-    @Schema(description = "推荐亮度", example = "75")
+    @Schema(description = "AI 推荐亮度，范围通常为 0-100", example = "75")
     private Integer recommendedBrightness;
 
-    @Schema(description = "推荐色温", example = "5000")
+    @Schema(description = "AI 推荐色温，单位 K", example = "5000")
     private Integer recommendedTemp;
 
-    @Schema(description = "识别出的面料类型", example = "cotton")
+    @Schema(description = "AI 识别出的面料类型", example = "cotton")
     private String fabric;
 
-    @Schema(description = "主颜色RGB值", example = "255,200,120")
+    @Schema(description = "AI 识别出的服装主色 RGB 值，格式为 R,G,B", example = "255,200,120")
     private String mainColorRgb;
 
-    @Schema(description = "Firmware version", example = "1.0.0")
+    @Schema(description = "当前固件版本号", example = "1.0.0")
     private String firmwareVersion;
 
-    @Schema(description = "Firmware version code", example = "10000")
+    @Schema(description = "当前固件版本编码", example = "10000")
     private Integer firmwareVersionCode;
 
-    @Schema(description = "Firmware channel stable/test", example = "stable")
+    @Schema(description = "固件升级通道，例如 stable 或 test", example = "stable")
     private String firmwareChannel;
 
-    @Schema(description = "OTA status idle/updating/success/failed", example = "idle")
+    @Schema(description = "OTA 状态，例如 idle、updating、success、failed", example = "idle")
     private String otaStatus;
 }

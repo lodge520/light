@@ -27,7 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-@Tag(name = "设备指令与网关接口")
+@Tag(name = "设备指令与网关接口", description = "设备上线通告、云台/机械臂控制、图片上传指令、人流上传开关和设备状态同步接口")
 @RestController
 @RequestMapping("/admin/device")
 @RequiredArgsConstructor
@@ -54,7 +54,7 @@ public class DeviceGatewayController {
     private final ObjectMapper objectMapper;
     private final DeviceControlService deviceControlService;
 
-    @Operation(summary = "设备上线通告")
+    @Operation(summary = "设备上线通告", description = "设备启动或重连后调用。请求体包含 chipId、deviceType、ip；返回 added 表示设备是否已添加并绑定店铺，同时推送上线通告给浏览器端。")
     @PostMapping("/announce")
     public CommonResult<DeviceAnnounceRespVO> announce(
             @Valid @RequestBody DeviceAnnounceReqVO reqVO) {
@@ -78,10 +78,10 @@ public class DeviceGatewayController {
         return CommonResult.success(respVO);
     }
 
-    @Operation(summary = "控制设备云台方向")
+    @Operation(summary = "控制设备云台方向", description = "根据 chipId 向设备 WebSocket 下发云台/机械臂控制指令。请求体支持 action、兼容字段 direction、speed 和 position。")
     @PostMapping("/arm/{chipId}")
     public CommonResult<Boolean> armControl(
-            @Parameter(description = "芯片ID", example = "ABC123456")
+            @Parameter(description = "芯片唯一ID", example = "ABC123456")
             @PathVariable String chipId,
             @Valid @RequestBody DeviceArmControlReqVO reqVO) {
         DeviceDO device = deviceMapper.selectOne(
@@ -112,10 +112,10 @@ public class DeviceGatewayController {
         return CommonResult.success(true);
     }
 
-    @Operation(summary = "下发服装图片上传指令")
+    @Operation(summary = "下发服装图片上传指令", description = "向指定 chipId 的设备下发 upload_cloth 指令，触发摄像头设备上传服装图片用于 AI 面料识别。")
     @PostMapping("/cloth-upload/{chipId}")
     public CommonResult<Boolean> clothUpload(
-            @Parameter(description = "芯片ID", example = "ABC123456")
+            @Parameter(description = "芯片唯一ID", example = "ABC123456")
             @PathVariable String chipId) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "command");
@@ -125,10 +125,10 @@ public class DeviceGatewayController {
         return CommonResult.success(true);
     }
 
-    @Operation(summary = "下发人流上传开关指令")
+    @Operation(summary = "下发人流上传开关指令", description = "向指定 chipId 的设备下发 flow_upload 指令，通过请求体 enabled 控制人流图片/检测上传开关。")
     @PostMapping("/flow-upload/{chipId}")
     public CommonResult<Boolean> flowUpload(
-            @Parameter(description = "芯片ID", example = "ABC123456")
+            @Parameter(description = "芯片唯一ID", example = "ABC123456")
             @PathVariable String chipId,
             @Valid @RequestBody DeviceFlowUploadReqVO reqVO) {
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -140,10 +140,10 @@ public class DeviceGatewayController {
         return CommonResult.success(true);
     }
 
-    @Operation(summary = "同步设备状态到终端")
+    @Operation(summary = "同步设备状态到终端", description = "保存并下发设备灯光状态。请求体可包含 brightness、temp、autoMode、recommendedBrightness、recommendedTemp、fabric、mainColorRgb。")
     @PostMapping("/state-sync/{chipId}")
     public CommonResult<DeviceRespVO> stateSync(
-            @Parameter(description = "芯片ID", example = "ABC123456")
+            @Parameter(description = "芯片唯一ID", example = "ABC123456")
             @PathVariable String chipId,
             @Valid @RequestBody DeviceStateSyncReqVO reqVO) {
         return CommonResult.success(deviceControlService.syncStateToDevice(chipId, reqVO));

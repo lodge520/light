@@ -234,11 +234,43 @@
           <button class="detail-close-btn" @click="closeClothPreviewModal">×</button>
         </div>
 
-        <img
-          class="cloth-preview-image"
-          :src="annotatedImageSrc"
-          alt="服装区域分割结果"
-        />
+        <div class="cloth-preview-content">
+          <div class="cloth-preview-image-wrap">
+            <img
+              class="cloth-preview-image"
+              :src="annotatedImageSrc"
+              alt="服装区域分割结果"
+            />
+          </div>
+
+          <div class="ai-reason-card">
+            <div class="ai-reason-title">AI推荐理由</div>
+
+            <template v-if="lightRecommendationHasData">
+              <div class="ai-reason-section">
+                <span class="ai-reason-label">主色分析</span>
+                <p>{{ lightRecommendationReason.colorTone }}</p>
+              </div>
+
+              <div class="ai-reason-section">
+                <span class="ai-reason-label">面料特征</span>
+                <p>{{ lightRecommendationReason.fabricFeature }}</p>
+              </div>
+
+              <div class="ai-reason-section">
+                <span class="ai-reason-label">亮度建议</span>
+                <p>{{ lightRecommendationReason.brightnessReason }}</p>
+              </div>
+
+              <div class="ai-reason-section">
+                <span class="ai-reason-label">色温建议</span>
+                <p>{{ lightRecommendationReason.tempReason }}</p>
+              </div>
+            </template>
+
+            <div class="ai-reason-summary">{{ lightRecommendationReason.summary }}</div>
+          </div>
+        </div>
 
         <div class="detail-modal-actions">
           <button class="btn-secondary" @click="closeClothPreviewModal">关闭</button>
@@ -266,6 +298,7 @@ import {
   checkFirmwareUpdate,
   startOtaUpdate,
 } from '../../api/device'
+import { generateLightRecommendationReason } from '../../utils/lightRecommendationReason'
 
 const props = defineProps<{
   device: DeviceItem
@@ -326,6 +359,26 @@ const annotatedImageSrc = computed(() => {
     return ''
   }
   return normalizeBase64ImageSrc(value)
+})
+const lightRecommendationHasData = computed(() => {
+  return Boolean(
+    localForm.fabric?.trim() ||
+    localForm.mainColorRgb?.trim() ||
+    props.device.recommendedBrightness !== undefined ||
+    props.device.recommendedTemp !== undefined ||
+    localForm.recommendedBrightness !== 50 ||
+    localForm.recommendedTemp !== 4000,
+  )
+})
+const lightRecommendationReason = computed(() => {
+  const hasData = lightRecommendationHasData.value
+
+  return generateLightRecommendationReason({
+    fabric: localForm.fabric,
+    mainColorRgb: localForm.mainColorRgb,
+    recommendedBrightness: hasData ? localForm.recommendedBrightness : null,
+    recommendedTemp: hasData ? localForm.recommendedTemp : null,
+  })
 })
 const clothDetected = ref<boolean | null>(null)
 const showClothPreviewModal = ref(false)
@@ -1110,7 +1163,7 @@ const textColor = computed(() => {
 .cloth-preview-modal {
   position: relative;
   z-index: 2001;
-  width: min(760px, 92vw);
+  width: min(980px, 92vw);
   max-height: 88vh;
   overflow: auto;
   background: #fff;
@@ -1119,13 +1172,79 @@ const textColor = computed(() => {
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);
 }
 
+.cloth-preview-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 14px;
+}
+
+.cloth-preview-image-wrap {
+  min-width: 0;
+}
+
 .cloth-preview-image {
   width: 100%;
   max-height: 560px;
   object-fit: contain;
   border-radius: 14px;
-  margin-top: 14px;
   background: #f6f7f9;
+}
+
+.ai-reason-card {
+  padding: 14px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.ai-reason-title {
+  margin-bottom: 10px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ai-reason-section {
+  margin-top: 10px;
+}
+
+.ai-reason-label {
+  display: inline-flex;
+  margin-bottom: 4px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-reason-section p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ai-reason-summary {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 820px) {
+  .cloth-preview-content {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-reason-card {
+    max-height: none;
+  }
 }
 .modal-hint {
   margin: 6px 0 0;
@@ -1249,6 +1368,29 @@ const textColor = computed(() => {
 :global(body:has(.app-container.night-mode)) .cloth-preview-image {
   background: rgba(15, 23, 42, 0.62);
   border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+:global(body:has(.app-container.night-mode)) .ai-reason-card {
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+:global(body:has(.app-container.night-mode)) .ai-reason-title {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+:global(body:has(.app-container.night-mode)) .ai-reason-label {
+  color: #93c5fd;
+}
+
+:global(body:has(.app-container.night-mode)) .ai-reason-section p {
+  color: rgba(203, 213, 225, 0.78);
+}
+
+:global(body:has(.app-container.night-mode)) .ai-reason-summary {
+  background: rgba(30, 64, 175, 0.24);
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  color: #bfdbfe;
 }
 
 :global(body:has(.app-container.night-mode)) .btn-secondary {

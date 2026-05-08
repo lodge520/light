@@ -10,10 +10,10 @@ import java.time.LocalDateTime;
 @Data
 public class DurationRespVO {
 
-    @Schema(description = "设备ID", example = "1")
+    @Schema(description = "停留时长记录ID", example = "1")
     private Long id;
 
-    @Schema(description = "芯片ID", example = "ABC123456")
+    @Schema(description = "芯片唯一ID", example = "ABC123456")
     private String chipId;
 
     @Schema(description = "统计日期", example = "2026-04-14")

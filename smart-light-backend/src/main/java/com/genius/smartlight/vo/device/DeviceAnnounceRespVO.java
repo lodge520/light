@@ -7,6 +7,6 @@ import lombok.Data;
 @Data
 public class DeviceAnnounceRespVO {
 
-    @Schema(description = "设备是否已存在于系统中", example = "true")
+    @Schema(description = "设备是否已被系统添加并绑定到店铺。false 时前端可提示用户添加设备", example = "true")
     private Boolean added;
 }

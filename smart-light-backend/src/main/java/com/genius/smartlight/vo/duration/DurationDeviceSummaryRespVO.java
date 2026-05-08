@@ -7,7 +7,7 @@ import lombok.Data;
 @Data
 public class DurationDeviceSummaryRespVO {
 
-    @Schema(description = "芯片ID", example = "ABC123456")
+    @Schema(description = "芯片唯一ID", example = "ABC123456")
     private String chipId;
 
     @Schema(description = "总停留时长，单位毫秒", example = "864000")

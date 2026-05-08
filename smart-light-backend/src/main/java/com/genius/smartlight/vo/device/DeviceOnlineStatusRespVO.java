@@ -7,15 +7,15 @@ import lombok.Data;
 @Data
 public class DeviceOnlineStatusRespVO {
 
-    @Schema(description = "芯片ID", example = "ABC123456")
+    @Schema(description = "芯片唯一ID", example = "ABC123456")
     private String chipId;
 
-    @Schema(description = "设备IP地址", example = "192.168.1.10")
+    @Schema(description = "设备局域网 IP 地址", example = "192.168.1.10")
     private String ip;
 
-    @Schema(description = "是否在线", example = "true")
+    @Schema(description = "是否在线。true 表示设备 WebSocket 当前连接可用", example = "true")
     private Boolean online;
 
-    @Schema(description = "最近一次心跳时间戳，毫秒", example = "1713062400000")
+    @Schema(description = "最近一次心跳或注册时间戳，单位毫秒", example = "1713062400000")
     private Long lastSeen;
 }

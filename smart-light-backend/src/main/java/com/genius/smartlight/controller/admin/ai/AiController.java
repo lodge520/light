@@ -37,7 +37,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-@Tag(name = "AI识别接口")
+@Tag(name = "AI识别接口", description = "服装面料识别、人流检测和识别图片留档管理接口")
 @RestController
 @RequestMapping("/admin/ai")
 @RequiredArgsConstructor
@@ -61,39 +61,50 @@ public class AiController {
 
     private final AiService aiService;
 
-    @Operation(summary = "服装识别留档相册")
+    @Operation(summary = "服装识别留档相册", description = "分页查询服装识别留档图片，type 支持 original、annotated、combined")
     @GetMapping("/fabric-archive")
     public CommonResult<FabricArchivePageRespVO> fabricArchive(
+            @Parameter(description = "图片类型：original 原图、annotated 标注图、combined 拼接对比图", example = "combined")
             @RequestParam(defaultValue = "combined") String type,
+            @Parameter(description = "页码，从 1 开始", example = "1")
             @RequestParam(defaultValue = "1") Integer page,
+            @Parameter(description = "每页数量，最大按服务端限制处理", example = "30")
             @RequestParam(defaultValue = "30") Integer pageSize) throws IOException {
         return CommonResult.success(listFabricArchive(type, page, pageSize));
     }
 
-    @Operation(summary = "删除服装识别留档图片")
+    @Operation(summary = "删除服装识别留档图片", description = "按 filename 或 baseName 删除同一组 original、annotated、combined 留档图片")
     @DeleteMapping("/fabric-archive")
     public CommonResult<FabricArchiveDeleteRespVO> deleteFabricArchive(
+            @Parameter(description = "留档文件名，可从 fabric-archive 返回结果中取得", example = "ABC123456_20260414_103000_A1B2C3D4_combined.jpg")
             @RequestParam(required = false) String filename,
+            @Parameter(description = "留档基础文件名，不带 _original/_annotated/_combined 后缀", example = "ABC123456_20260414_103000_A1B2C3D4")
             @RequestParam(required = false) String baseName) throws IOException {
         return CommonResult.success(deleteFabricArchiveGroup(filename, baseName));
     }
 
-    @Operation(summary = "服装面料识别")
+    @Operation(
+            summary = "服装面料识别",
+            description = "multipart/form-data 文件上传接口。file 为图片文件，chipId 为可选 query 参数。返回面料 label、confidence、mainColorRgb、recommendedBrightness、recommendedTemp、annotatedImageBase64、原图/标注图/拼接图路径与访问地址。"
+    )
     @PostMapping(value = "/fabric-recognize", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CommonResult<FabricRecognizeRespVO> fabricRecognize(
-            @Parameter(description = "上传图片文件")
+            @Parameter(description = "上传图片文件，form-data 字段名为 file", required = true)
             @RequestPart("file") MultipartFile file,
-            @Parameter(description = "芯片ID，可选", example = "ABC123456")
+            @Parameter(description = "芯片唯一ID，可选；传入后用于保存设备 AI 识别结果并推送状态", example = "ABC123456")
             @RequestParam(required = false) String chipId) {
         return CommonResult.success(aiService.fabricRecognize(chipId, file));
     }
 
-    @Operation(summary = "人流检测")
+    @Operation(
+            summary = "人流检测",
+            description = "multipart/form-data 文件上传接口。file 为图片文件，chipId 为可选 query 参数。返回 count、confidence、timestamp、processingTime、annotatedImageBase64 等人体检测结果。"
+    )
     @PostMapping(value = "/person-detect", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CommonResult<PersonDetectRespVO> personDetect(
-            @Parameter(description = "上传图片文件")
+            @Parameter(description = "上传图片文件，form-data 字段名为 file", required = true)
             @RequestPart("file") MultipartFile file,
-            @Parameter(description = "芯片ID，可选", example = "ABC123456")
+            @Parameter(description = "芯片唯一ID，可选；传入后用于关联设备和推送检测结果", example = "ABC123456")
             @RequestParam(required = false) String chipId) {
         return CommonResult.success(aiService.personDetect(chipId, file));
     }

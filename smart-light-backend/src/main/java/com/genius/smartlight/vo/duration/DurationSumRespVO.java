@@ -9,7 +9,7 @@ import java.time.LocalDate;
 @Data
 public class DurationSumRespVO {
 
-    @Schema(description = "设备芯片", example = "device001")
+    @Schema(description = "芯片唯一ID", example = "ABC123456")
     private String chipId;
 
     @Schema(description = "开始日期", example = "2026-04-01")
