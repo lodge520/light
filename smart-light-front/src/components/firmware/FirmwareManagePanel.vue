@@ -365,21 +365,39 @@ async function loadFirmwareHistory() {
   }
 }
 
+function getBrowserDownloadUrl(url?: string) {
+  if (!url) return ''
+
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' && parsed.hostname === 'api.genius.show') {
+      parsed.protocol = 'https:'
+      parsed.port = ''
+      return parsed.toString()
+    }
+    return url
+  } catch {
+    return url
+  }
+}
+
 async function copyUrl(url?: string) {
-  if (!url) return
+  const browserUrl = getBrowserDownloadUrl(url)
+  if (!browserUrl) return
   copyMessage.value = ''
 
   try {
-    await navigator.clipboard.writeText(url)
-    copyMessage.value = '文件地址已复制'
+    await navigator.clipboard.writeText(browserUrl)
+    copyMessage.value = '固件下载地址已复制'
   } catch {
-    copyMessage.value = '复制失败，请手动复制'
+    copyMessage.value = '复制失败，请手动复制地址'
   }
 }
 
 function openUrl(url?: string) {
-  if (!url) return
-  window.open(url, '_blank', 'noopener,noreferrer')
+  const browserUrl = getBrowserDownloadUrl(url)
+  if (!browserUrl) return
+  window.open(browserUrl, '_blank', 'noopener,noreferrer')
 }
 
 function formatDeviceType(type?: string) {

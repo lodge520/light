@@ -62,6 +62,9 @@ public class DeviceRespVO {
     @Schema(description = "OTA 状态，例如 idle、updating、success、failed", example = "idle")
     private String otaStatus;
 
+    @Schema(description = "OTA progress, 0-100", example = "35")
+    private Integer otaProgress;
+
     @Schema(description = "创建时间", example = "2026-04-14T10:30:00")
     private LocalDateTime createTime;
 

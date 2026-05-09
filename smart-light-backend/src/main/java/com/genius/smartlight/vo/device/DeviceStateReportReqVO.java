@@ -51,4 +51,29 @@ public class DeviceStateReportReqVO {
 
     @Schema(description = "OTA 状态，例如 idle、updating、success、failed", example = "idle")
     private String otaStatus;
+
+    @Schema(description = "OTA progress, 0-100", example = "35")
+    private Integer otaProgress;
+
+    public void setOtaProgress(Object otaProgress) {
+        this.otaProgress = parseOtaProgress(otaProgress);
+    }
+
+    private Integer parseOtaProgress(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        String text = String.valueOf(value).trim();
+        if (text.isEmpty() || "null".equalsIgnoreCase(text)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
 }

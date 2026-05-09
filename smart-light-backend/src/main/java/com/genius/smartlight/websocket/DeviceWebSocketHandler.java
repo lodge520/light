@@ -7,6 +7,7 @@ import com.genius.smartlight.convert.device.DeviceConvert;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
 import com.genius.smartlight.service.device.DeviceOnlinePushService;
+import com.genius.smartlight.service.device.OtaProgressStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,8 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import java.util.Locale;
 
 @Slf4j
 @Component
@@ -25,6 +28,7 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final DeviceMapper deviceMapper;
     private final WebSocketPushService webSocketPushService;
+    private final OtaProgressStore otaProgressStore;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -75,6 +79,10 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         }
 
         boolean changed = false;
+        boolean progressChanged = false;
+        String oldOtaStatus = normalizeOtaStatus(device.getOtaStatus());
+        String newOtaStatus = oldOtaStatus;
+
         String fwVersion = node.path("fwVersion").asText(null);
         if (fwVersion != null && !fwVersion.isBlank()) {
             device.setFirmwareVersion(fwVersion);
@@ -99,15 +107,70 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
             changed = true;
         }
 
-        if (device.getOtaStatus() == null || device.getOtaStatus().isBlank()) {
+        String reportedOtaStatus = node.path("otaStatus").asText(null);
+        boolean otaStatusReported = reportedOtaStatus != null && !reportedOtaStatus.isBlank();
+        if (otaStatusReported) {
+            newOtaStatus = normalizeOtaStatus(reportedOtaStatus);
+            device.setOtaStatus(newOtaStatus);
+            changed = true;
+        } else if (device.getOtaStatus() == null || device.getOtaStatus().isBlank()) {
+            newOtaStatus = "idle";
             device.setOtaStatus("idle");
             changed = true;
         }
 
+        Integer otaProgress = readOptionalInt(node, "otaProgress");
+        progressChanged = updateOtaProgress(chipId, oldOtaStatus, newOtaStatus, otaProgress, otaStatusReported);
+
         if (changed) {
             deviceMapper.updateById(device);
+        }
+        if (changed || progressChanged) {
             webSocketPushService.pushState(DeviceConvert.convert(device));
         }
+    }
+
+    private boolean updateOtaProgress(String chipId, String oldStatus, String newStatus, Integer progress, boolean statusReported) {
+        Integer before = otaProgressStore.getProgress(chipId);
+
+        if (progress != null) {
+            otaProgressStore.setProgress(chipId, progress);
+        }
+
+        if (!statusReported) {
+            return progress != null && !sameProgress(before, otaProgressStore.getProgress(chipId));
+        }
+
+        if ("success".equals(newStatus)) {
+            otaProgressStore.setProgress(chipId, 100);
+        } else if ("idle".equals(newStatus)) {
+            otaProgressStore.clearProgress(chipId);
+        } else if ("failed".equals(newStatus)) {
+            if (otaProgressStore.getProgress(chipId) == null) {
+                otaProgressStore.setProgress(chipId, 0);
+            }
+        } else if ("updating".equals(newStatus)) {
+            if (progress != null) {
+                otaProgressStore.setProgress(chipId, progress);
+            } else if (otaProgressStore.getProgress(chipId) == null) {
+                otaProgressStore.setProgress(chipId, 0);
+            }
+        }
+
+        return !sameProgress(before, otaProgressStore.getProgress(chipId))
+                || (!"updating".equals(oldStatus) && "updating".equals(newStatus));
+    }
+
+    private boolean sameProgress(Integer a, Integer b) {
+        return a == null ? b == null : a.equals(b);
+    }
+
+    private String normalizeOtaStatus(String otaStatus) {
+        String value = otaStatus == null ? "" : otaStatus.trim().toLowerCase(Locale.ROOT);
+        if ("updating".equals(value) || "success".equals(value) || "failed".equals(value)) {
+            return value;
+        }
+        return "idle";
     }
 
     private Integer readOptionalInt(JsonNode node, String fieldName) {

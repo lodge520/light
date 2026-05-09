@@ -10,6 +10,7 @@ import com.genius.smartlight.dal.dataobject.OtaFirmwareDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
 import com.genius.smartlight.dal.mysql.OtaFirmwareMapper;
 import com.genius.smartlight.service.device.DeviceOtaService;
+import com.genius.smartlight.service.device.OtaProgressStore;
 import com.genius.smartlight.vo.device.DeviceOtaCheckRespVO;
 import com.genius.smartlight.vo.device.DeviceOtaStartReqVO;
 import com.genius.smartlight.websocket.DeviceSessionManager;
@@ -34,6 +35,7 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
     private final DeviceSessionManager deviceSessionManager;
     private final WebSocketPushService webSocketPushService;
     private final ObjectMapper objectMapper;
+    private final OtaProgressStore otaProgressStore;
 
     @Override
     public DeviceOtaCheckRespVO checkUpdate(String chipId, String channel) {
@@ -91,6 +93,7 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
 
         device.setOtaStatus(OTA_STATUS_UPDATING);
         device.setUpdateTime(LocalDateTime.now());
+        otaProgressStore.setProgress(chipId, 0);
         deviceMapper.updateById(device);
         webSocketPushService.pushState(DeviceConvert.convert(device));
 
@@ -129,6 +132,8 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
                         .eq(OtaFirmwareDO::getChannel, targetChannel)
                         .eq(OtaFirmwareDO::getEnabled, true)
                         .orderByDesc(OtaFirmwareDO::getVersionCode)
+                        .orderByDesc(OtaFirmwareDO::getUpdateTime)
+                        .orderByDesc(OtaFirmwareDO::getId)
                         .last("limit 1")
         );
     }

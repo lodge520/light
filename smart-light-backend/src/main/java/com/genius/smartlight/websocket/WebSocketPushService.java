@@ -1,6 +1,7 @@
 package com.genius.smartlight.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.genius.smartlight.service.device.OtaProgressStore;
 import com.genius.smartlight.vo.ai.FabricRecognizeRespVO;
 import com.genius.smartlight.vo.ai.PersonDetectRespVO;
 import com.genius.smartlight.vo.device.DeviceOnlineStatusRespVO;
@@ -23,8 +24,9 @@ public class WebSocketPushService {
     private final WebSocketSessionManager sessionManager;
     private final ObjectMapper objectMapper;
     private final DeviceSessionManager deviceSessionManager;
+    private final OtaProgressStore otaProgressStore;
     public void pushState(DeviceRespVO data) {
-        broadcast("state", data);
+        broadcast("state", otaProgressStore.applyProgress(data));
     }
 
     public void pushStateToDevice(String chipId, DeviceRespVO data) {

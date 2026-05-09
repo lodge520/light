@@ -9,6 +9,7 @@ import com.genius.smartlight.dal.mysql.DeviceMapper;
 import com.genius.smartlight.dal.mysql.StoreMapper;
 import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.device.DeviceService;
+import com.genius.smartlight.service.device.OtaProgressStore;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
 import com.genius.smartlight.vo.device.LightEffectReqVO;
@@ -32,6 +33,7 @@ public class DeviceServiceImpl implements DeviceService {
     private final DeviceMapper deviceMapper;
     private final StoreMapper storeMapper;
     private final ObjectMapper objectMapper;
+    private final OtaProgressStore otaProgressStore;
     
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -78,7 +80,7 @@ public class DeviceServiceImpl implements DeviceService {
 
             deviceMapper.updateById(exist);
 
-            DeviceRespVO respVO = DeviceConvert.convert(exist);
+            DeviceRespVO respVO = toResp(exist);
             webSocketPushService.pushState(respVO);
 
             return exist.getId();
@@ -91,7 +93,7 @@ public class DeviceServiceImpl implements DeviceService {
 
         deviceMapper.insert(device);
 
-        DeviceRespVO respVO = DeviceConvert.convert(device);
+        DeviceRespVO respVO = toResp(device);
         webSocketPushService.pushState(respVO);
 
         return device.getId();
@@ -119,13 +121,17 @@ public class DeviceServiceImpl implements DeviceService {
         updateObj.setCreateTime(device.getCreateTime());
         updateObj.setUpdateTime(LocalDateTime.now());
         updateObj.setStoreId(device.getStoreId());
+        updateObj.setFirmwareVersion(device.getFirmwareVersion());
+        updateObj.setFirmwareVersionCode(device.getFirmwareVersionCode());
+        updateObj.setFirmwareChannel(device.getFirmwareChannel());
+        updateObj.setOtaStatus(device.getOtaStatus());
 
         // 改这里：不要用旧 displayName 覆盖
         updateObj.setDisplayName(reqVO.getDisplayName());
 
         deviceMapper.updateById(updateObj);
 
-        DeviceRespVO respVO = DeviceConvert.convert(updateObj);
+        DeviceRespVO respVO = toResp(updateObj);
 
         webSocketPushService.pushState(respVO);
         webSocketPushService.pushStateToDevice(updateObj.getChipId(), respVO);
@@ -183,13 +189,13 @@ public class DeviceServiceImpl implements DeviceService {
         if (device == null) {
             throw new ServiceException("设备不存在");
         }
-        return DeviceConvert.convert(device);
+        return toResp(device);
     }
 
     @Override
     public List<DeviceRespVO> getDeviceList() {
         List<DeviceDO> list = deviceMapper.selectList(null);
-        return list.stream().map(DeviceConvert::convert).toList();
+        return list.stream().map(this::toResp).toList();
     }
 
     @Override
@@ -201,7 +207,7 @@ public class DeviceServiceImpl implements DeviceService {
         if (device == null) {
             throw new ServiceException("设备不存在");
         }
-        return DeviceConvert.convert(device);
+        return toResp(device);
     }
 
     @Override
@@ -222,7 +228,7 @@ public class DeviceServiceImpl implements DeviceService {
                         .orderByDesc(DeviceDO::getId)
         );
 
-        return list.stream().map(DeviceConvert::convert).toList();
+        return list.stream().map(this::toResp).toList();
     }
 
     @Override
@@ -254,7 +260,7 @@ public class DeviceServiceImpl implements DeviceService {
         device.setUpdateTime(LocalDateTime.now());
         deviceMapper.updateById(device);
 
-        webSocketPushService.pushState(DeviceConvert.convert(device));
+        webSocketPushService.pushState(toResp(device));
     }
 
     @Override
@@ -328,6 +334,10 @@ public class DeviceServiceImpl implements DeviceService {
         }
         device.setUpdateTime(LocalDateTime.now());
         deviceMapper.updateById(device);
-        webSocketPushService.pushState(DeviceConvert.convert(device));
+        webSocketPushService.pushState(toResp(device));
+    }
+
+    private DeviceRespVO toResp(DeviceDO device) {
+        return otaProgressStore.applyProgress(DeviceConvert.convert(device));
     }
 }

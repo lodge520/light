@@ -1,6 +1,7 @@
 package com.genius.smartlight.service.device.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.genius.smartlight.common.ServiceException;
 import com.genius.smartlight.dal.dataobject.OtaFirmwareDO;
 import com.genius.smartlight.dal.mysql.OtaFirmwareMapper;
@@ -99,6 +100,7 @@ public class DeviceOtaFirmwareServiceImpl implements DeviceOtaFirmwareService {
         } else {
             otaFirmwareMapper.updateById(firmware);
         }
+        disableOtherFirmware(normalizedDeviceType, normalizedChannel, firmware.getId(), now);
 
         return toRespVO(firmware);
     }
@@ -204,6 +206,24 @@ public class DeviceOtaFirmwareServiceImpl implements DeviceOtaFirmwareService {
             return null;
         }
         return value.trim();
+    }
+
+    private void disableOtherFirmware(String deviceType, String channel, Long enabledFirmwareId, LocalDateTime now) {
+        if (enabledFirmwareId == null) {
+            return;
+        }
+        OtaFirmwareDO update = new OtaFirmwareDO();
+        update.setEnabled(false);
+        update.setUpdateTime(now);
+
+        otaFirmwareMapper.update(
+                update,
+                new LambdaUpdateWrapper<OtaFirmwareDO>()
+                        .eq(OtaFirmwareDO::getDeviceType, deviceType)
+                        .eq(OtaFirmwareDO::getChannel, channel)
+                        .ne(OtaFirmwareDO::getId, enabledFirmwareId)
+                        .eq(OtaFirmwareDO::getEnabled, true)
+        );
     }
 
     private DeviceOtaFirmwareRespVO toRespVO(OtaFirmwareDO firmware) {

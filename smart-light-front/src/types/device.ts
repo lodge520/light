@@ -30,6 +30,7 @@ export interface DeviceItem {
   firmwareVersionCode?: number
   firmwareChannel?: FirmwareChannel
   otaStatus?: OtaStatus
+  otaProgress?: number
   personCount?: number
   peopleCount?: number
   flowPersonCount?: number

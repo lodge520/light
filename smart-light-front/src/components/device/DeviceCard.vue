@@ -154,17 +154,31 @@
               </div>
 
               <div
-                v-if="otaCheckResult || otaMessage"
+                v-if="showOtaProgress || otaCheckResult || otaMessage"
                 class="ota-feedback-slot"
               >
-                <div v-if="otaCheckResult" class="ota-result">
+                <div v-if="showOtaProgress" class="ota-progress-box" :class="otaProgressBoxClass">
+                  <div class="ota-progress-head">
+                    <span>{{ otaProgressTitle }}</span>
+                    <strong>{{ otaProgressText }}</strong>
+                  </div>
+                  <div class="ota-progress-track" aria-hidden="true">
+                    <div
+                      class="ota-progress-fill"
+                      :style="{ width: `${otaProgressFillWidth}%` }"
+                    ></div>
+                  </div>
+                  <div class="ota-progress-sub">{{ otaProgressSubText }}</div>
+                </div>
+
+                <div v-else-if="otaCheckResult" class="ota-result">
                   <div>{{ otaUpdateText }}</div>
                   <div v-if="otaCheckResult.changelog" class="modal-hint">
                     更新说明：{{ otaCheckResult.changelog }}
                   </div>
                 </div>
 
-                <p v-if="otaMessage" class="modal-hint ota-message">
+                <p v-else-if="otaMessage" class="modal-hint ota-message">
                   {{ otaMessage }}
                 </p>
               </div>
@@ -206,9 +220,9 @@
               placeholder="从 1 开始，如 1、2、3"
             />
 
-            <p class="modal-hint">
+            <!-- <p class="modal-hint">
               编号从 1 开始，同一分区内不能重复。
-            </p>
+            </p> -->
 
             <p v-if="deviceNoError" class="modal-error">
               {{ deviceNoError }}
@@ -292,7 +306,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import BaseSelect from '../common/BaseSelect.vue'
 import type {
   DeviceCreatePayload,
@@ -396,6 +410,339 @@ const otaChecking = ref(false)
 const otaStarting = ref(false)
 const otaCheckResult = ref<OtaCheckResult | null>(null)
 const otaMessage = ref('')
+const hideOldOtaTerminalStatus = ref(false)
+
+const localOtaUpdating = ref(false)
+const realOtaProgress = computed(() => clampProgress(props.device.otaProgress))
+const displayOtaProgress = ref(0)
+const displayOtaProgressFloat = ref(0)
+const displaySpeed = ref(0)
+const estimatedRealProgress = ref(0)
+const lastRealProgress = ref(0)
+const lastRealProgressAt = ref(0)
+const estimatedMsPerPercent = ref(800)
+const hasRealOtaProgress = ref(false)
+type OtaProgressMode = 'normal' | 'crawl' | 'wait' | 'catchup'
+const progressMode = ref<OtaProgressMode>('normal')
+let otaProgressTimer: ReturnType<typeof setInterval> | null = null
+let lastTickAt = 0
+
+function clampProgress(value: unknown) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) {
+    return 0
+  }
+  return Math.max(0, Math.min(100, Math.round(numericValue)))
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) {
+    return min
+  }
+  return Math.max(min, Math.min(max, value))
+}
+
+function clampMsPerPercent(value: number, realProgress = lastRealProgress.value) {
+  if (!Number.isFinite(value)) {
+    return realProgress < 10 ? 800 : realProgress < 20 ? 500 : 500
+  }
+  const minMs = realProgress < 10 ? 800 : realProgress < 20 ? 500 : 120
+  return Math.max(minMs, Math.min(1500, value))
+}
+
+function resolveNormalSpeed(realProgress: number) {
+  const maxSpeed = realProgress < 10 ? 0.8 : realProgress < 20 ? 1.5 : 2.5
+  return clampNumber(1000 / estimatedMsPerPercent.value, 0.4, maxSpeed)
+}
+
+function resolveTargetSpeed(currentDisplay: number, realProgress: number, softMaxAllowed: number, hardMaxAllowed: number) {
+  if (!hasRealOtaProgress.value) {
+    progressMode.value = currentDisplay < 3 ? 'crawl' : 'wait'
+    return currentDisplay < 3 ? 0.25 : 0
+  }
+
+  if (currentDisplay >= hardMaxAllowed) {
+    progressMode.value = 'wait'
+    return 0
+  }
+
+  const realGap = realProgress - currentDisplay
+  if (realGap >= 20) {
+    progressMode.value = 'catchup'
+    return 4
+  }
+  if (realGap >= 10) {
+    progressMode.value = 'catchup'
+    return 3
+  }
+
+  if (progressMode.value === 'crawl') {
+    if (currentDisplay < softMaxAllowed - 1) {
+      progressMode.value = 'normal'
+    } else if (currentDisplay >= hardMaxAllowed) {
+      progressMode.value = 'wait'
+    }
+  } else if (progressMode.value === 'wait') {
+    if (currentDisplay < softMaxAllowed - 1) {
+      progressMode.value = 'normal'
+    } else if (currentDisplay < hardMaxAllowed - 1) {
+      progressMode.value = 'crawl'
+    }
+  } else if (currentDisplay > softMaxAllowed + 1) {
+    progressMode.value = 'crawl'
+  } else if (currentDisplay < softMaxAllowed - 1) {
+    progressMode.value = 'normal'
+  }
+
+  if (progressMode.value === 'crawl') {
+    return realProgress < 10 ? 0.2 : realProgress < 20 ? 0.28 : 0.35
+  }
+  if (progressMode.value === 'wait') {
+    return 0
+  }
+
+  const normalSpeed = resolveNormalSpeed(realProgress)
+  const softGap = softMaxAllowed - currentDisplay
+  if (softGap >= 8) {
+    progressMode.value = 'catchup'
+    return Math.min(realProgress < 20 ? 2 : 3, Math.max(normalSpeed, 2))
+  }
+  progressMode.value = 'normal'
+  return normalSpeed
+}
+
+function resetOtaProgressState(keepLocalUpdating = false) {
+  stopOtaProgressTimer()
+  if (!keepLocalUpdating) {
+    localOtaUpdating.value = false
+  }
+  displayOtaProgress.value = 0
+  displayOtaProgressFloat.value = 0
+  displaySpeed.value = 0
+  estimatedRealProgress.value = 0
+  lastRealProgress.value = 0
+  lastRealProgressAt.value = 0
+  estimatedMsPerPercent.value = 800
+  hasRealOtaProgress.value = false
+  progressMode.value = 'normal'
+  lastTickAt = 0
+}
+
+function startOtaProgressTimer() {
+  if (otaProgressTimer) {
+    return
+  }
+  const now = Date.now()
+  if (!lastRealProgressAt.value) {
+    lastRealProgressAt.value = now
+  }
+  lastTickAt = now
+  otaProgressTimer = setInterval(tickOtaProgress, 200)
+}
+
+function stopOtaProgressTimer() {
+  if (!otaProgressTimer) {
+    return
+  }
+  clearInterval(otaProgressTimer)
+  otaProgressTimer = null
+}
+
+function calibrateRealOtaProgress(realProgress: number) {
+  const now = Date.now()
+  const previousReal = lastRealProgress.value
+  const previousAt = lastRealProgressAt.value
+
+  if (!hasRealOtaProgress.value) {
+    hasRealOtaProgress.value = true
+    lastRealProgress.value = realProgress
+    lastRealProgressAt.value = now
+    estimatedRealProgress.value = Math.max(estimatedRealProgress.value, realProgress)
+    return
+  }
+
+  if (realProgress > previousReal) {
+    const elapsed = now - previousAt
+    const delta = realProgress - previousReal
+    if (elapsed > 0 && delta > 0) {
+      const segmentMsPerPercent = clampMsPerPercent(elapsed / delta, realProgress)
+      estimatedMsPerPercent.value = clampMsPerPercent(
+        estimatedMsPerPercent.value * 0.65 + segmentMsPerPercent * 0.35,
+        realProgress,
+      )
+    }
+    lastRealProgress.value = realProgress
+    lastRealProgressAt.value = now
+    estimatedRealProgress.value = Math.max(estimatedRealProgress.value, realProgress)
+    return
+  }
+
+  lastRealProgressAt.value = previousAt || now
+}
+
+function tickOtaProgress() {
+  const status = otaStatusValue.value
+  const realProgress = realOtaProgress.value
+
+  if (status === 'success' || realProgress >= 100) {
+    displayOtaProgress.value = 100
+    displayOtaProgressFloat.value = 100
+    displaySpeed.value = 0
+    estimatedRealProgress.value = 100
+    hideOldOtaTerminalStatus.value = false
+    localOtaUpdating.value = false
+    stopOtaProgressTimer()
+    return
+  }
+
+  if (status === 'failed') {
+    const retainedProgress = clampProgress(Math.max(realProgress, displayOtaProgress.value, lastRealProgress.value))
+    displayOtaProgress.value = Math.max(displayOtaProgress.value, retainedProgress)
+    displayOtaProgressFloat.value = Math.max(displayOtaProgressFloat.value, displayOtaProgress.value)
+    estimatedRealProgress.value = Math.max(estimatedRealProgress.value, retainedProgress)
+    displaySpeed.value = 0
+    hideOldOtaTerminalStatus.value = false
+    localOtaUpdating.value = false
+    stopOtaProgressTimer()
+    return
+  }
+
+  if (status === 'idle') {
+    resetOtaProgressState()
+    return
+  }
+
+  const now = Date.now()
+  const dt = lastTickAt > 0 ? Math.max(0.05, Math.min(1, (now - lastTickAt) / 1000)) : 0.2
+  lastTickAt = now
+
+  const currentDisplay = displayOtaProgressFloat.value
+  const elapsed = Math.max(0, now - (lastRealProgressAt.value || now))
+  const rawEstimate = hasRealOtaProgress.value
+    ? lastRealProgress.value + elapsed / estimatedMsPerPercent.value
+    : 0
+
+  estimatedRealProgress.value = Math.max(
+    estimatedRealProgress.value,
+    lastRealProgress.value,
+    Math.min(99, lastRealProgress.value + 8, rawEstimate),
+  )
+
+  const softMaxAllowed = hasRealOtaProgress.value
+    ? Math.min(99, Math.max(realProgress, estimatedRealProgress.value + 2))
+    : 3
+  const hardMaxAllowed = hasRealOtaProgress.value
+    ? Math.min(99, Math.max(softMaxAllowed, realProgress + 8, estimatedRealProgress.value + 4))
+    : 3
+
+  const targetSpeed = resolveTargetSpeed(currentDisplay, realProgress, softMaxAllowed, hardMaxAllowed)
+  displaySpeed.value = displaySpeed.value * 0.85 + targetSpeed * 0.15
+
+  let nextFloat = currentDisplay + displaySpeed.value * dt
+  if (currentDisplay < hardMaxAllowed) {
+    nextFloat = Math.min(nextFloat, hardMaxAllowed)
+  } else {
+    nextFloat = currentDisplay
+  }
+  nextFloat = Math.min(99, nextFloat)
+
+  displayOtaProgressFloat.value = Math.max(displayOtaProgressFloat.value, nextFloat)
+  displayOtaProgress.value = Math.max(displayOtaProgress.value, Math.floor(displayOtaProgressFloat.value))
+}
+
+function syncOtaProgressState(status: string, realProgress: number, previousStatus?: string) {
+  if (status === 'success' || realProgress >= 100) {
+    displayOtaProgress.value = 100
+    displayOtaProgressFloat.value = 100
+    displaySpeed.value = 0
+    estimatedRealProgress.value = 100
+    lastRealProgress.value = 100
+    lastRealProgressAt.value = Date.now()
+    hideOldOtaTerminalStatus.value = false
+    localOtaUpdating.value = false
+    stopOtaProgressTimer()
+    return
+  }
+
+  if (status === 'failed') {
+    const retainedProgress = clampProgress(Math.max(realProgress, displayOtaProgress.value, lastRealProgress.value))
+    displayOtaProgress.value = Math.max(displayOtaProgress.value, retainedProgress)
+    displayOtaProgressFloat.value = Math.max(displayOtaProgressFloat.value, displayOtaProgress.value)
+    estimatedRealProgress.value = Math.max(estimatedRealProgress.value, retainedProgress)
+    lastRealProgress.value = retainedProgress
+    lastRealProgressAt.value = Date.now()
+    displaySpeed.value = 0
+    hideOldOtaTerminalStatus.value = false
+    localOtaUpdating.value = false
+    stopOtaProgressTimer()
+    return
+  }
+
+  if (status === 'idle') {
+    resetOtaProgressState()
+    return
+  }
+
+  if (status === 'updating' || localOtaUpdating.value) {
+    if (status === 'updating') {
+      hideOldOtaTerminalStatus.value = false
+    }
+    if (previousStatus !== 'updating' && realProgress === 0) {
+      displayOtaProgress.value = 0
+      displayOtaProgressFloat.value = 0
+      displaySpeed.value = 0
+      estimatedRealProgress.value = 0
+      lastRealProgress.value = 0
+      estimatedMsPerPercent.value = 800
+      hasRealOtaProgress.value = false
+      progressMode.value = 'normal'
+      lastTickAt = Date.now()
+    }
+    calibrateRealOtaProgress(realProgress)
+    startOtaProgressTimer()
+  }
+}
+
+const otaProgressFillWidth = computed(() => {
+  return Math.max(displayOtaProgress.value, Math.min(100, displayOtaProgressFloat.value))
+})
+
+const showOtaProgress = computed(() => {
+  const status = otaStatusValue.value
+  if (localOtaUpdating.value) return true
+  if (status === 'updating') return true
+  if ((status === 'success' || status === 'failed') && !hideOldOtaTerminalStatus.value) {
+    return true
+  }
+  return false
+})
+
+const otaProgressText = computed(() => `${clampProgress(displayOtaProgress.value)}%`)
+
+const otaProgressTitle = computed(() => {
+  if (otaStatusValue.value === 'success' || realOtaProgress.value >= 100) {
+    return '更新成功'
+  }
+  if (otaStatusValue.value === 'failed') {
+    return '更新失败'
+  }
+  return 'OTA 更新中'
+})
+
+const otaProgressSubText = computed(() => {
+  if (otaStatusValue.value === 'success' || realOtaProgress.value >= 100) {
+    return '固件已写入完成，设备将自动重启'
+  }
+  if (otaStatusValue.value === 'failed') {
+    return '更新失败，请检查设备供电和网络后重试'
+  }
+  return '设备正在下载并写入固件，请保持供电和网络连接'
+})
+
+const otaProgressBoxClass = computed(() => ({
+  success: otaStatusValue.value === 'success' || realOtaProgress.value >= 100,
+  failed: otaStatusValue.value === 'failed',
+}))
 
 const firmwareChannelOptions = [
   { label: '正式版', value: 'stable' },
@@ -536,12 +883,16 @@ const canStartOta = computed(() => {
     otaCheckResult.value.firmwareId &&
     !otaChecking.value &&
     !otaStarting.value &&
-    otaStatusValue.value !== 'updating',
+    otaStatusValue.value !== 'updating' &&
+    !localOtaUpdating.value,
   )
 })
 
 async function handleCheckFirmwareUpdate() {
   if (!localForm.chipId) return
+  stopOtaProgressTimer()
+  localOtaUpdating.value = false
+  hideOldOtaTerminalStatus.value = true
   otaChecking.value = true
   otaMessage.value = ''
   otaCheckResult.value = null
@@ -559,6 +910,7 @@ async function handleCheckFirmwareUpdate() {
 async function handleStartOtaUpdate() {
   if (!localForm.chipId || !otaCheckResult.value?.firmwareId) return
 
+  const firmwareId = otaCheckResult.value.firmwareId
   const target = otaCheckResult.value.latestVersion || 'selected firmware'
   if (!window.confirm(`确认更新到 ${target} 吗？`)) return
 
@@ -566,14 +918,21 @@ async function handleStartOtaUpdate() {
   otaMessage.value = ''
 
   try {
-    otaCheckResult.value = await startOtaUpdate(
+    await startOtaUpdate(
       localForm.chipId,
-      otaCheckResult.value.firmwareId,
+      firmwareId,
       firmwareChannel.value,
     )
-    otaMessage.value = 'OTA更新指令已下发'
+    otaCheckResult.value = null
+    otaMessage.value = ''
+    hideOldOtaTerminalStatus.value = false
+    localOtaUpdating.value = true
+    resetOtaProgressState(true)
+    startOtaProgressTimer()
   } catch (error) {
     console.error('startOtaUpdate error =', error)
+    localOtaUpdating.value = false
+    stopOtaProgressTimer()
     otaMessage.value = 'OTA更新指令下发失败'
   } finally {
     otaStarting.value = false
@@ -608,6 +967,26 @@ watch(
   },
   { immediate: true, deep: true },
 )
+
+watch(
+  () => props.device.chipId,
+  () => {
+    resetOtaProgressState()
+  },
+)
+
+watch(
+  [otaStatusValue, realOtaProgress],
+  ([status, progress], oldValue) => {
+    const previousStatus = Array.isArray(oldValue) ? oldValue[0] : undefined
+    syncOtaProgressState(status, progress, previousStatus)
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  stopOtaProgressTimer()
+})
 
 function resetForm() {
   syncFromProps()
@@ -1041,6 +1420,86 @@ const textColor = computed(() => {
   scrollbar-gutter: stable;
 }
 
+.ota-progress-box {
+  padding: 10px 12px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 12px;
+  background: #eef4ff;
+  color: #1d4ed8;
+}
+
+.ota-progress-box.success {
+  border-color: rgba(22, 163, 74, 0.22);
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.ota-progress-box.failed {
+  border-color: rgba(220, 38, 38, 0.22);
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.ota-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ota-progress-head strong {
+  font-size: 14px;
+  color: inherit;
+}
+
+.ota-progress-track {
+  height: 8px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.16);
+}
+
+.ota-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #60a5fa, #2563eb);
+  transition: width 180ms ease;
+}
+
+.ota-progress-box.success .ota-progress-track {
+  background: rgba(22, 163, 74, 0.16);
+}
+
+.ota-progress-box.success .ota-progress-fill {
+  background: linear-gradient(90deg, #86efac, #16a34a);
+}
+
+.ota-progress-box.failed .ota-progress-track {
+  background: rgba(220, 38, 38, 0.14);
+}
+
+.ota-progress-box.failed .ota-progress-fill {
+  background: linear-gradient(90deg, #fca5a5, #dc2626);
+}
+
+.ota-progress-sub {
+  margin-top: 7px;
+  color: rgba(30, 64, 175, 0.78);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ota-progress-box.success .ota-progress-sub {
+  color: rgba(21, 128, 61, 0.78);
+}
+
+.ota-progress-box.failed .ota-progress-sub {
+  color: rgba(185, 28, 28, 0.78);
+}
+
 .ota-message {
   margin-top: 0;
 }
@@ -1381,6 +1840,35 @@ const textColor = computed(() => {
 :global(body:has(.app-container.night-mode)) .firmware-info-item {
   background: rgba(15, 23, 42, 0.62);
   border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+
+:global(body:has(.app-container.night-mode)) .ota-progress-box {
+  background: rgba(30, 41, 59, 0.76);
+  border-color: rgba(96, 165, 250, 0.24);
+  color: rgba(191, 219, 254, 0.96);
+}
+
+:global(body:has(.app-container.night-mode)) .ota-progress-box.success {
+  border-color: rgba(74, 222, 128, 0.24);
+  color: rgba(187, 247, 208, 0.96);
+}
+
+:global(body:has(.app-container.night-mode)) .ota-progress-box.failed {
+  border-color: rgba(248, 113, 113, 0.24);
+  color: rgba(254, 202, 202, 0.96);
+}
+
+:global(body:has(.app-container.night-mode)) .ota-progress-sub {
+  color: rgba(191, 219, 254, 0.72);
+}
+
+:global(body:has(.app-container.night-mode)) .ota-progress-box.success .ota-progress-sub {
+  color: rgba(187, 247, 208, 0.72);
+}
+
+:global(body:has(.app-container.night-mode)) .ota-progress-box.failed .ota-progress-sub {
+  color: rgba(254, 202, 202, 0.72);
 }
 
 :global(body:has(.app-container.night-mode)) .modal-input {

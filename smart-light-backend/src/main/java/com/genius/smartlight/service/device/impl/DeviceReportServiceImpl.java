@@ -6,6 +6,7 @@ import com.genius.smartlight.convert.device.DeviceConvert;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
 import com.genius.smartlight.service.device.DeviceReportService;
+import com.genius.smartlight.service.device.OtaProgressStore;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceStateReportReqVO;
 import com.genius.smartlight.websocket.DeviceSessionManager;
@@ -23,6 +24,7 @@ public class DeviceReportServiceImpl implements DeviceReportService {
     private final DeviceMapper deviceMapper;
     private final WebSocketPushService webSocketPushService;
     private final DeviceSessionManager deviceSessionManager;
+    private final OtaProgressStore otaProgressStore;
 
     @Override
     public void reportState(DeviceStateReportReqVO reqVO) {
@@ -71,9 +73,14 @@ public class DeviceReportServiceImpl implements DeviceReportService {
         if (reqVO.getFirmwareChannel() != null) {
             device.setFirmwareChannel(normalizeChannel(reqVO.getFirmwareChannel()));
         }
-        if (reqVO.getOtaStatus() != null) {
-            device.setOtaStatus(normalizeOtaStatus(reqVO.getOtaStatus()));
+        String oldOtaStatus = normalizeOtaStatus(device.getOtaStatus());
+        String newOtaStatus = oldOtaStatus;
+        boolean otaStatusReported = reqVO.getOtaStatus() != null;
+        if (otaStatusReported) {
+            newOtaStatus = normalizeOtaStatus(reqVO.getOtaStatus());
+            device.setOtaStatus(newOtaStatus);
         }
+        updateOtaProgress(reqVO.getChipId(), oldOtaStatus, newOtaStatus, reqVO.getOtaProgress(), otaStatusReported);
 
         device.setUpdateTime(LocalDateTime.now());
         deviceMapper.updateById(device);
@@ -81,8 +88,45 @@ public class DeviceReportServiceImpl implements DeviceReportService {
         // 设备已经走 ws/device 注册过，这里刷新 lastSeen
         deviceSessionManager.touch(reqVO.getChipId());
 
-        DeviceRespVO respVO = DeviceConvert.convert(device);
+        DeviceRespVO respVO = otaProgressStore.applyProgress(DeviceConvert.convert(device));
         webSocketPushService.pushState(respVO);
+    }
+
+    private void updateOtaProgress(String chipId, String oldStatus, String newStatus, Integer progress, boolean statusReported) {
+        if (progress != null) {
+            otaProgressStore.setProgress(chipId, progress);
+        }
+
+        if (!statusReported) {
+            if (progress != null && otaProgressStore.getProgress(chipId) == null) {
+                otaProgressStore.setProgress(chipId, 0);
+            }
+            return;
+        }
+
+        if ("success".equals(newStatus)) {
+            otaProgressStore.setProgress(chipId, 100);
+            return;
+        }
+        if ("idle".equals(newStatus)) {
+            otaProgressStore.clearProgress(chipId);
+            return;
+        }
+        if ("failed".equals(newStatus)) {
+            if (otaProgressStore.getProgress(chipId) == null) {
+                otaProgressStore.setProgress(chipId, 0);
+            }
+            return;
+        }
+        if ("updating".equals(newStatus)) {
+            if (progress != null) {
+                otaProgressStore.setProgress(chipId, progress);
+            } else if (!"updating".equals(oldStatus)) {
+                otaProgressStore.setProgress(chipId, 0);
+            } else if (otaProgressStore.getProgress(chipId) == null) {
+                otaProgressStore.setProgress(chipId, 0);
+            }
+        }
     }
 
     private String normalizeChannel(String channel) {
