@@ -54,26 +54,26 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
         OtaFirmwareDO firmware = resolveFirmware(device, reqVO, targetChannel);
 
         if (firmware == null) {
-            throw new ServiceException("No enabled firmware found");
+            throw new ServiceException("暂无可用固件");
         }
         if (!Boolean.TRUE.equals(firmware.getEnabled())) {
-            throw new ServiceException("Firmware is disabled");
+            throw new ServiceException("固件已禁用");
         }
         if (!safeEquals(device.getDeviceType(), firmware.getDeviceType())) {
-            throw new ServiceException("Firmware device type does not match");
+            throw new ServiceException("固件设备类型不匹配");
         }
         if (!safeEquals(targetChannel, normalizeChannel(firmware.getChannel()))) {
-            throw new ServiceException("Firmware channel does not match target channel");
+            throw new ServiceException("固件通道与目标通道不匹配");
         }
         validateFileUrl(firmware.getFileUrl());
 
         int currentCode = device.getFirmwareVersionCode() == null ? 0 : device.getFirmwareVersionCode();
         int targetCode = firmware.getVersionCode() == null ? 0 : firmware.getVersionCode();
         if (!isUpdatable(currentChannel, currentCode, targetChannel, targetCode)) {
-            throw new ServiceException("Current firmware is already up to date");
+            throw new ServiceException("当前已是最新固件");
         }
         if (!deviceSessionManager.isOnline(chipId)) {
-            throw new ServiceException("Device is offline");
+            throw new ServiceException("设备未连接或已离线");
         }
 
         ObjectNode msg = objectMapper.createObjectNode();
@@ -88,7 +88,7 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
 
         boolean sent = webSocketPushService.pushRawToDevice(chipId, msg.toString());
         if (!sent) {
-            throw new ServiceException("OTA command send failed");
+            throw new ServiceException("OTA指令下发失败");
         }
 
         device.setOtaStatus(OTA_STATUS_UPDATING);
@@ -102,14 +102,14 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
 
     private DeviceDO getDeviceByChipId(String chipId) {
         if (chipId == null || chipId.isBlank()) {
-            throw new ServiceException("chipId cannot be empty");
+            throw new ServiceException("芯片ID不能为空");
         }
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
                         .eq(DeviceDO::getChipId, chipId)
         );
         if (device == null) {
-            throw new ServiceException("Device not found");
+            throw new ServiceException("设备不存在");
         }
         return device;
     }
@@ -118,7 +118,7 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
         if (reqVO != null && reqVO.getFirmwareId() != null) {
             OtaFirmwareDO firmware = otaFirmwareMapper.selectById(reqVO.getFirmwareId());
             if (firmware == null) {
-                throw new ServiceException("Firmware not found");
+                throw new ServiceException("固件不存在");
             }
             return firmware;
         }
@@ -194,7 +194,7 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
 
     private void validateFileUrl(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) {
-            throw new ServiceException("Firmware file_url cannot be empty");
+            throw new ServiceException("固件文件地址不能为空");
         }
 
         try {
@@ -203,10 +203,10 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
             String host = uri.getHost();
 
             if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
-                throw new ServiceException("Firmware file_url must be http or https");
+                throw new ServiceException("固件文件地址必须使用 http 或 https 协议");
             }
             if (host == null || host.isBlank()) {
-                throw new ServiceException("Firmware file_url host cannot be empty");
+                throw new ServiceException("固件文件地址主机名不能为空");
             }
 
             String lowerHost = host.toLowerCase(Locale.ROOT);
@@ -214,10 +214,10 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
                     || "127.0.0.1".equals(lowerHost)
                     || "::1".equals(lowerHost)
                     || "0:0:0:0:0:0:0:1".equals(lowerHost)) {
-                throw new ServiceException("Firmware file_url must be reachable by ESP8266, not localhost");
+                throw new ServiceException("固件文件地址不能使用 localhost，ESP8266 无法访问");
             }
         } catch (IllegalArgumentException e) {
-            throw new ServiceException("Firmware file_url is invalid");
+            throw new ServiceException("固件文件地址无效");
         }
     }
 }

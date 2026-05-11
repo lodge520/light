@@ -153,7 +153,7 @@ public class AiController {
 
         if (!isSafeArchiveBaseName(normalizedBaseName)) {
             respVO.setSuccess(false);
-            respVO.setMsg("Invalid filename or baseName");
+            respVO.setMsg("文件名或 baseName 不正确");
             respVO.setDeletedCount(0);
             return respVO;
         }
@@ -167,7 +167,7 @@ public class AiController {
 
                 if (!candidate.startsWith(FABRIC_ARCHIVE_BASE_DIR)) {
                     respVO.setSuccess(false);
-                    respVO.setMsg("Invalid archive path");
+                    respVO.setMsg("归档路径不正确");
                     respVO.setDeletedCount(respVO.getDeletedFiles().size());
                     return respVO;
                 }
@@ -190,10 +190,10 @@ public class AiController {
         respVO.setDeletedCount(respVO.getDeletedFiles().size());
         if (respVO.getDeletedCount() > 0) {
             respVO.setSuccess(true);
-            respVO.setMsg("Deleted archive image group");
+            respVO.setMsg("已删除归档图片组");
         } else {
             respVO.setSuccess(false);
-            respVO.setMsg("Archive image group not found");
+            respVO.setMsg("归档图片组不存在");
         }
         return respVO;
     }

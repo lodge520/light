@@ -20,7 +20,7 @@ public class ApiResponse<T> {
     private String msg;
 
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(200, data, "success");
+        return new ApiResponse<>(200, data, "操作成功");
     }
 
     public static <T> ApiResponse<T> fail(String msg) {

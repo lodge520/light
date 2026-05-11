@@ -320,12 +320,12 @@ public class DeviceServiceImpl implements DeviceService {
                         .eq(DeviceDO::getChipId, chipId)
         );
         if (device == null) {
-            throw new ServiceException("Device not found");
+            throw new ServiceException("设备不存在");
         }
 
         String normalized = channel == null ? "" : channel.trim().toLowerCase(Locale.ROOT);
         if (!"stable".equals(normalized) && !"test".equals(normalized)) {
-            throw new ServiceException("Invalid firmware channel");
+            throw new ServiceException("固件通道不正确，只支持 stable 或 test");
         }
 
         device.setFirmwareChannel(normalized);

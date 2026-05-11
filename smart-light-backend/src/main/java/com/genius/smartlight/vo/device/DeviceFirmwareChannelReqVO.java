@@ -9,6 +9,6 @@ import lombok.Data;
 public class DeviceFirmwareChannelReqVO {
 
     @Schema(description = "Firmware channel stable/test", example = "stable")
-    @NotBlank(message = "Firmware channel cannot be empty")
+    @NotBlank(message = "固件通道不能为空")
     private String channel;
 }
