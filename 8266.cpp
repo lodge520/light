@@ -17,8 +17,8 @@ WebSocketsClient webSocket;
 ESP8266WebServer server(80);
 WiFiUDP udp;
 
-#define nanoSerial Serial
-#define DEBUG_SERIAL Serial1
+#define nanoSerial Serial1
+#define DEBUG_SERIAL Serial
 
 // ===================== 引脚定义 =====================
 #define LED_COLD_PIN D2
@@ -30,8 +30,8 @@ WiFiUDP udp;
 // ===================== 固件信息 =====================
 #define FW_DEVICE_TYPE  "lamp"
 #define FW_TYPE         FW_DEVICE_TYPE
-#define FW_VERSION      "1.0.0"
-#define FW_VERSION_CODE 10000
+#define FW_VERSION      "1.0.1"
+#define FW_VERSION_CODE 10001
 #define FW_CHANNEL      "stable"
 
 // ===================== 默认服务器配置 =====================
@@ -60,6 +60,10 @@ bool portalMode = false;
 bool otaInProgress = false;
 String firmwareChannel = FW_CHANNEL;
 String otaStatus = "idle";
+int otaProgress = 0;
+int lastOtaProgressLog = -1;
+int lastOtaProgressReport = -1;
+unsigned long lastOtaProgressReportMs = 0;
 
 unsigned long lastLightSend = 0;
 unsigned long lastLightUpdate = 0;
@@ -74,6 +78,17 @@ bool autoMode = true;
 int recommendedBrightness = 80;
 int recommendedTemp = 4000;
 char fabric[16] = "unknown";
+
+bool effectWaveEnabled = false;
+int effectBaseTemp = 3800;
+int effectRange = 500;
+float effectSpeed = 1.0f;
+int effectBrightness = 80;
+float effectPhaseOffset = 0.0f;
+int effectRestoreBrightness = 80;
+int effectRestoreTemp = 4000;
+unsigned long effectStartMs = 0;
+unsigned long lastEffectUpdateMs = 0;
 
 // ===================== Nano 云台 / 滑轨控制参数 =====================
 static const int PAN_MIN = -90;
@@ -111,6 +126,8 @@ void locateBreath(int times, int cycleMs);
 void sendDeviceStateReport();
 void handleArmAction(const String& action, const String& speed);
 void pollNano();
+void applyLightSettings(int br, int tp);
+void updateEffectLoop();
 // ===================== 工具函数 =====================
 String configPath() {
   return "/config.json";
@@ -439,8 +456,32 @@ void otaStarted() {
 void otaFinished() {
   DEBUG_SERIAL.println("[OTA] 升级完成");
 }
-void otaProgress(int cur, int total) {
-  DEBUG_SERIAL.printf("[OTA] 进度: %d / %d\n", cur, total);
+void otaProgressCallback(int current, int total) {
+  if (total <= 0) return;
+
+  int percent = (current * 100) / total;
+  percent = constrain(percent, 0, 100);
+
+  otaProgress = percent;
+
+  if (lastOtaProgressLog < 0 || percent - lastOtaProgressLog >= 5 || percent == 100) {
+    lastOtaProgressLog = percent;
+    DEBUG_SERIAL.printf("[OTA] progress %d%% (%d/%d)\n", percent, current, total);
+  }
+
+  unsigned long now = millis();
+  if (
+    lastOtaProgressReport < 0 ||
+    percent - lastOtaProgressReport >= 10 ||
+    now - lastOtaProgressReportMs >= 2000 ||
+    percent == 100
+  ) {
+    lastOtaProgressReport = percent;
+    lastOtaProgressReportMs = now;
+    sendDeviceStateReport();
+  }
+
+  yield();
 }
 void otaError(int err) {
   DEBUG_SERIAL.printf("[OTA] 错误码: %d\n", err);
@@ -450,6 +491,10 @@ void doOtaUpdate(const String& url, const String& version, int versionCode, cons
   if (otaInProgress) return;
   otaInProgress = true;
   otaStatus = "updating";
+  otaProgress = 0;
+  lastOtaProgressLog = -1;
+  lastOtaProgressReport = -1;
+  lastOtaProgressReportMs = 0;
   firmwareChannel = FW_CHANNEL;
   sendDeviceStateReport();
 
@@ -466,7 +511,7 @@ void doOtaUpdate(const String& url, const String& version, int versionCode, cons
   ESPhttpUpdate.rebootOnUpdate(false);
   ESPhttpUpdate.onStart(otaStarted);
   ESPhttpUpdate.onEnd(otaFinished);
-  ESPhttpUpdate.onProgress(otaProgress);
+  ESPhttpUpdate.onProgress(otaProgressCallback);
   ESPhttpUpdate.onError(otaError);
   if (md5.length() > 0) {
     ESPhttpUpdate.setMD5sum(md5.c_str());
@@ -486,7 +531,8 @@ void doOtaUpdate(const String& url, const String& version, int versionCode, cons
       break;
 
     case HTTP_UPDATE_NO_UPDATES:
-      otaStatus = "failed";
+      otaStatus = "idle";
+      otaProgress = 0;
       sendDeviceStateReport();
       DEBUG_SERIAL.println("[OTA] 没有更新");
       otaInProgress = false;
@@ -495,10 +541,11 @@ void doOtaUpdate(const String& url, const String& version, int versionCode, cons
 
     case HTTP_UPDATE_OK:
       otaStatus = "success";
+      otaProgress = 100;
       sendDeviceStateReport();
       delay(300);
-      ESP.restart();
       DEBUG_SERIAL.println("[OTA] 升级成功，设备将自动重启");
+      ESP.restart();
       break;
   }
 }
@@ -761,7 +808,7 @@ void handleArmAction(const String& action, const String& speed) {
 
 // ===================== WebSocket =====================
 void sendWsRegister() {
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<320> doc;
   doc["type"] = "register";
   doc["id"] = deviceId;
   doc["chipId"] = deviceId;
@@ -769,6 +816,8 @@ void sendWsRegister() {
   doc["fwVersion"] = FW_VERSION;
   doc["fwVersionCode"] = FW_VERSION_CODE;
   doc["firmwareChannel"] = FW_CHANNEL;
+  doc["otaStatus"] = otaStatus;
+  doc["otaProgress"] = otaProgress;
   doc["ip"] = WiFi.localIP().toString();
   doc["mac"] = WiFi.macAddress();
 
@@ -825,6 +874,47 @@ void handleWsMessage(const String& text) {
     DEBUG_SERIAL.printf("WS控制：亮度=%d 色温=%d 自动=%d 推荐亮度=%d 推荐色温=%d 面料=%s\n",
                   brightness, temp, autoMode,
                   recommendedBrightness, recommendedTemp, fabric);
+    return;
+  }
+
+  if (type == "effect") {
+    String effect = payload["effect"] | "";
+    bool enabled = payload["enabled"] | false;
+
+    if (effect != "wave") {
+      DEBUG_SERIAL.println("[EFFECT] unsupported effect: " + effect);
+      return;
+    }
+
+    if (enabled) {
+      effectRestoreBrightness = autoMode ? recommendedBrightness : brightness;
+      effectRestoreTemp = autoMode ? recommendedTemp : temp;
+      effectBaseTemp = constrain(payload["baseTemp"] | effectBaseTemp, 2700, 6500);
+      effectRange = constrain(payload["range"] | effectRange, 0, 1900);
+      effectSpeed = constrain(payload["speed"] | effectSpeed, 0.1f, 5.0f);
+      effectBrightness = constrain(payload["brightness"] | effectBrightness, 0, 100);
+      effectPhaseOffset = payload["phaseOffset"] | effectPhaseOffset;
+      effectStartMs = millis();
+      lastEffectUpdateMs = 0;
+      effectWaveEnabled = true;
+
+      DEBUG_SERIAL.printf(
+        "[EFFECT] wave start baseTemp=%d range=%d speed=%.2f brightness=%d phaseOffset=%.2f restoreB=%d restoreT=%d\n",
+        effectBaseTemp,
+        effectRange,
+        effectSpeed,
+        effectBrightness,
+        effectPhaseOffset,
+        effectRestoreBrightness,
+        effectRestoreTemp
+      );
+    } else {
+      effectWaveEnabled = false;
+      applyLightSettings(effectRestoreBrightness, effectRestoreTemp);
+      lastLightUpdate = millis();
+      DEBUG_SERIAL.printf("[EFFECT] wave stop restoreB=%d restoreT=%d\n", effectRestoreBrightness, effectRestoreTemp);
+    }
+
     return;
   }
 
@@ -885,6 +975,7 @@ void handleWsMessage(const String& text) {
     if (sameChannel && versionCode <= FW_VERSION_CODE) {
       DEBUG_SERIAL.println("[OTA] Same channel and target versionCode is not newer, ignore");
       otaStatus = "idle";
+      otaProgress = 0;
       sendDeviceStateReport();
       return;
     }
@@ -997,6 +1088,21 @@ void locateBreath(int times, int cycleMs) {
   applyLightSettings(oldBrightness, oldTemp);
 
   DEBUG_SERIAL.println("[LOCATE] 呼吸定位结束，已恢复原灯光");
+}
+
+void updateEffectLoop() {
+  if (!effectWaveEnabled) return;
+
+  unsigned long now = millis();
+  if (now - lastEffectUpdateMs < 50) return;
+  lastEffectUpdateMs = now;
+
+  float elapsedSec = (now - effectStartMs) / 1000.0f;
+  int targetTemp = effectBaseTemp + int(sin(elapsedSec * effectSpeed + effectPhaseOffset) * effectRange);
+  targetTemp = constrain(targetTemp, 2700, 6500);
+  int targetBrightness = constrain(effectBrightness, 0, 100);
+
+  applyLightSettings(targetBrightness, targetTemp);
 }
 
 void sendStayRecordToServer(unsigned long durationSeconds) {
@@ -1141,7 +1247,7 @@ void sendDeviceStateReport() {
   http.begin(client, httpUrl("/admin/device/state-report"));
   http.addHeader("Content-Type", "application/json");
 
-  StaticJsonDocument<384> doc;
+  StaticJsonDocument<448> doc;
   doc["chipId"] = deviceId;
   doc["deviceType"] = FW_DEVICE_TYPE;
   doc["ip"] = WiFi.localIP().toString();
@@ -1155,6 +1261,7 @@ void sendDeviceStateReport() {
   doc["firmwareVersionCode"] = FW_VERSION_CODE;
   doc["firmwareChannel"] = FW_CHANNEL;
   doc["otaStatus"] = otaStatus;
+  doc["otaProgress"] = otaProgress;
 
   String json;
   serializeJson(doc, json);
@@ -1338,7 +1445,11 @@ void loop() {
 
   webSocket.loop();
   broadcastDevice();
-  updateLightingByToF();
+  if (effectWaveEnabled) {
+    updateEffectLoop();
+  } else {
+    updateLightingByToF();
+  }
 
   unsigned long now = millis();
 
