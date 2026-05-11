@@ -146,6 +146,7 @@
 import { computed, ref, watch } from 'vue'
 import { armControl, type ArmControlSpeed } from '../../api/device'
 import type { DeviceItem } from '../../types/device'
+import { getErrorMessage } from '../../utils/error'
 import BaseSelect from '../common/BaseSelect.vue'
 
 const props = defineProps<{
@@ -326,7 +327,7 @@ async function send(action: string, position?: number) {
     statusText.value = `已发送：${selectedDeviceTypeText.value} / ${getActionText(action)} / ${speed.value}${positionText}`
   } catch (error) {
     console.error('gimbal control error =', error)
-    errorText.value = '发送云台控制指令失败'
+    errorText.value = getErrorMessage(error, '发送云台控制指令失败')
   } finally {
     submitting.value = false
   }

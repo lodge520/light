@@ -264,6 +264,7 @@ import FlowOverview from '../components/flow/FlowOverview.vue'
 import FirmwareManagePanel from '../components/firmware/FirmwareManagePanel.vue'
 import { regions } from '../constants/china-region'
 import { STORE_STYLE_MAP } from '../constants/store'
+import { getErrorMessage } from '../utils/error'
 const router = useRouter()
 const route = useRoute()
 
@@ -837,7 +838,7 @@ async function handleCreateDevice(payload: DeviceCreatePayload) {
     await loadDevices()
   } catch (error) {
     console.error('createDevice error =', error)
-    alert('添加设备失败')
+    alert(getErrorMessage(error, '添加设备失败'))
   } finally {
     creating.value = false
   }
@@ -879,7 +880,7 @@ async function handleDeleteDevice(id: number) {
     await loadDevices()
   } catch (error) {
     console.error('deleteDevice error =', error)
-    alert('删除设备失败')
+    alert(getErrorMessage(error, '删除设备失败'))
   } finally {
     deletingId.value = null
   }

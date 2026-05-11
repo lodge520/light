@@ -202,6 +202,7 @@
 import { nextTick, onMounted, ref, watch } from 'vue'
 import BaseSelect from '../common/BaseSelect.vue'
 import { getFirmwareHistory, uploadFirmware } from '../../api/device'
+import { getErrorMessage } from '../../utils/error'
 import type {
   FirmwareChannel,
   FirmwareDeviceType,
@@ -286,20 +287,6 @@ function validateForm() {
   }
 
   return ''
-}
-
-function getErrorMessage(error: unknown, fallback = '固件上传失败') {
-  if (error instanceof Error && error.message) {
-    return error.message
-  }
-
-  const anyError = error as any
-  return (
-    anyError?.response?.data?.msg ||
-    anyError?.response?.data?.message ||
-    anyError?.message ||
-    fallback
-  )
 }
 
 async function handleSubmit() {

@@ -51,7 +51,7 @@
 
             <div class="form-item">
               <label>手机号</label>
-              <input v-model.trim="form.phone" type="text" placeholder="请输入手机号" />
+              <input v-model.trim="form.phone" type="tel" maxlength="11" placeholder="请输入手机号" />
             </div>
 
             <div class="form-item">
@@ -102,6 +102,10 @@ function validateForm() {
   }
   if (!form.phone) {
     alert('请输入手机号')
+    return false
+  }
+  if (!/^1[3-9]\d{9}$/.test(form.phone)) {
+    alert('手机号格式不正确')
     return false
   }
   if (!form.password) {

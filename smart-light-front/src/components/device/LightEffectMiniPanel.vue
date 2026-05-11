@@ -202,6 +202,7 @@ import {
   type LightEffectState,
 } from '../../api/lightEffect'
 import type { DeviceCreatePayload, DeviceItem } from '../../types/device'
+import { getErrorMessage } from '../../utils/error'
 import BaseSelect from '../common/BaseSelect.vue'
 
 const props = defineProps<{
@@ -655,7 +656,9 @@ async function applyDeviceMode(
       : `${label}已应用 ${targetDevices.value.length} 盏`
   } catch (error) {
     console.error('apply device mode error =', error)
-    statusText.value = nextActiveEffect === null ? '关闭失败' : `${label}应用失败`
+    statusText.value = nextActiveEffect === null
+      ? getErrorMessage(error, '关闭失败')
+      : getErrorMessage(error, `${label}应用失败`)
   } finally {
     submitting.value = false
   }
@@ -674,7 +677,7 @@ async function saveSettings() {
       return
     } catch (error) {
       console.error('save wave settings error =', error)
-      statusText.value = 'Wave 灯效设置同步失败'
+      statusText.value = getErrorMessage(error, 'Wave 灯效设置同步失败')
       return
     }
   }
@@ -704,7 +707,7 @@ async function startWave() {
     statusText.value = `循环已启动 ${targetDevices.value.length} 盏`
   } catch (error) {
     console.error('start wave effect error =', error)
-    statusText.value = '开启失败'
+    statusText.value = getErrorMessage(error, '开启失败')
   } finally {
     submitting.value = false
   }
@@ -722,7 +725,7 @@ async function stopWave() {
     statusText.value = '循环已停止'
   } catch (error) {
     console.error('stop wave effect error =', error)
-    statusText.value = '停止失败'
+    statusText.value = getErrorMessage(error, '停止失败')
   } finally {
     submitting.value = false
   }
@@ -779,7 +782,7 @@ async function submitEffectBrightness(value: number) {
       console.error('update wave brightness error =', error)
       effectBrightness.value = previousBrightness
       brightness.value = previousBrightness
-      statusText.value = 'Wave 灯效亮度更新失败，请稍后重试'
+      statusText.value = getErrorMessage(error, 'Wave 灯效亮度更新失败，请稍后重试')
     }
     return
   }
@@ -811,7 +814,7 @@ async function submitEffectBrightness(value: number) {
     console.error('update effect brightness error =', error)
     effectBrightness.value = previousBrightness
     brightness.value = previousBrightness
-    statusText.value = '灯效亮度更新失败，请稍后重试'
+    statusText.value = getErrorMessage(error, '灯效亮度更新失败，请稍后重试')
   }
 }
 
@@ -851,7 +854,7 @@ watch(
         .then(applyLightEffectState)
         .catch((error) => {
           console.error('update wave scope error =', error)
-          statusText.value = 'Wave 灯效范围更新失败'
+          statusText.value = getErrorMessage(error, 'Wave 灯效范围更新失败')
         })
     }, EFFECT_BRIGHTNESS_DEBOUNCE_MS)
   },

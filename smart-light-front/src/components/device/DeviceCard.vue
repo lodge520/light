@@ -171,16 +171,16 @@
                   <div class="ota-progress-sub">{{ otaProgressSubText }}</div>
                 </div>
 
+                <p v-else-if="otaMessage" class="ota-error-msg">
+                  {{ otaMessage }}
+                </p>
+
                 <div v-else-if="otaCheckResult" class="ota-result">
                   <div>{{ otaUpdateText }}</div>
                   <div v-if="otaCheckResult.changelog" class="modal-hint">
                     更新说明：{{ otaCheckResult.changelog }}
                   </div>
                 </div>
-
-                <p v-else-if="otaMessage" class="modal-hint ota-message">
-                  {{ otaMessage }}
-                </p>
               </div>
 
               <div class="detail-modal-actions ota-actions">
@@ -322,6 +322,7 @@ import {
   startOtaUpdate,
 } from '../../api/device'
 import { generateLightRecommendationReason } from '../../utils/lightRecommendationReason'
+import { getErrorMessage } from '../../utils/error'
 
 const props = defineProps<{
   device: DeviceItem
@@ -901,7 +902,7 @@ async function handleCheckFirmwareUpdate() {
     otaCheckResult.value = await checkFirmwareUpdate(localForm.chipId, firmwareChannel.value)
   } catch (error) {
     console.error('checkFirmwareUpdate error =', error)
-    otaMessage.value = '检查更新失败'
+    otaMessage.value = getErrorMessage(error, '检查更新失败')
   } finally {
     otaChecking.value = false
   }
@@ -933,7 +934,7 @@ async function handleStartOtaUpdate() {
     console.error('startOtaUpdate error =', error)
     localOtaUpdating.value = false
     stopOtaProgressTimer()
-    otaMessage.value = 'OTA更新指令下发失败'
+    otaMessage.value = getErrorMessage(error, 'OTA更新指令下发失败')
   } finally {
     otaStarting.value = false
   }
@@ -1500,8 +1501,16 @@ const textColor = computed(() => {
   color: rgba(185, 28, 28, 0.78);
 }
 
-.ota-message {
-  margin-top: 0;
+.ota-error-msg {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff1f0;
+  border: 1px solid rgba(245, 63, 63, 0.18);
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 .ota-actions {
@@ -1893,7 +1902,8 @@ const textColor = computed(() => {
   color: #bfdbfe;
 }
 
-:global(body:has(.app-container.night-mode)) .modal-error {
+:global(body:has(.app-container.night-mode)) .modal-error,
+:global(body:has(.app-container.night-mode)) .ota-error-msg {
   background: rgba(127, 29, 29, 0.26);
   border: 1px solid rgba(248, 113, 113, 0.22);
   color: #fecaca;

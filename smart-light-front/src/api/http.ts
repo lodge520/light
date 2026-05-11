@@ -74,6 +74,14 @@ http.interceptors.response.use(
       redirectToLogin()
     }
 
+    const msg =
+      error?.response?.data?.msg ||
+      error?.response?.data?.message
+
+    if (msg) {
+      return Promise.reject(new Error(msg))
+    }
+
     return Promise.reject(error)
   },
 )
