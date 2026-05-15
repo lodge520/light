@@ -181,14 +181,45 @@ function handleOpenStoreSettings() {
 }
 
 @media (max-width: 768px) {
+  .store-toolbar-card {
+    padding: 14px 16px;
+  }
+
+  .store-toolbar-left {
+    gap: 8px;
+  }
+
+  .settings-title {
+    font-size: 16px;
+  }
+
+  .meta-chip {
+    min-height: 36px;
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .meta-key {
+    font-size: 12px;
+  }
+
+  .meta-value {
+    font-size: 13px;
+  }
+
   .store-toolbar-actions {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 
   .store-toolbar-actions .btn-primary,
   .store-toolbar-actions .btn-secondary,
   .store-toolbar-actions .btn-logout {
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 12px;
+    white-space: nowrap;
   }
 }
 </style>

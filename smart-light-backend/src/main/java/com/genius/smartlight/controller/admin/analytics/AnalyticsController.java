@@ -3,9 +3,12 @@ package com.genius.smartlight.controller.admin.analytics;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.genius.smartlight.common.CommonResult;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
+import com.genius.smartlight.dal.dataobject.StoreDO;
 import com.genius.smartlight.dal.dataobject.WeatherRecordDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
+import com.genius.smartlight.dal.mysql.StoreMapper;
 import com.genius.smartlight.dal.mysql.WeatherRecordMapper;
+import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.vo.analytics.StrategyCompareRespVO;
 import com.genius.smartlight.vo.analytics.TempPeopleTrendRespVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,10 +37,11 @@ public class AnalyticsController {
 
     private final WeatherRecordMapper weatherRecordMapper;
     private final DeviceMapper deviceMapper;
+    private final StoreMapper storeMapper;
 
     @Operation(
             summary = "查询温度与人流趋势",
-            description = "温度数据来自 weather_record.temperature。传入 chipId 时按设备所属 storeId 过滤；未传 chipId 时使用最新天气记录所属门店作为默认门店。"
+            description = "温度数据来自 weather_record.temperature。传入 chipId 时按设备所属 storeId 过滤；未传 chipId 时使用当前用户店铺作为默认门店。"
     )
     @GetMapping("/temp-people-trend")
     public CommonResult<TempPeopleTrendRespVO> getTempPeopleTrend(
@@ -87,25 +91,31 @@ public class AnalyticsController {
     }
 
     private Long resolveStoreId(String chipId) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        StoreDO currentUserStore = storeMapper.selectOne(
+                new LambdaQueryWrapper<StoreDO>()
+                        .eq(StoreDO::getUserId, currentUserId)
+                        .last("limit 1")
+        );
+
         if (chipId != null && !chipId.isBlank()) {
             DeviceDO device = deviceMapper.selectOne(
                     new LambdaQueryWrapper<DeviceDO>()
                             .eq(DeviceDO::getChipId, chipId)
                             .last("limit 1")
             );
-            return device == null ? null : device.getStoreId();
+            if (device == null || device.getStoreId() == null) {
+                return null;
+            }
+            // 仅允许查看当前用户店铺所关联设备的数据
+            if (currentUserStore != null && device.getStoreId().equals(currentUserStore.getId())) {
+                return device.getStoreId();
+            }
+            return null;
         }
 
-        WeatherRecordDO latest = weatherRecordMapper.selectOne(
-                new LambdaQueryWrapper<WeatherRecordDO>()
-                        .isNotNull(WeatherRecordDO::getStoreId)
-                        .isNotNull(WeatherRecordDO::getTemperature)
-                        .orderByDesc(WeatherRecordDO::getCollectTime)
-                        .orderByDesc(WeatherRecordDO::getCreateTime)
-                        .orderByDesc(WeatherRecordDO::getId)
-                        .last("limit 1")
-        );
-        return latest == null ? null : latest.getStoreId();
+        // 未传 chipId 时使用当前用户店铺
+        return currentUserStore != null ? currentUserStore.getId() : null;
     }
 
     private String formatLabel(WeatherRecordDO record) {

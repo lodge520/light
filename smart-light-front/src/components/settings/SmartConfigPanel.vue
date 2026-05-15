@@ -17,7 +17,7 @@
       <div class="smart-steps">
         <div class="smart-step">
           <span>1</span>
-          <p>设备进入 SmartConfig 模式</p>
+          <p>设备进入一键配网模式</p>
         </div>
         <div class="smart-step">
           <span>2</span>
@@ -688,53 +688,107 @@ button:disabled {
 
 @media (max-width: 599px) {
   .smart-config-section {
-    margin: 20px 0;
-    padding: 16px 12px;
-    border-radius: 18px;
+    margin: 16px 0 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .smart-card {
     width: 100%;
-    padding: 16px;
+    padding: 12px 14px;
     border-radius: 16px;
+    background: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.10);
   }
 
   .smart-header {
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
 
   .smart-title {
-    font-size: 20px;
+    font-size: 17px;
+  }
+
+  .smart-desc {
+    margin: 4px 0 0;
+    font-size: 12px;
   }
 
   .smart-status {
     align-self: flex-start;
+    padding: 4px 10px;
+    font-size: 11px;
   }
 
   .smart-steps {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    margin: 16px 0;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin: 10px 0;
   }
 
   .smart-step {
-    padding: 9px 10px;
+    padding: 6px 5px;
+    gap: 4px;
+    border-radius: 10px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .smart-step span {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .smart-step p {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .smart-form {
+    gap: 10px;
+  }
+
+  .form-row label {
+    font-size: 12px;
+  }
+
+  .form-row input {
+    height: 38px;
+    padding: 0 10px;
+    font-size: 13px;
+    border-radius: 10px;
   }
 
   .wifi-row,
   .password-row {
     grid-template-columns: 1fr;
+    gap: 6px;
   }
 
   .field-hint {
-    min-height: 14px;
+    min-height: 0;
+    font-size: 11px;
+  }
+
+  .field-hint.placeholder {
+    display: none;
   }
 
   .smart-actions {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 6px;
+    margin-top: 12px;
   }
 
   .btn-primary,
@@ -742,7 +796,20 @@ button:disabled {
   .btn-danger,
   .btn-light {
     width: 100%;
-    min-height: 46px;
+    min-height: 40px;
+    font-size: 13px;
+  }
+
+  .smart-message {
+    margin-top: 10px;
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .smart-tips {
+    margin-top: 10px;
+    padding: 10px;
+    font-size: 11px;
   }
 }
 

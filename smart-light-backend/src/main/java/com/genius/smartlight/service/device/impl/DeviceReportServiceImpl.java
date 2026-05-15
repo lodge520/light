@@ -12,11 +12,13 @@ import com.genius.smartlight.vo.device.DeviceStateReportReqVO;
 import com.genius.smartlight.websocket.DeviceSessionManager;
 import com.genius.smartlight.websocket.WebSocketPushService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeviceReportServiceImpl implements DeviceReportService {
@@ -28,15 +30,21 @@ public class DeviceReportServiceImpl implements DeviceReportService {
 
     @Override
     public void reportState(DeviceStateReportReqVO reqVO) {
+        String chipId = reqVO.getChipId();
+        log.info("设备状态上报 chipId={} ip={} brightness={} temp={} autoMode={}",
+                chipId, reqVO.getIp(), reqVO.getBrightness(), reqVO.getTemp(), reqVO.getAutoMode());
+
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getChipId, reqVO.getChipId())
+                        .eq(DeviceDO::getChipId, chipId)
         );
 
         if (device == null) {
+            log.warn("设备状态上报被拒绝：设备未注册 chipId={} ip={}", chipId, reqVO.getIp());
             throw new ServiceException("设备不存在，请先添加设备");
         }
 
+        // 设备上报不修改 storeId 等归属字段，仅更新设备自身状态
         if (reqVO.getIp() != null) {
             device.setIp(reqVO.getIp());
         }
@@ -80,15 +88,16 @@ public class DeviceReportServiceImpl implements DeviceReportService {
             newOtaStatus = normalizeOtaStatus(reqVO.getOtaStatus());
             device.setOtaStatus(newOtaStatus);
         }
-        updateOtaProgress(reqVO.getChipId(), oldOtaStatus, newOtaStatus, reqVO.getOtaProgress(), otaStatusReported);
+        updateOtaProgress(chipId, oldOtaStatus, newOtaStatus, reqVO.getOtaProgress(), otaStatusReported);
 
         device.setUpdateTime(LocalDateTime.now());
         deviceMapper.updateById(device);
 
         // 设备已经走 ws/device 注册过，这里刷新 lastSeen
-        deviceSessionManager.touch(reqVO.getChipId());
+        deviceSessionManager.touch(chipId);
 
         DeviceRespVO respVO = otaProgressStore.applyProgress(DeviceConvert.convert(device));
+        // 推送给该设备所属店铺的浏览器客户端（storeId 由 DeviceConvert 从 DeviceDO 填充）
         webSocketPushService.pushState(respVO);
     }
 

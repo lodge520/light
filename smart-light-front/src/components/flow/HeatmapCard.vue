@@ -26,8 +26,8 @@
             :style="{
               width: `${item.size}px`,
               height: `${item.size}px`,
-              background: item.background,
-              boxShadow: item.shadow,
+              background: `radial-gradient(circle at 50% 50%, ${item.bgColor} 0%, ${item.bgColor} 40%, ${item.edgeColor} 100%)`,
+              boxShadow: `0 8px 24px ${item.glowColor}`,
             }"
           >
             <span class="heat-bubble-value">{{ item.shortDurationText }}</span>
@@ -44,28 +44,6 @@
         </button>
       </div>
 
-      <div class="heat-rank-list">
-        <div
-          v-for="item in heatItems"
-          :key="`${item.chipId}-bar`"
-          class="heat-rank-row"
-        >
-          <div class="heat-rank-meta">
-            <span class="heat-rank-index">#{{ item.rank }}</span>
-            <span class="heat-rank-name">{{ item.name }}</span>
-          </div>
-          <div class="heat-bar-track">
-            <div
-              class="heat-bar-fill"
-              :style="{
-                width: `${Math.max(item.ratio * 100, 4)}%`,
-                background: item.background,
-              }"
-            />
-          </div>
-          <div class="heat-rank-duration">{{ item.durationText }}</div>
-        </div>
-      </div>
     </template>
   </div>
 </template>
@@ -102,24 +80,46 @@ function formatDuration(seconds: number) {
   return remainMinutes > 0 ? `${hours}小时${remainMinutes}分` : `${hours}小时`
 }
 
-function interpolateColor(start: string, end: string, ratio: number) {
-  const parse = (hex: string) => [1, 3, 5].map(index => Number.parseInt(hex.slice(index, index + 2), 16))
-  const [sr, sg, sb] = parse(start)
-  const [er, eg, eb] = parse(end)
-  const mix = (a: number, b: number) => Math.round(a + (b - a) * ratio)
-  return `rgb(${mix(sr, er)}, ${mix(sg, eg)}, ${mix(sb, eb)})`
-}
+function getHeatColor(ratio: number): { bg: string; edge: string; glow: string; cardBg: string } {
+  const c = (t: number, a: number, b: number) => Math.round(a + (b - a) * t)
 
-function getHeatColor(ratio: number) {
   if (ratio <= 0.33) {
-    return interpolateColor('#38bdf8', '#22d3ee', ratio / 0.33)
+    const t = ratio / 0.33
+    const r = c(t, 56, 86)
+    const g = c(t, 180, 200)
+    const b = c(t, 240, 250)
+    // cold: edge → deep blue (colder end)
+    return {
+      bg: `rgb(${r}, ${g}, ${b})`,
+      edge: `rgb(56, 180, 240)`,
+      glow: `rgba(${r}, ${g}, ${b}, 0.4)`,
+      cardBg: `rgba(${r}, ${g}, ${b}, 0.08)`,
+    }
   }
-
   if (ratio <= 0.66) {
-    return interpolateColor('#22d3ee', '#facc15', (ratio - 0.33) / 0.33)
+    const t = (ratio - 0.33) / 0.33
+    const r = c(t, 86, 250)
+    const g = c(t, 200, 160)
+    const b = c(t, 250, 20)
+    // medium: edge → cold (blue/cyan)
+    return {
+      bg: `rgb(${r}, ${g}, ${b})`,
+      edge: `rgb(86, 200, 250)`,
+      glow: `rgba(${r}, ${g}, ${b}, 0.4)`,
+      cardBg: `rgba(${r}, ${g}, ${b}, 0.08)`,
+    }
   }
-
-  return interpolateColor('#facc15', '#ef4444', (ratio - 0.66) / 0.34)
+  const t = (ratio - 0.66) / 0.34
+  const r = c(t, 250, 239)
+  const g = c(t, 160, 40)
+  const b = c(t, 20, 50)
+  // hot: edge → medium (yellow/orange)
+  return {
+    bg: `rgb(${r}, ${g}, ${b})`,
+    edge: `rgb(250, 160, 20)`,
+    glow: `rgba(${r}, ${g}, ${b}, 0.45)`,
+    cardBg: `rgba(${r}, ${g}, ${b}, 0.08)`,
+  }
 }
 
 const heatItems = computed(() => {
@@ -138,16 +138,17 @@ const heatItems = computed(() => {
   return validRows.map((item, index) => {
     const ratio = Math.min(item.seconds / maxDuration, 1)
     const color = getHeatColor(ratio)
-    const shadowOpacity = 0.16 + ratio * 0.28
-    const size = Math.round(34 + ratio * 42)
+    const size = Math.round(42 + ratio * 46)
 
     return {
       ...item,
       rank: index + 1,
       ratio,
       size,
-      background: `radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.72), ${color} 42%, ${color} 100%)`,
-      shadow: `0 10px ${Math.round(18 + ratio * 18)}px rgba(${ratio > 0.66 ? '239, 68, 68' : '14, 165, 233'}, ${shadowOpacity})`,
+      bgColor: color.bg,
+      edgeColor: color.edge,
+      glowColor: color.glow,
+      cardBgColor: color.cardBg,
       durationText: formatDuration(item.seconds),
       shortDurationText: formatDuration(item.seconds),
       percentText: totalDuration > 0 ? `${Math.round((item.seconds / totalDuration) * 100)}%` : '0%',
@@ -183,44 +184,39 @@ const heatItems = computed(() => {
   display: inline-block;
 }
 
-.legend-cold {
-  background: #38bdf8;
-}
-
-.legend-mid {
-  background: #facc15;
-}
-
-.legend-hot {
-  background: #ef4444;
-}
+.legend-cold { background: rgb(56, 180, 240); }
+.legend-mid { background: rgb(250, 160, 20); }
+.legend-hot { background: rgb(239, 40, 50); }
 
 .heat-zone-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
   align-items: stretch;
 }
 
 .heat-zone-item {
   position: relative;
-  border: 1px solid #edf0f5;
-  border-radius: 12px;
-  background: #fbfcff;
-  padding: 14px 10px 12px;
-  min-height: 162px;
+  border: 1px solid rgba(226, 232, 240, 0.5);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  padding: 18px 10px 14px;
+  min-height: 170px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 5px;
   color: inherit;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
-.heat-zone-item:hover,
-.heat-zone-item:focus-visible {
-  border-color: #c7d2fe;
-  outline: none;
+.heat-zone-item:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.12);
+  transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.75);
 }
 
 .rank-badge {
@@ -251,19 +247,18 @@ const heatItems = computed(() => {
 }
 
 .heat-bubble {
-  border-radius: 999px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-weight: 800;
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
-  transition: transform 0.18s ease;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.heat-zone-item:hover .heat-bubble,
-.heat-zone-item:focus-visible .heat-bubble {
-  transform: translateY(-2px) scale(1.04);
+.heat-zone-item:hover .heat-bubble {
+  transform: scale(1.08);
 }
 
 .heat-bubble-value {
@@ -306,77 +301,15 @@ const heatItems = computed(() => {
   text-align: left;
 }
 
-.heat-rank-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.heat-rank-row {
-  display: grid;
-  grid-template-columns: minmax(110px, 140px) 1fr auto;
-  gap: 12px;
-  align-items: center;
-}
-
-.heat-rank-meta {
-  min-width: 0;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.heat-rank-index {
-  color: #909399;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.heat-rank-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #303133;
-  font-size: 13px;
-}
-
-.heat-bar-track {
-  height: 10px;
-  border-radius: 999px;
-  background: #edf2f7;
-  overflow: hidden;
-}
-
-.heat-bar-fill {
-  height: 100%;
-  border-radius: inherit;
-}
-
-.heat-rank-duration {
-  color: #606266;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .heat-zone-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: 10px;
   }
 
   .heat-zone-item {
-    min-height: 150px;
-    padding-inline: 8px;
-  }
-
-  .heat-rank-row {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-
-  .heat-rank-duration {
-    justify-self: end;
+    min-height: 130px;
+    padding: 10px 8px 8px;
   }
 
   .heat-detail-popover {
@@ -385,6 +318,19 @@ const heatItems = computed(() => {
     bottom: calc(100% + 6px);
     transform: none;
     width: auto;
+  }
+
+  .heat-bubble-value {
+    font-size: 11px;
+  }
+
+  .heat-zone-name {
+    font-size: 12px;
+  }
+
+  .heat-zone-time,
+  .heat-zone-percent {
+    font-size: 11px;
   }
 }
 </style>

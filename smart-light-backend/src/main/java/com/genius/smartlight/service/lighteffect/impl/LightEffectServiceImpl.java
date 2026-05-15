@@ -1,8 +1,13 @@
 package com.genius.smartlight.service.lighteffect.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.genius.smartlight.common.ServiceException;
 import com.genius.smartlight.convert.device.DeviceConvert;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
+import com.genius.smartlight.dal.dataobject.StoreDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
+import com.genius.smartlight.dal.mysql.StoreMapper;
+import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.lighteffect.LightEffectService;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.lighteffect.LightEffectStateReqVO;
@@ -17,6 +22,8 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -36,6 +43,7 @@ public class LightEffectServiceImpl implements LightEffectService {
     private static final int BASE_INTERVAL_MS = 2500;
 
     private final DeviceMapper deviceMapper;
+    private final StoreMapper storeMapper;
     private final WebSocketPushService webSocketPushService;
 
     private final Object lock = new Object();
@@ -45,102 +53,121 @@ public class LightEffectServiceImpl implements LightEffectService {
         return thread;
     });
 
-    private ScheduledFuture<?> waveFuture;
-    private LightEffectStateRespVO state = defaultState();
+    private final Map<Long, ScheduledFuture<?>> waveFutures = new ConcurrentHashMap<>();
+    private final Map<Long, LightEffectStateRespVO> storeStates = new ConcurrentHashMap<>();
 
     @Override
     public LightEffectStateRespVO getState() {
+        Long storeId = getCurrentStoreId();
         synchronized (lock) {
-            return copyState(state);
+            return copyState(getStoreState(storeId));
         }
     }
 
     @Override
     public LightEffectStateRespVO saveState(LightEffectStateReqVO reqVO) {
+        Long storeId = getCurrentStoreId();
         LightEffectStateRespVO nextState;
         boolean shouldRunWave;
 
         synchronized (lock) {
-            state = mergeState(state, reqVO);
+            LightEffectStateRespVO state = mergeState(getStoreState(storeId), reqVO);
+            storeStates.put(storeId, state);
             nextState = copyState(state);
             shouldRunWave = Boolean.TRUE.equals(state.getEnabled()) && EFFECT_WAVE.equals(state.getEffect());
         }
 
         if (shouldRunWave) {
-            applyWaveTick();
-            restartWaveScheduler(nextState.getSpeed());
+            applyWaveTick(storeId);
+            restartWaveScheduler(storeId, nextState.getSpeed());
         } else {
-            stopWaveScheduler();
+            stopWaveScheduler(storeId);
         }
 
-        LightEffectStateRespVO latest = getState();
-        webSocketPushService.pushLightEffectState(latest);
+        LightEffectStateRespVO latest;
+        synchronized (lock) {
+            latest = copyState(getStoreState(storeId));
+        }
+        webSocketPushService.pushLightEffectStateToStore(storeId, latest);
         return latest;
     }
 
     @Override
     public LightEffectStateRespVO close() {
+        Long storeId = getCurrentStoreId();
         LightEffectStateRespVO closed;
 
         synchronized (lock) {
+            LightEffectStateRespVO state = getStoreState(storeId);
             state.setEnabled(false);
             state.setUpdateTime(LocalDateTime.now());
+            storeStates.put(storeId, state);
             closed = copyState(state);
         }
 
-        stopWaveScheduler();
-        webSocketPushService.pushLightEffectState(closed);
+        stopWaveScheduler(storeId);
+        webSocketPushService.pushLightEffectStateToStore(storeId, closed);
         return closed;
     }
 
     @PreDestroy
     public void destroy() {
-        stopWaveScheduler();
+        synchronized (lock) {
+            waveFutures.values().forEach(future -> future.cancel(false));
+            waveFutures.clear();
+        }
         scheduler.shutdownNow();
     }
 
-    private void restartWaveScheduler(Double speed) {
+    private void restartWaveScheduler(Long storeId, Double speed) {
         synchronized (lock) {
-            stopWaveSchedulerLocked();
+            stopWaveSchedulerLocked(storeId);
             int intervalMs = resolveIntervalMs(speed);
-            waveFuture = scheduler.scheduleAtFixedRate(this::safeApplyWaveTick, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
+            ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
+                    () -> safeApplyWaveTick(storeId),
+                    intervalMs,
+                    intervalMs,
+                    TimeUnit.MILLISECONDS
+            );
+            waveFutures.put(storeId, future);
         }
     }
 
-    private void stopWaveScheduler() {
+    private void stopWaveScheduler(Long storeId) {
         synchronized (lock) {
-            stopWaveSchedulerLocked();
+            stopWaveSchedulerLocked(storeId);
         }
     }
 
-    private void stopWaveSchedulerLocked() {
-        if (waveFuture != null) {
-            waveFuture.cancel(false);
-            waveFuture = null;
+    private void stopWaveSchedulerLocked(Long storeId) {
+        ScheduledFuture<?> future = waveFutures.remove(storeId);
+        if (future != null) {
+            future.cancel(false);
         }
     }
 
-    private void safeApplyWaveTick() {
+    private void safeApplyWaveTick(Long storeId) {
         try {
-            LightEffectStateRespVO latest = applyWaveTick();
+            LightEffectStateRespVO latest = applyWaveTick(storeId);
             if (Boolean.TRUE.equals(latest.getEnabled()) && EFFECT_WAVE.equals(latest.getEffect())) {
-                webSocketPushService.pushLightEffectState(latest);
+                webSocketPushService.pushLightEffectStateToStore(storeId, latest);
             }
         } catch (Exception e) {
-            log.error("Wave light effect tick failed", e);
+            log.error("Wave light effect tick failed, storeId={}", storeId, e);
         }
     }
 
-    private LightEffectStateRespVO applyWaveTick() {
+    private LightEffectStateRespVO applyWaveTick(Long storeId) {
         LightEffectStateRespVO snapshot;
         synchronized (lock) {
+            LightEffectStateRespVO state = getStoreState(storeId);
             if (!Boolean.TRUE.equals(state.getEnabled()) || !EFFECT_WAVE.equals(state.getEffect())) {
                 return copyState(state);
             }
             snapshot = copyState(state);
         }
 
-        List<DeviceDO> devices = findTargetDevices(snapshot.getSelectedScope());
+        List<DeviceDO> devices = findTargetDevices(storeId, snapshot.getSelectedScope());
         int brightness = clamp(snapshot.getBrightness(), 0, 100);
         double phaseIndex = safeDouble(snapshot.getPhaseIndex(), 0D);
         double phaseGap = safeDouble(snapshot.getPhaseGap(), 0.8D);
@@ -165,9 +192,11 @@ public class LightEffectServiceImpl implements LightEffectService {
         }
 
         synchronized (lock) {
+            LightEffectStateRespVO state = getStoreState(storeId);
             if (Boolean.TRUE.equals(state.getEnabled()) && EFFECT_WAVE.equals(state.getEffect())) {
                 state.setPhaseIndex(safeDouble(state.getPhaseIndex(), 0D) + 1D);
                 state.setUpdateTime(LocalDateTime.now());
+                storeStates.put(storeId, state);
             }
             return copyState(state);
         }
@@ -180,8 +209,11 @@ public class LightEffectServiceImpl implements LightEffectService {
         return clamp((int) Math.round(value), MIN_TEMP, MAX_TEMP);
     }
 
-    private List<DeviceDO> findTargetDevices(String selectedScope) {
-        List<DeviceDO> devices = deviceMapper.selectList(null);
+    private List<DeviceDO> findTargetDevices(Long storeId, String selectedScope) {
+        List<DeviceDO> devices = deviceMapper.selectList(
+                new LambdaQueryWrapper<DeviceDO>()
+                        .eq(DeviceDO::getStoreId, storeId)
+        );
 
         String scope = normalizeScope(selectedScope);
         return devices.stream()
@@ -192,6 +224,23 @@ public class LightEffectServiceImpl implements LightEffectService {
                         .thenComparingInt(device -> parseDeviceNo(device.getDeviceNo()))
                         .thenComparing(device -> device.getChipId() == null ? "" : device.getChipId()))
                 .toList();
+    }
+
+    private Long getCurrentStoreId() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        StoreDO store = storeMapper.selectOne(
+                new LambdaQueryWrapper<StoreDO>()
+                        .eq(StoreDO::getUserId, userId)
+                        .last("limit 1")
+        );
+        if (store == null) {
+            throw new ServiceException("Current user has no bound store");
+        }
+        return store.getId();
+    }
+
+    private LightEffectStateRespVO getStoreState(Long storeId) {
+        return storeStates.computeIfAbsent(storeId, ignored -> defaultState());
     }
 
     private boolean isLightDevice(DeviceDO device) {

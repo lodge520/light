@@ -133,6 +133,24 @@ String configPath() {
   return "/config.json";
 }
 
+void dumpConfigFile() {
+  if (!LittleFS.exists(NET_CONFIG_PATH)) {
+    addLog("config file not exists: " + String(NET_CONFIG_PATH));
+    return;
+  }
+
+  File f = LittleFS.open(NET_CONFIG_PATH, "r");
+  if (!f) {
+    addLog("config file open failed");
+    return;
+  }
+
+  String raw = f.readString();
+  f.close();
+
+  addLog("config raw: " + raw);
+}
+
 String makeDeviceId() {
   String id = "lamp-";
   id += String(ESP.getChipId(), HEX);

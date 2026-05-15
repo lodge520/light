@@ -43,10 +43,12 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
             String chipId = node.path("chipId").asText();
 
             if ("register".equals(type)) {
-                if (chipId == null || chipId.isBlank()) {
+                chipId = deviceSessionManager.normalizeChipId(chipId);
+                if (chipId == null) {
                     log.warn("Device register missing chipId, sessionId={}", session.getId());
                     return;
                 }
+                log.info("设备注册: chipId={}, sessionId={}, 当前在线设备列表={}", chipId, session.getId(), deviceSessionManager.getOnlineChipIds());
                 deviceSessionManager.registerDevice(chipId, session);
                 syncFirmwareInfo(chipId, node);
                 deviceOnlinePushService.pushIfChanged(chipId);
@@ -55,7 +57,8 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
             }
 
             if ("ping".equals(type)) {
-                if (chipId != null && !chipId.isBlank()) {
+                chipId = deviceSessionManager.normalizeChipId(chipId);
+                if (chipId != null) {
                     deviceSessionManager.touch(chipId);
                     deviceOnlinePushService.pushIfChanged(chipId);
                 }

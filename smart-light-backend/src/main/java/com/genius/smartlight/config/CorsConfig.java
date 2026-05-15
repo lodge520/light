@@ -25,6 +25,7 @@ public class CorsConfig {
         config.setAllowedOriginPatterns(List.of(
                 "https://archive.genius.show",
                 "https://genius.show",
+                "http://localhost:5173",
                 "http://localhost",
                 "https://localhost",
                 "capacitor://localhost",
@@ -39,7 +40,15 @@ public class CorsConfig {
                 "GET", "POST", "PUT", "DELETE", "OPTIONS"
         ));
 
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With",
+                "Cache-Control",
+                "Pragma"
+        ));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);

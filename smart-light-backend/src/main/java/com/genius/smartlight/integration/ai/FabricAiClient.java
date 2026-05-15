@@ -2,25 +2,33 @@ package com.genius.smartlight.integration.ai;
 
 import com.genius.smartlight.common.ServiceException;
 import com.genius.smartlight.vo.ai.FabricRecognizeRespVO;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 @Component
-@RequiredArgsConstructor
 public class FabricAiClient {
 
     private final RestTemplate restTemplate;
 
     @Value("${ai.fabric.url}")
     private String fabricUrl;
+
+    public FabricAiClient(@Qualifier("aiRestTemplate") RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     public FabricRecognizeRespVO recognize(MultipartFile file, String chipId) {
         try {
@@ -55,6 +63,8 @@ public class FabricAiClient {
             return response.getBody();
         } catch (HttpStatusCodeException e) {
             throw new ServiceException("面料识别服务请求失败：" + e.getStatusCode());
+        } catch (ResourceAccessException e) {
+            throw new ServiceException("面料识别服务连接超时或不可用，请稍后重试");
         } catch (Exception e) {
             throw new ServiceException("调用面料识别服务失败：" + e.getMessage());
         }

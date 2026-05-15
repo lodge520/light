@@ -85,7 +85,8 @@
               </div>
             </div>
             <div id="luxDisplay" class="lux-display">
-              {{ latestLuxText }}
+              <span class="lux-full">{{ latestLuxText }}</span>
+              <span class="lux-short">{{ latestLuxShortText }}</span>
             </div>
           </div>
         </div>
@@ -295,8 +296,11 @@ const serverHost = computed(() => {
 })
 
 const wsUrl = computed(() => {
-  const token = localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN') || ''
-  return `${API_BASE.replace(/^http/, 'ws')}/ws?token=${encodeURIComponent(token)}`
+  return `${API_BASE.replace(/^http/, 'ws')}/ws`
+})
+
+const wsProtocol = computed(() => {
+  return (localStorage.getItem('TOKEN') || sessionStorage.getItem('TOKEN') || '').trim()
 })
 
 const scannedDevices = ref<
@@ -482,6 +486,7 @@ const holidayInfo = ref('是否节假日：否')
 const workdayInfo = ref('是否工作日：是')
 const latestLuxText = ref('光照值等待更新中...')
 const latestLux = ref<number | null>(null)
+const latestLuxShortText = computed(() => latestLuxText.value.replace('光照值：', ''))
 const durationRefreshKey = ref(0)
 const luxRefreshKey = ref(0)
 const currentStoreCityName = ref('')
@@ -1046,7 +1051,7 @@ function handleWsMessage(message: any) {
   }
 }
 
-const { connected } = useWebSocket(wsUrl, handleWsMessage)
+const { connected } = useWebSocket(wsUrl, handleWsMessage, wsProtocol)
 
 watch(connected, (val) => {
   if (scanning.value || scanFinished.value) return
@@ -1327,6 +1332,10 @@ onBeforeUnmount(() => {
   grid-template-columns: auto auto;
   column-gap: 30px;
   row-gap: 6px;
+}
+
+.lux-short {
+  display: none;
 }
 
 .lux-display {
@@ -2232,7 +2241,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 24px 32px 48px 0;
+  padding: 24px 24px 48px 0;
   overflow-x: hidden;
 }
 
@@ -2276,54 +2285,259 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
-  .store-layout-row {
-    gap: 12px;
-    margin: 14px 0 22px;
+  .main-content {
+    width: 100%;
+    margin-left: 0;
+    min-width: 0;
+    max-width: 100%;
+    padding: 12px 18px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .dashboard-top-status {
+    margin-bottom: 6px;
+  }
+
+  .current-time {
+    font-size: 1.4rem;
+  }
+
+  .weather-status-row {
+    margin-top: 4px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .weather-svg-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .weather-svg-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .section-space-top {
+    margin-top: 6px;
+  }
+
+  .env-layout {
+    gap: 0;
+    margin-bottom: 12px;
+  }
+
+  .env-card {
+    min-width: 0;
+    flex: 1 1 100%;
+    padding: 12px 14px;
+  }
+
+  .env-card:first-child {
+    border-radius: 14px 14px 0 0;
+    padding-bottom: 8px;
+  }
+
+  .env-card:last-child {
+    display: flex;
+    align-items: center;
+    border-radius: 0 0 14px 14px;
+    border-top: 1px solid rgba(203, 213, 225, 0.5);
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .env-card h4 {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+
+  .env-card:last-child h4 {
+    display: none;
   }
 
   .stat-grid {
-    gap: 10px;
+    gap: 0;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+  }
+
+  .stat-item {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 4px 8px;
+    border-right: 1px solid rgba(203, 213, 225, 0.52);
+    text-align: center;
+  }
+
+  .stat-item:first-child {
+    padding-left: 0;
+  }
+
+  .stat-item:last-child {
+    padding-right: 0;
+    border-right: none;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    margin-bottom: 3px;
+  }
+
+  .stat-value {
+    font-size: 15px;
   }
 
   .meta-grid {
-    gap: 10px;
+    display: flex;
+    flex: 2 2 0;
+    gap: 0;
+    margin-bottom: 0;
   }
 
-  .stat-item,
   .meta-item {
-    flex: 1 1 120px;
-    padding-right: 10px;
+    flex: 1 1 0;
+    padding: 4px 8px;
+    text-align: center;
+    border-right: 1px solid rgba(203, 213, 225, 0.4);
+  }
+
+  .lux-full {
+    display: none;
+  }
+
+  .lux-short {
+    display: block;
+  }
+
+  .lux-display {
+    flex: 1 1 0;
+    margin-top: 0;
+    padding: 4px 4px;
+    min-height: 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    text-align: center;
+    background: transparent;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .lux-display::before {
+    content: "光照";
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: #64748b;
+    margin-bottom: 3px;
+    white-space: nowrap;
+  }
+
+  .page-section > h1 {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    font-size: 26px;
+    z-index: 1;
   }
 
   #controls {
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 12px 14px;
+    margin: 10px 0 18px;
+    border-radius: 14px;
+  }
+
+  #controls > button {
+    padding: 8px 12px;
+    min-height: 36px;
+    font-size: 13px;
+    flex-shrink: 0;
   }
 
   #controls label {
-    width: 100%;
-    align-items: flex-start;
-    flex-direction: column;
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    gap: 3px;
+    white-space: nowrap;
+    width: auto;
   }
 
   #controls input {
-    width: 100%;
+    flex: 1 1 0;
+    min-width: 60px;
+    width: auto;
+    height: 30px;
+    font-size: 12px;
+    padding: 0 6px;
   }
 
   #scanStatus {
     width: 100%;
     margin-left: 0;
+    font-size: 12px;
   }
-}
-@media (max-width: 768px) {
-   .main-content {
-    width: 100%;
-    margin-left: 0;
-    min-width: 0;
-    max-width: 100%;
-    padding: 12px;
-    box-sizing: border-box;
-    overflow-x: hidden;
+
+  .store-layout-row {
+    gap: 10px;
+    margin: 10px 0 16px;
+  }
+
+  .scan-panel {
+    margin: 12px 0 16px;
+    padding: 14px 16px;
+    border-radius: 18px;
+  }
+
+  .scan-panel-title {
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  .scan-panel-header {
+    margin-bottom: 10px;
+  }
+
+  .scan-list {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .scan-item {
+    padding: 12px 14px;
+    gap: 10px;
+    border-radius: 14px;
+  }
+
+  .scan-item-info {
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  .scan-item-info div:first-child {
+    font-size: 15px;
+  }
+
+  .scan-add-btn,
+  .scan-cancel-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .scan-empty {
+    min-height: 64px;
+    font-size: 13px;
   }
 }
 @media (max-width: 900px) {

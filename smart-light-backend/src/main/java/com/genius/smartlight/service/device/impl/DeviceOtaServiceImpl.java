@@ -7,8 +7,11 @@ import com.genius.smartlight.common.ServiceException;
 import com.genius.smartlight.convert.device.DeviceConvert;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
 import com.genius.smartlight.dal.dataobject.OtaFirmwareDO;
+import com.genius.smartlight.dal.dataobject.StoreDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
 import com.genius.smartlight.dal.mysql.OtaFirmwareMapper;
+import com.genius.smartlight.dal.mysql.StoreMapper;
+import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.device.DeviceOtaService;
 import com.genius.smartlight.service.device.OtaProgressStore;
 import com.genius.smartlight.vo.device.DeviceOtaCheckRespVO;
@@ -32,14 +35,43 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
 
     private final DeviceMapper deviceMapper;
     private final OtaFirmwareMapper otaFirmwareMapper;
+    private final StoreMapper storeMapper;
     private final DeviceSessionManager deviceSessionManager;
     private final WebSocketPushService webSocketPushService;
     private final ObjectMapper objectMapper;
     private final OtaProgressStore otaProgressStore;
 
+    /**
+     * 按 chipId 查询设备并校验是否属于当前用户店铺。
+     */
+    private DeviceDO getDeviceByChipIdForCurrentStore(String chipId) {
+        if (chipId == null || chipId.isBlank()) {
+            throw new ServiceException("芯片ID不能为空");
+        }
+        Long userId = SecurityUtils.getCurrentUserId();
+        StoreDO store = storeMapper.selectOne(
+                new LambdaQueryWrapper<StoreDO>()
+                        .eq(StoreDO::getUserId, userId)
+        );
+        if (store == null) {
+            throw new ServiceException("当前用户未绑定店铺");
+        }
+        DeviceDO device = deviceMapper.selectOne(
+                new LambdaQueryWrapper<DeviceDO>()
+                        .eq(DeviceDO::getChipId, chipId)
+        );
+        if (device == null) {
+            throw new ServiceException("设备不存在");
+        }
+        if (device.getStoreId() == null || !device.getStoreId().equals(store.getId())) {
+            throw new ServiceException("无权操作该设备");
+        }
+        return device;
+    }
+
     @Override
     public DeviceOtaCheckRespVO checkUpdate(String chipId, String channel) {
-        DeviceDO device = getDeviceByChipId(chipId);
+        DeviceDO device = getDeviceByChipIdForCurrentStore(chipId);
         String currentChannel = normalizeChannel(device.getFirmwareChannel());
         String targetChannel = resolveTargetChannel(channel, currentChannel);
         OtaFirmwareDO firmware = findLatestFirmware(device, targetChannel);
@@ -48,7 +80,7 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
 
     @Override
     public DeviceOtaCheckRespVO startUpdate(String chipId, DeviceOtaStartReqVO reqVO) {
-        DeviceDO device = getDeviceByChipId(chipId);
+        DeviceDO device = getDeviceByChipIdForCurrentStore(chipId);
         String currentChannel = normalizeChannel(device.getFirmwareChannel());
         String targetChannel = resolveTargetChannel(reqVO == null ? null : reqVO.getChannel(), currentChannel);
         OtaFirmwareDO firmware = resolveFirmware(device, reqVO, targetChannel);
@@ -98,20 +130,6 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
         webSocketPushService.pushState(DeviceConvert.convert(device));
 
         return buildCheckResp(device, firmware, currentChannel, targetChannel);
-    }
-
-    private DeviceDO getDeviceByChipId(String chipId) {
-        if (chipId == null || chipId.isBlank()) {
-            throw new ServiceException("芯片ID不能为空");
-        }
-        DeviceDO device = deviceMapper.selectOne(
-                new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getChipId, chipId)
-        );
-        if (device == null) {
-            throw new ServiceException("设备不存在");
-        }
-        return device;
     }
 
     private OtaFirmwareDO resolveFirmware(DeviceDO device, DeviceOtaStartReqVO reqVO, String targetChannel) {

@@ -19,31 +19,51 @@ public class DeviceSessionManager {
 
     private final Map<String, WebSocketSession> deviceSessionMap = new ConcurrentHashMap<>();
     private final Map<String, Long> lastSeenMap = new ConcurrentHashMap<>();
+    private final Map<String, String> sessionDeviceMap = new ConcurrentHashMap<>();
 
     public void registerDevice(String chipId, WebSocketSession session) {
-        WebSocketSession oldSession = deviceSessionMap.put(chipId, session);
-        lastSeenMap.put(chipId, System.currentTimeMillis());
+        String normalizedChipId = normalizeChipId(chipId);
+        if (normalizedChipId == null) {
+            log.warn("registerDevice ignored blank chipId, sessionId={}", session.getId());
+            return;
+        }
+        logIfNormalized(chipId, normalizedChipId);
+
+        String oldChipIdForSession = sessionDeviceMap.put(session.getId(), normalizedChipId);
+        if (oldChipIdForSession != null && !oldChipIdForSession.equals(normalizedChipId)) {
+            deviceSessionMap.remove(oldChipIdForSession, session);
+        }
+
+        WebSocketSession oldSession = deviceSessionMap.put(normalizedChipId, session);
+        lastSeenMap.put(normalizedChipId, System.currentTimeMillis());
 
         if (oldSession != null && oldSession != session && oldSession.isOpen()) {
             try {
                 oldSession.close();
             } catch (IOException e) {
-                log.warn("Close old device session failed, chipId={}", chipId, e);
+                log.warn("Close old device session failed, chipId={}", normalizedChipId, e);
             }
         }
 
-        log.info("Device registered: chipId={}, sessionId={}", chipId, session.getId());
+        log.info("Device registered: chipId={}, sessionId={}", normalizedChipId, session.getId());
     }
 
     public void touch(String chipId) {
-        if (chipId != null && !chipId.isBlank()) {
-            lastSeenMap.put(chipId, System.currentTimeMillis());
+        String normalizedChipId = normalizeChipId(chipId);
+        if (normalizedChipId != null) {
+            logIfNormalized(chipId, normalizedChipId);
+            lastSeenMap.put(normalizedChipId, System.currentTimeMillis());
         }
     }
 
     public boolean isOnline(String chipId) {
-        WebSocketSession session = deviceSessionMap.get(chipId);
-        Long lastSeen = lastSeenMap.get(chipId);
+        String trackedChipId = resolveTrackedChipId(chipId);
+        if (trackedChipId == null) {
+            return false;
+        }
+
+        WebSocketSession session = deviceSessionMap.get(trackedChipId);
+        Long lastSeen = lastSeenMap.get(trackedChipId);
 
         return session != null
                 && session.isOpen()
@@ -52,7 +72,8 @@ public class DeviceSessionManager {
     }
 
     public Long getLastSeen(String chipId) {
-        return lastSeenMap.get(chipId);
+        String trackedChipId = resolveTrackedChipId(chipId);
+        return trackedChipId == null ? null : lastSeenMap.get(trackedChipId);
     }
 
     public Set<String> getTrackedChipIds() {
@@ -61,33 +82,91 @@ public class DeviceSessionManager {
         return chipIds;
     }
 
+    public Set<String> getOnlineChipIds() {
+        Set<String> result = new HashSet<>();
+        for (String chipId : deviceSessionMap.keySet()) {
+            if (isOnline(chipId)) {
+                result.add(chipId);
+            }
+        }
+        return result;
+    }
+
     public boolean sendToDevice(String chipId, String payload) {
-        WebSocketSession session = deviceSessionMap.get(chipId);
-        if (session == null || !session.isOpen()) {
+        String trackedChipId = resolveTrackedChipId(chipId);
+        if (trackedChipId == null) {
+            log.warn("sendToDevice failed: blank chipId={}", chipId);
+            return false;
+        }
+
+        WebSocketSession session = deviceSessionMap.get(trackedChipId);
+        if (session == null) {
+            log.warn("sendToDevice failed: no session for chipId={}", trackedChipId);
+            return false;
+        }
+        if (!session.isOpen()) {
+            log.warn("sendToDevice failed: session closed for chipId={}", trackedChipId);
             return false;
         }
         try {
             session.sendMessage(new TextMessage(payload));
+            log.info("sendToDevice success: chipId={}", trackedChipId);
             return true;
         } catch (IOException e) {
-            log.error("Send message to device failed, chipId={}", chipId, e);
+            log.error("sendToDevice IOException: chipId={}, error={}", trackedChipId, e.getMessage());
             return false;
         }
     }
 
     public String removeBySession(WebSocketSession session) {
-        String targetChipId = null;
-        for (Map.Entry<String, WebSocketSession> entry : deviceSessionMap.entrySet()) {
-            if (entry.getValue() == session) {
-                targetChipId = entry.getKey();
-                break;
+        String targetChipId = sessionDeviceMap.remove(session.getId());
+        if (targetChipId == null) {
+            for (Map.Entry<String, WebSocketSession> entry : deviceSessionMap.entrySet()) {
+                if (entry.getValue() == session) {
+                    targetChipId = entry.getKey();
+                    break;
+                }
             }
         }
 
         if (targetChipId != null) {
-            deviceSessionMap.remove(targetChipId);
+            deviceSessionMap.remove(targetChipId, session);
             log.info("Device disconnected: chipId={}, sessionId={}", targetChipId, session.getId());
+        } else {
+            log.info("Anonymous or unregistered device websocket disconnected: sessionId={}", session.getId());
         }
         return targetChipId;
+    }
+
+    public String normalizeChipId(String chipId) {
+        if (chipId == null) {
+            return null;
+        }
+        String value = chipId.trim();
+        return value.isEmpty() ? null : value;
+    }
+
+    private String resolveTrackedChipId(String chipId) {
+        String normalizedChipId = normalizeChipId(chipId);
+        if (normalizedChipId == null) {
+            return null;
+        }
+        logIfNormalized(chipId, normalizedChipId);
+        if (deviceSessionMap.containsKey(normalizedChipId) || lastSeenMap.containsKey(normalizedChipId)) {
+            return normalizedChipId;
+        }
+        for (String trackedChipId : getTrackedChipIds()) {
+            if (trackedChipId.equalsIgnoreCase(normalizedChipId)) {
+                log.warn("chipId case mismatch, requested={}, tracked={}", normalizedChipId, trackedChipId);
+                return trackedChipId;
+            }
+        }
+        return normalizedChipId;
+    }
+
+    private void logIfNormalized(String rawChipId, String normalizedChipId) {
+        if (rawChipId != null && !rawChipId.equals(normalizedChipId)) {
+            log.warn("chipId normalized by trim, raw='{}', normalized='{}'", rawChipId, normalizedChipId);
+        }
     }
 }

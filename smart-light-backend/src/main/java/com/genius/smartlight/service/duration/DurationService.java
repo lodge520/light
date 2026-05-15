@@ -20,5 +20,5 @@ public interface DurationService {
 
     DurationSumRespVO getSumByDateRange(String chipId, LocalDate startDate, LocalDate endDate);
 
-    List<DurationDeviceSummaryRespVO> getDeviceSummaryByDateRange(LocalDate startDate, LocalDate endDate);
+    List<DurationDeviceSummaryRespVO> getDeviceSummaryByDateRange(LocalDate startDate, LocalDate endDate, String chipId);
 }

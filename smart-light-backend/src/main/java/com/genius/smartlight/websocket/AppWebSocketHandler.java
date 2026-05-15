@@ -23,7 +23,21 @@ public class AppWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        Long storeId = readLongAttribute(session, AppWebSocketHandshakeInterceptor.ATTR_STORE_ID);
+        Long userId = readLongAttribute(session, AppWebSocketHandshakeInterceptor.ATTR_USER_ID);
+        String username = readStringAttribute(session, AppWebSocketHandshakeInterceptor.ATTR_USERNAME);
+        if (storeId == null) {
+            log.warn("App WebSocket session missing store binding, close connection: sessionId={}, userId={}, username={}",
+                    session.getId(), userId, username);
+            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("storeId required"));
+            return;
+        }
+
         sessionManager.addSession(session);
+        sessionManager.registerStore(session.getId(), storeId);
+        sessionManager.registerUser(session.getId(), userId);
+        log.info("App WebSocket session {} bound to storeId={}, userId={}, username={}",
+                session.getId(), storeId, userId, username);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("sessionId", session.getId());
@@ -40,6 +54,11 @@ public class AppWebSocketHandler extends TextWebSocketHandler {
 
             if ("ping".equals(type)) {
                 sessionManager.send(session, objectMapper.writeValueAsString(WsMessage.of("pong", "ok")));
+                return;
+            }
+
+            if ("auth".equals(type)) {
+                sessionManager.send(session, objectMapper.writeValueAsString(WsMessage.of("auth", "already_authenticated")));
             }
         } catch (Exception e) {
             log.warn("Ignore invalid websocket message: {}", message.getPayload());
@@ -49,5 +68,21 @@ public class AppWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessionManager.removeSession(session);
+    }
+
+    private Long readLongAttribute(WebSocketSession session, String key) {
+        Object value = session.getAttributes().get(key);
+        if (value instanceof Long longValue) {
+            return longValue;
+        }
+        if (value instanceof Number numberValue) {
+            return numberValue.longValue();
+        }
+        return null;
+    }
+
+    private String readStringAttribute(WebSocketSession session, String key) {
+        Object value = session.getAttributes().get(key);
+        return value == null ? null : String.valueOf(value);
     }
 }

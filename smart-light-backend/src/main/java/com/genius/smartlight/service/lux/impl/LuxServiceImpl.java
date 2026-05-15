@@ -15,11 +15,13 @@ import com.genius.smartlight.vo.lux.LuxCreateReqVO;
 import com.genius.smartlight.vo.lux.LuxRespVO;
 import com.genius.smartlight.websocket.WebSocketPushService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LuxServiceImpl implements LuxService {
@@ -38,9 +40,11 @@ public class LuxServiceImpl implements LuxService {
         );
 
         if (device == null) {
+            log.warn("光照上报失败：设备不存在 chipId={}", reqVO.getChipId());
             throw new ServiceException("设备不存在，请先添加设备");
         }
         if (device.getStoreId() == null) {
+            log.warn("光照上报失败：设备未绑定店铺 chipId={}", reqVO.getChipId());
             throw new ServiceException("设备未绑定店铺，请先绑定设备");
         }
 
@@ -53,7 +57,7 @@ public class LuxServiceImpl implements LuxService {
 
         luxRecordMapper.insertDeviceLux(record);
 
-        webSocketPushService.pushLux(LuxConvert.convert(record));
+        webSocketPushService.pushLux(LuxConvert.convert(record), device.getStoreId());
         return record.getId();
     }
 

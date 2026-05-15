@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.genius.smartlight.common.ServiceException;
 import com.genius.smartlight.convert.device.DeviceConvert;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
+import com.genius.smartlight.dal.dataobject.StoreDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
+import com.genius.smartlight.dal.mysql.StoreMapper;
+import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.device.DeviceControlService;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceStateSyncReqVO;
@@ -23,18 +26,31 @@ import java.util.Map;
 public class DeviceControlServiceImpl implements DeviceControlService {
 
     private final DeviceMapper deviceMapper;
+    private final StoreMapper storeMapper;
     private final DeviceSessionManager deviceSessionManager;
     private final WebSocketPushService webSocketPushService;
     private final ObjectMapper objectMapper;
 
     @Override
     public DeviceRespVO syncStateToDevice(String chipId, DeviceStateSyncReqVO reqVO) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        StoreDO store = storeMapper.selectOne(
+                new LambdaQueryWrapper<StoreDO>()
+                        .eq(StoreDO::getUserId, userId)
+        );
+        if (store == null) {
+            throw new ServiceException("当前用户未绑定店铺");
+        }
+
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
                         .eq(DeviceDO::getChipId, chipId)
         );
         if (device == null) {
             throw new ServiceException("设备不存在");
+        }
+        if (device.getStoreId() == null || !device.getStoreId().equals(store.getId())) {
+            throw new ServiceException("无权操作该设备");
         }
 
         if (!deviceSessionManager.isOnline(chipId)) {

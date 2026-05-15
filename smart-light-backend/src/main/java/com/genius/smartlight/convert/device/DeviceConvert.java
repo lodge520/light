@@ -44,8 +44,7 @@ public class DeviceConvert {
         respVO.setOtaStatus(device.getOtaStatus());
         respVO.setCreateTime(device.getCreateTime());
         respVO.setUpdateTime(device.getUpdateTime());
-        // 如果 DeviceRespVO 里加了 storeId，就把这行打开
-        // respVO.setStoreId(device.getStoreId());
+        respVO.setStoreId(device.getStoreId());
         return respVO;
     }
 }

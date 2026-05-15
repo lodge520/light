@@ -1010,21 +1010,100 @@ watch([historyDeviceType, historyChannel], () => {
 }
 
 @media (max-width: 768px) {
-  .page-hero,
-  .manage-card {
-    padding: 18px;
-    border-radius: 18px;
+  .page-hero {
+    padding: 14px 16px;
+    border-radius: 16px;
+    margin-bottom: 12px;
   }
 
-  .form-grid,
-  .history-filters,
+  .page-hero h1 {
+    font-size: 22px;
+  }
+
+  .page-hero p {
+    margin: 4px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .manage-card {
+    padding: 14px 16px;
+    border-radius: 16px;
+  }
+
+  .card-header {
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+
+  .card-header h2 {
+    font-size: 17px;
+  }
+
+  .card-header p {
+    margin: 3px 0 0;
+    font-size: 12px;
+  }
+
+  .firmware-form {
+    gap: 12px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .history-filters {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .form-field span {
+    font-size: 12px;
+  }
+
+  .form-field input,
+  .form-field textarea {
+    padding: 9px 10px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+
+  .result-panel {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+
+  .result-panel h3 {
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+
   .result-panel dl > div {
     grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .history-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .lan-tip {
+    margin-top: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .empty-state {
+    min-height: 100px;
   }
 }
 </style>

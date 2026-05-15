@@ -1646,9 +1646,35 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
+  .light-effect-mini-card {
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .mini-header {
+    margin-bottom: 8px;
+  }
+
+  .mini-title {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .mini-subtitle {
+    margin: 2px 0 0;
+    font-size: 12px;
+    line-height: 1.3;
+    font-weight: 400;
+  }
+
+  .scope-field {
+    margin-bottom: 8px;
+  }
+
   .effect-action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px;
+    gap: 7px;
+    margin-top: 12px;
   }
 
   .effect-form {
@@ -1656,29 +1682,49 @@ onBeforeUnmount(() => {
   }
 
   .effect-action-btn {
-    min-height: 78px;
-    padding: 11px 12px;
-    border-radius: 16px;
+    min-height: 66px;
+    padding: 10px 12px;
+    border-radius: 14px;
   }
 
   .effect-action-btn strong {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .effect-action-btn span {
+    margin-top: 4px;
+    font-size: 10px;
+  }
+
+  .effect-action-btn.active::before {
+    right: 6px;
+    bottom: 5px;
+    padding: 1px 5px;
+    font-size: 8px;
+  }
+
+  .effect-brightness-control {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .effect-brightness-header strong {
+    font-size: 12px;
+  }
+
+  .effect-brightness-hint {
+    font-size: 10px;
+    margin-top: 3px;
+  }
+
+  .mini-status {
     margin-top: 6px;
     font-size: 11px;
   }
 
-  .effect-action-btn.active::before {
-    right: 8px;
-    bottom: 7px;
-    padding: 1px 6px;
-    font-size: 9px;
-  }
-
   .effect-modal-card {
-    padding: 18px;
+    padding: 16px;
   }
 
   .effect-modal-actions {

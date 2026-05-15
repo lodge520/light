@@ -1760,6 +1760,7 @@ const textColor = computed(() => {
     max-height: none;
   }
 }
+
 .modal-hint {
   margin: 6px 0 0;
   font-size: 12px;

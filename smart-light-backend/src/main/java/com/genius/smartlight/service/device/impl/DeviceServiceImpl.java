@@ -13,8 +13,10 @@ import com.genius.smartlight.service.device.OtaProgressStore;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
 import com.genius.smartlight.vo.device.LightEffectReqVO;
+import com.genius.smartlight.websocket.DeviceSessionManager;
 import com.genius.smartlight.websocket.WebSocketPushService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,21 +27,23 @@ import java.util.Locale;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeviceServiceImpl implements DeviceService {
 
     private final WebSocketPushService webSocketPushService;
+    private final DeviceSessionManager deviceSessionManager;
     private final DeviceMapper deviceMapper;
     private final StoreMapper storeMapper;
     private final ObjectMapper objectMapper;
     private final OtaProgressStore otaProgressStore;
-    
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Long createDevice(DeviceSaveReqVO reqVO) {
-        Long userId = SecurityUtils.getCurrentUserId();
 
+    /**
+     * 获取当前登录用户对应的店铺 ID。
+     */
+    private StoreDO getCurrentStore() {
+        Long userId = SecurityUtils.getCurrentUserId();
         StoreDO store = storeMapper.selectOne(
                 new LambdaQueryWrapper<StoreDO>()
                         .eq(StoreDO::getUserId, userId)
@@ -47,6 +51,46 @@ public class DeviceServiceImpl implements DeviceService {
         if (store == null) {
             throw new ServiceException("当前用户未绑定店铺");
         }
+        return store;
+    }
+
+    /**
+     * 按 chipId 查询设备并校验是否属于当前用户店铺。
+     */
+    private DeviceDO getDeviceByChipIdForCurrentStore(String chipId) {
+        StoreDO store = getCurrentStore();
+        DeviceDO device = deviceMapper.selectOne(
+                new LambdaQueryWrapper<DeviceDO>()
+                        .eq(DeviceDO::getChipId, chipId)
+        );
+        if (device == null) {
+            throw new ServiceException("设备不存在");
+        }
+        if (device.getStoreId() == null || !device.getStoreId().equals(store.getId())) {
+            throw new ServiceException("无权操作该设备");
+        }
+        return device;
+    }
+
+    /**
+     * 按主键 ID 查询设备并校验是否属于当前用户店铺。
+     */
+    private DeviceDO getDeviceByIdForCurrentStore(Long id) {
+        StoreDO store = getCurrentStore();
+        DeviceDO device = deviceMapper.selectById(id);
+        if (device == null) {
+            throw new ServiceException("设备不存在");
+        }
+        if (device.getStoreId() == null || !device.getStoreId().equals(store.getId())) {
+            throw new ServiceException("无权操作该设备");
+        }
+        return device;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long createDevice(DeviceSaveReqVO reqVO) {
+        StoreDO store = getCurrentStore();
 
         DeviceDO exist = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
@@ -101,10 +145,7 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public void updateDevice(Long id, DeviceSaveReqVO reqVO) {
-        DeviceDO device = deviceMapper.selectById(id);
-        if (device == null) {
-            throw new ServiceException("设备不存在");
-        }
+        DeviceDO device = getDeviceByIdForCurrentStore(id);
 
         if (!device.getChipId().equals(reqVO.getChipId())) {
             DeviceDO exist = deviceMapper.selectOne(
@@ -126,7 +167,6 @@ public class DeviceServiceImpl implements DeviceService {
         updateObj.setFirmwareChannel(device.getFirmwareChannel());
         updateObj.setOtaStatus(device.getOtaStatus());
 
-        // 改这里：不要用旧 displayName 覆盖
         updateObj.setDisplayName(reqVO.getDisplayName());
 
         deviceMapper.updateById(updateObj);
@@ -139,119 +179,112 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public void deleteDevice(Long id) {
-        DeviceDO device = deviceMapper.selectById(id);
-        if (device == null) {
-            throw new ServiceException("设备不存在");
-        }
+        DeviceDO device = getDeviceByIdForCurrentStore(id);
 
         notifyDeviceResumeBroadcast(device);
+        Long storeId = device.getStoreId();
         deviceMapper.deleteById(id);
-        webSocketPushService.pushDeviceDeleted(id);
+        webSocketPushService.pushDeviceDeleted(id, storeId);
     }
 
     private void notifyDeviceResumeBroadcast(DeviceDO device) {
-        String ip = device.getIp();
+        String chipId = deviceSessionManager.normalizeChipId(device.getChipId());
+        log.info("准备发送恢复广播指令, chipId={}", chipId);
 
-        if (ip == null || ip.trim().isEmpty()) {
-            System.out.println("设备 IP 为空，跳过恢复广播指令");
+        if (chipId == null) {
+            log.warn("Device chipId is blank, skip resume_broadcast, deviceId={}", device.getId());
+            return;
+        }
+
+        boolean online = deviceSessionManager.isOnline(chipId);
+        log.info("设备在线状态: chipId={}, online={}", chipId, online);
+
+        if (!online) {
+            log.warn("设备离线，无法发送恢复广播指令, chipId={}", chipId);
             return;
         }
 
         try {
-            String baseUrl = ip.startsWith("http://") || ip.startsWith("https://")
-                    ? ip
-                    : "http://" + ip;
-            String url = baseUrl + "/resumeBroadcast";
+            ObjectNode msg = objectMapper.createObjectNode();
+            msg.put("type", "command");
+            msg.put("cmd", "resume_broadcast");
+            msg.put("action", "resumeBroadcast");
+            msg.put("resumeBroadcast", true);
 
-            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
-                    .connectTimeout(java.time.Duration.ofSeconds(2))
-                    .build();
+            String json = msg.toString();
+            log.info("发送恢复广播指令, chipId={}, message={}", chipId, json);
 
-            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(url))
-                    .timeout(java.time.Duration.ofSeconds(3))
-                    .GET()
-                    .build();
+            boolean sent = deviceSessionManager.sendToDevice(chipId, json);
 
-            java.net.http.HttpResponse<String> response =
-                    client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
-
-            System.out.println("已通知设备恢复广播：" + url + "，响应：" + response.body());
-
+            if (sent) {
+                log.info("恢复广播指令发送成功, chipId={}", chipId);
+            } else {
+                log.warn("恢复广播指令发送失败(设备session已关闭), chipId={}", chipId);
+            }
         } catch (Exception e) {
-            System.out.println("通知设备恢复广播失败：" + e.getMessage());
+            log.error("恢复广播指令发送异常, chipId={}, error={}", chipId, e.getMessage(), e);
         }
     }
 
     @Override
     public DeviceRespVO getDevice(Long id) {
-        DeviceDO device = deviceMapper.selectById(id);
-        if (device == null) {
-            throw new ServiceException("设备不存在");
-        }
+        DeviceDO device = getDeviceByIdForCurrentStore(id);
         return toResp(device);
     }
 
     @Override
     public List<DeviceRespVO> getDeviceList() {
-        List<DeviceDO> list = deviceMapper.selectList(null);
-        return list.stream().map(this::toResp).toList();
-    }
-
-    @Override
-    public DeviceRespVO getDeviceByChipId(String chipId) {
-        DeviceDO device = deviceMapper.selectOne(
-                new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getChipId, chipId)
-        );
-        if (device == null) {
-            throw new ServiceException("设备不存在");
-        }
-        return toResp(device);
-    }
-
-    @Override
-    public List<DeviceRespVO> getCurrentUserDeviceList() {
-        Long userId = SecurityUtils.getCurrentUserId();
-
-        StoreDO store = storeMapper.selectOne(
-                new LambdaQueryWrapper<StoreDO>()
-                        .eq(StoreDO::getUserId, userId)
-        );
-        if (store == null) {
-            throw new ServiceException("当前用户未绑定店铺");
-        }
-
+        StoreDO store = getCurrentStore();
         List<DeviceDO> list = deviceMapper.selectList(
                 new LambdaQueryWrapper<DeviceDO>()
                         .eq(DeviceDO::getStoreId, store.getId())
                         .orderByDesc(DeviceDO::getId)
         );
+        return list.stream().map(this::toResp).toList();
+    }
 
+    @Override
+    public DeviceRespVO getDeviceByChipId(String chipId) {
+        DeviceDO device = getDeviceByChipIdForCurrentStore(chipId);
+        return toResp(device);
+    }
+
+    @Override
+    public List<DeviceRespVO> getCurrentUserDeviceList() {
+        StoreDO store = getCurrentStore();
+        List<DeviceDO> list = deviceMapper.selectList(
+                new LambdaQueryWrapper<DeviceDO>()
+                        .eq(DeviceDO::getStoreId, store.getId())
+                        .orderByDesc(DeviceDO::getId)
+        );
         return list.stream().map(this::toResp).toList();
     }
 
     @Override
     public void bindDeviceToCurrentStore(String chipId, String displayName) {
-        Long userId = SecurityUtils.getCurrentUserId();
-
-        StoreDO store = storeMapper.selectOne(
-                new LambdaQueryWrapper<StoreDO>()
-                        .eq(StoreDO::getUserId, userId)
-        );
-        if (store == null) {
-            throw new ServiceException("当前用户未绑定店铺");
+        StoreDO store = getCurrentStore();
+        String normalizedChipId = deviceSessionManager.normalizeChipId(chipId);
+        if (normalizedChipId == null) {
+            throw new ServiceException("设备不存在");
         }
 
         DeviceDO device = deviceMapper.selectOne(
                 new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getChipId, chipId)
+                        .eq(DeviceDO::getChipId, normalizedChipId)
         );
         if (device == null) {
             throw new ServiceException("设备不存在");
         }
 
-        device.setStoreId(store.getId());
+        Long deviceStoreId = device.getStoreId();
+        if (deviceStoreId != null && !deviceStoreId.equals(store.getId())) {
+            log.warn("Bind device rejected: device already belongs to another store");
+            throw new ServiceException("设备已绑定其他店铺");
+        }
+
+        if (deviceStoreId == null) {
+            device.setStoreId(store.getId());
+        }
 
         if (displayName != null && !displayName.isBlank()) {
             device.setDisplayName(displayName);
@@ -265,6 +298,8 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public boolean locateDevice(String chipId) {
+        getDeviceByChipIdForCurrentStore(chipId);
+
         ObjectNode msg = objectMapper.createObjectNode();
         msg.put("type", "locate");
         msg.put("times", 3);
@@ -281,6 +316,8 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public void sendLightEffect(String chipId, LightEffectReqVO reqVO) {
+        getDeviceByChipIdForCurrentStore(chipId);
+
         ObjectNode msg = objectMapper.createObjectNode();
 
         msg.put("type", "lightEffect");
@@ -315,13 +352,7 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     public void updateFirmwareChannel(String chipId, String channel) {
-        DeviceDO device = deviceMapper.selectOne(
-                new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getChipId, chipId)
-        );
-        if (device == null) {
-            throw new ServiceException("设备不存在");
-        }
+        DeviceDO device = getDeviceByChipIdForCurrentStore(chipId);
 
         String normalized = channel == null ? "" : channel.trim().toLowerCase(Locale.ROOT);
         if (!"stable".equals(normalized) && !"test".equals(normalized)) {

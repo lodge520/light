@@ -729,8 +729,14 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
   margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.layout-header > div:first-child {
+  flex: 1 1 200px;
+  min-width: 0;
 }
 
 .layout-header h2 {
@@ -739,13 +745,14 @@ onMounted(() => {
   font-weight: 900;
   color: #111827;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .layout-header p {
-  margin: 7px 0 0;
+  margin: 4px 0 0;
   font-size: 14px;
   color: #64748b;
-  line-height: 1.5;
+  line-height: 1.35;
 }
 
 .layout-actions {
@@ -754,7 +761,7 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
-  flex-shrink: 0;
+  flex: 0 1 auto;
 }
 
 .reset-layout-btn,
@@ -1067,16 +1074,6 @@ onMounted(() => {
 }
 
 @media (max-width: 1200px) {
-  .layout-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 14px;
-  }
-
-  .layout-header h2 {
-    white-space: nowrap;
-  }
-
   .layout-header p {
     max-width: 100%;
   }
@@ -1084,7 +1081,6 @@ onMounted(() => {
   .layout-actions {
     width: 100%;
     justify-content: flex-start;
-    flex-wrap: wrap;
   }
 
   .reset-layout-btn,
@@ -1102,28 +1098,44 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .layout-card {
-    padding: 14px;
-    border-radius: 18px;
+    padding: 12px 14px;
+    border-radius: 16px;
   }
 
   .layout-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 14px;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .layout-header > div:first-child {
+    flex: none;
+  }
+
+  .layout-header h2 {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .layout-header p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    line-height: 1.3;
   }
 
   .layout-actions {
     width: 100%;
     justify-content: flex-start;
-    gap: 8px;
+    gap: 6px;
   }
 
   .reset-layout-btn,
   .save-layout-btn,
   .locate-btn {
-    padding: 9px 13px;
-    min-height: 38px;
-    font-size: 13px;
+    padding: 7px 11px;
+    min-height: 32px;
+    font-size: 12px;
   }
 
   .locate-btn {
@@ -1133,44 +1145,84 @@ onMounted(() => {
   }
 
   .store-stage {
-    height: 320px;
-    min-height: 320px;
+    height: 240px;
+    min-height: 200px;
+    border-radius: 14px;
   }
 
   .layout-tips {
-    padding: 8px 0;
+    padding: 6px 0;
+    margin-top: 8px;
+    font-size: 11px;
   }
 
   .zone-order-row {
-    min-width: 190px;
-    padding: 0 12px;
+    min-width: 150px;
+    padding: 0 8px;
+  }
+
+  .zone-order-row strong {
+    min-width: 60px;
+    font-size: 11px;
+  }
+
+  .zone-order-row span {
+    font-size: 11px;
   }
 
   .lamp-node {
-    min-width: 112px;
-    padding: 8px 10px;
-    gap: 7px;
+    min-width: 90px;
+    padding: 6px 8px;
+    gap: 5px;
   }
 
   .lamp-icon {
-    width: 30px;
-    height: 30px;
-    flex-basis: 30px;
-    font-size: 15px;
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
+    font-size: 13px;
   }
 
   .lamp-info strong {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .lamp-info span {
     display: block;
-    font-size: 10px;
+    font-size: 9px;
+    margin-top: 2px;
   }
 
   .zone-name-input {
-    width: 100px;
-    font-size: 12px;
+    width: 80px;
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .zone-count {
+    margin-top: 6px;
+    padding: 3px 7px;
+    font-size: 10px;
+  }
+
+  .zone-box {
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .zone-delete-btn {
+    width: 20px;
+    height: 20px;
+    font-size: 15px;
+    top: 4px;
+    right: 4px;
+  }
+
+  .zone-resize {
+    width: 12px;
+    height: 12px;
+    right: 4px;
+    bottom: 4px;
   }
 }
 

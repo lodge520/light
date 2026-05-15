@@ -12,9 +12,10 @@ import com.genius.smartlight.dal.mysql.WeatherRecordMapper;
 import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.weather.WeatherService;
 import com.genius.smartlight.vo.weather.WeatherCurrentRespVO;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -28,7 +29,6 @@ import java.util.Set;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class WeatherServiceImpl implements WeatherService {
 
     private static final String OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
@@ -38,6 +38,16 @@ public class WeatherServiceImpl implements WeatherService {
     private final WeatherRecordMapper weatherRecordMapper;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+
+    public WeatherServiceImpl(StoreMapper storeMapper,
+                              WeatherRecordMapper weatherRecordMapper,
+                              @Qualifier("weatherRestTemplate") RestTemplate restTemplate,
+                              ObjectMapper objectMapper) {
+        this.storeMapper = storeMapper;
+        this.weatherRecordMapper = weatherRecordMapper;
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public WeatherCurrentRespVO getCurrentWeather(Long storeId) {
@@ -116,7 +126,11 @@ public class WeatherServiceImpl implements WeatherService {
         String raw;
         try {
             raw = restTemplate.getForObject(url, String.class);
+        } catch (ResourceAccessException ex) {
+            log.warn("Weather API timeout or connection failed, storeId={}", store.getId(), ex);
+            throw new ServiceException("天气接口连接超时或不可用，请稍后重试");
         } catch (RestClientException ex) {
+            log.warn("Weather API request failed, storeId={}", store.getId(), ex);
             throw new ServiceException("天气接口调用失败：" + ex.getMessage());
         }
         if (raw == null || raw.isBlank()) {

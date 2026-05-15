@@ -34,8 +34,17 @@ public class DeviceOnlinePushService {
         Boolean lastPushed = lastPushedStatusMap.get(chipId);
 
         if (lastPushed == null || lastPushed != currentOnline) {
-            DeviceOnlineStatusRespVO respVO = buildOnlineStatus(chipId);
-            webSocketPushService.pushOnlineStatus(respVO);
+            DeviceDO device = deviceMapper.selectOne(
+                    new LambdaQueryWrapper<DeviceDO>()
+                            .eq(DeviceDO::getChipId, chipId)
+            );
+            Long storeId = device != null ? device.getStoreId() : null;
+            if (storeId == null) {
+                return;
+            }
+
+            DeviceOnlineStatusRespVO respVO = buildOnlineStatus(chipId, device);
+            webSocketPushService.pushOnlineStatus(respVO, storeId);
             lastPushedStatusMap.put(chipId, currentOnline);
         }
     }
@@ -46,12 +55,7 @@ public class DeviceOnlinePushService {
         }
     }
 
-    private DeviceOnlineStatusRespVO buildOnlineStatus(String chipId) {
-        DeviceDO device = deviceMapper.selectOne(
-                new LambdaQueryWrapper<DeviceDO>()
-                        .eq(DeviceDO::getChipId, chipId)
-        );
-
+    private DeviceOnlineStatusRespVO buildOnlineStatus(String chipId, DeviceDO device) {
         DeviceOnlineStatusRespVO respVO = new DeviceOnlineStatusRespVO();
         respVO.setChipId(chipId);
         respVO.setIp(device != null ? device.getIp() : null);

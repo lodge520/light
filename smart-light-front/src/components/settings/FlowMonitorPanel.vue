@@ -232,4 +232,64 @@ function getDetectTime(device: DeviceItem) {
   text-align: center;
 }
 
+@media (max-width: 768px) {
+  .flow-list {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .flow-card {
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+
+  .flow-card-top {
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .flow-device-name {
+    font-size: 13px;
+  }
+
+  .flow-device-sub {
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .flow-status {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .flow-data-grid {
+    gap: 6px;
+  }
+
+  .flow-data-item {
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .flow-data-item span {
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+
+  .flow-data-item strong {
+    font-size: 13px;
+  }
+
+  .flow-chart-box {
+    height: 120px;
+    margin-top: 8px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+
+  .empty-flow {
+    padding: 20px;
+  }
+}
+
 </style>

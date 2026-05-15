@@ -43,6 +43,8 @@ public class AuthServiceImpl implements AuthService {
             throw new ServiceException("两次密码不一致");
         }
 
+        validatePasswordStrength(reqVO.getPassword());
+
         UserAccountDO exist = userAccountMapper.selectOne(
                 new LambdaQueryWrapper<UserAccountDO>()
                         .eq(UserAccountDO::getUsername, reqVO.getUsername())
@@ -109,5 +111,27 @@ public class AuthServiceImpl implements AuthService {
         }
 
         return respVO;
+    }
+
+    private void validatePasswordStrength(String password) {
+        if (password.length() < 8 || password.length() > 64) {
+            throw new ServiceException("密码长度需为 8-64 位");
+        }
+
+        boolean hasLetter = false;
+        boolean hasDigit = false;
+        for (int i = 0; i < password.length(); i++) {
+            char ch = password.charAt(i);
+            if (Character.isLetter(ch)) {
+                hasLetter = true;
+            }
+            if (Character.isDigit(ch)) {
+                hasDigit = true;
+            }
+        }
+
+        if (!hasLetter || !hasDigit) {
+            throw new ServiceException("密码需同时包含字母和数字");
+        }
     }
 }

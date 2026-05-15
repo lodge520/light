@@ -183,9 +183,9 @@ const commonActions: ArmAction[] = [
 ]
 
 const lampActions: ArmAction[] = [
-  ...commonActions,
   { action: 'aim_person', label: '一键照人', desc: '灯光云台转到照人预设角度' },
   { action: 'aim_cloth', label: '一键照服装', desc: '灯光云台转到服装预设角度' },
+  ...commonActions,
 ]
 
 const camPresetActions: ArmAction[] = [
@@ -627,30 +627,147 @@ async function sendSliderPosition() {
 }
 
 @media (max-width: 768px) {
+  .panel-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .panel-desc {
+    margin: 2px 0 0;
+    font-size: 11px;
+  }
+
   .form-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 6px;
+    margin-top: 10px;
   }
 
   .form-row label {
     flex: none;
+    font-size: 12px;
   }
 
   .selected-meta {
     padding-left: 0;
+    margin-top: 4px;
+    font-size: 12px;
   }
 
   .gimbal-layout {
     grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 12px;
   }
 
   .direction-pad {
-    grid-template-columns: repeat(3, minmax(56px, 1fr));
+    grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(3, 44px);
+    gap: 6px;
+    padding: 14px 24px;
+    justify-self: center;
+  }
+
+  .dir-btn {
+    position: relative;
+    font-size: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  }
+
+  .dir-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 0;
+    height: 0;
+  }
+
+  .dir-btn.up::after {
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 16px solid currentColor;
+  }
+
+  .dir-btn.down::after {
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-top: 16px solid currentColor;
+  }
+
+  .dir-btn.left::after {
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-right: 16px solid currentColor;
+  }
+
+  .dir-btn.right::after {
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-left: 16px solid currentColor;
+  }
+
+  .dir-btn.center {
+    font-size: 11px;
+  }
+
+  .dir-btn.center::after {
+    display: none;
+  }
+
+  .action-panel {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
   }
 
   .cam-preset-panel {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .preset-btn {
+    min-height: 56px;
+    padding: 10px;
+  }
+
+  .preset-btn strong {
+    font-size: 13px;
+  }
+
+  .preset-btn span {
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .slider-card {
+    padding: 10px;
+  }
+
+  .slider-card-header {
+    font-size: 12px;
+  }
+
+  .speed-tabs {
+    gap: 6px;
+  }
+
+  .speed-tab {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .compact-btn,
+  .shortcut-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .result-block {
+    margin-top: 10px;
   }
 }
 

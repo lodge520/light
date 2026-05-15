@@ -176,10 +176,32 @@ async function handleQuery() {
 }
 
 @media (max-width: 768px) {
+  .settings-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 10px;
+  }
+
+  .settings-title {
+    grid-column: 1 / -1;
+  }
+
+  .form-row:nth-child(2),
+  .form-row:nth-child(3) {
+    grid-column: span 1;
+  }
+
+  .form-row:nth-child(4),
+  .query-actions,
+  .error-text,
+  .result-block {
+    grid-column: 1 / -1;
+  }
+
   .form-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 6px;
   }
 
   .form-row label {

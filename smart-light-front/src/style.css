@@ -145,6 +145,13 @@ input {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
+@media (max-width: 768px) {
+  .settings-card {
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+}
+
 .settings-title {
   margin-bottom: 16px;
   font-size: 20px;
@@ -210,24 +217,53 @@ input {
 
 .chart-card,
 .info-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  padding: 16px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 16px;
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.6);
+  padding: 18px;
   min-height: 320px;
-  /* min-width: 400px; */
 }
 
 .card-title {
-  font-size: 18px;
+  font-size: 17px;
   margin-bottom: 14px;
-  font-weight: 600;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.01em;
 }
 
 .chart-canvas-wrap {
   position: relative;
   width: 100%;
   height: 240px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.6);
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.info-card p {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  font-size: 14px;
+  color: #64748b;
+}
+
+.info-card p:last-child {
+  border-bottom: none;
+}
+
+.info-card strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
 }
 
 
@@ -290,4 +326,47 @@ body:has(.app-container.night-mode) input[type='range']:disabled {
 
 .dashboard-page {
   padding: 24px;
+}
+
+@media (max-width: 768px) {
+  #deviceContainer {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .chart-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .chart-card,
+  .info-card {
+    min-height: 0;
+    padding: 14px 16px;
+    border-radius: 16px;
+  }
+
+  .card-title {
+    font-size: 15px;
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+
+  .section-header {
+    margin-bottom: 10px;
+  }
+
+  .section-header h2 {
+    font-size: 18px;
+  }
+
+  .flow-page {
+    gap: 12px;
+  }
+
+  .chart-canvas-wrap {
+    height: 200px;
+    border-radius: 10px;
+    padding: 6px;
+  }
 }

@@ -70,4 +70,7 @@ public class DeviceRespVO {
 
     @Schema(description = "更新时间", example = "2026-04-14T11:00:00")
     private LocalDateTime updateTime;
+
+    @Schema(description = "所属店铺ID，用于 WebSocket 按店铺推送", example = "1")
+    private Long storeId;
 }

@@ -1,13 +1,39 @@
 import { onBeforeUnmount, onMounted, ref, unref, watch, type ComputedRef, type Ref } from 'vue'
 
 type MessageHandler = (data: any) => void
-type UrlSource = Ref<string> | ComputedRef<string> | (() => string)
+type Source<T> = Ref<T> | ComputedRef<T> | (() => T)
+type UrlSource = Source<string>
+type ProtocolValue = string | string[] | null | undefined
+type ProtocolSource = Source<ProtocolValue>
 
-function resolveUrl(source: UrlSource): string {
+function resolveSource<T>(source: Source<T>): T {
   return typeof source === 'function' ? source() : unref(source)
 }
 
-export function useWebSocket(urlSource: UrlSource, onMessage?: MessageHandler) {
+function resolveUrl(source: UrlSource): string {
+  return resolveSource(source)
+}
+
+function normalizeProtocols(protocols: ProtocolValue): string | string[] | undefined {
+  if (Array.isArray(protocols)) {
+    const values = protocols.map((protocol) => protocol.trim()).filter(Boolean)
+    return values.length > 0 ? values : undefined
+  }
+
+  const protocol = protocols?.trim()
+  return protocol || undefined
+}
+
+function resolveProtocolKey(source?: ProtocolSource): string {
+  if (!source) return ''
+
+  const protocols = normalizeProtocols(resolveSource(source))
+  if (!protocols) return ''
+
+  return Array.isArray(protocols) ? protocols.join(',') : protocols
+}
+
+export function useWebSocket(urlSource: UrlSource, onMessage?: MessageHandler, protocolSource?: ProtocolSource) {
   const socket = ref<WebSocket | null>(null)
   const connected = ref(false)
   const lastMessage = ref<any>(null)
@@ -36,12 +62,18 @@ export function useWebSocket(urlSource: UrlSource, onMessage?: MessageHandler) {
     const url = resolveUrl(urlSource)
     if (!url) return
 
+    const protocols = protocolSource ? normalizeProtocols(resolveSource(protocolSource)) : undefined
+    if (protocolSource && !protocols) {
+      console.warn('WS connection skipped: missing token')
+      return
+    }
+
     clearReconnectTimer()
     cleanupSocket()
 
     manualClose = false
 
-    const ws = new WebSocket(url)
+    const ws = protocols ? new WebSocket(url, protocols) : new WebSocket(url)
     socket.value = ws
 
     ws.onopen = () => {
@@ -111,9 +143,9 @@ export function useWebSocket(urlSource: UrlSource, onMessage?: MessageHandler) {
   })
 
   watch(
-    () => resolveUrl(urlSource),
-    (newUrl, oldUrl) => {
-      if (!newUrl || !oldUrl || newUrl === oldUrl) return
+    () => [resolveUrl(urlSource), resolveProtocolKey(protocolSource)] as const,
+    ([newUrl, newProtocol], [oldUrl, oldProtocol]) => {
+      if (!newUrl || (protocolSource && !newProtocol) || (newUrl === oldUrl && newProtocol === oldProtocol)) return
       reconnect()
     },
   )

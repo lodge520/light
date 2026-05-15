@@ -12,6 +12,7 @@ import com.genius.smartlight.vo.lux.LuxRespVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -25,8 +26,14 @@ public class WebSocketPushService {
     private final ObjectMapper objectMapper;
     private final DeviceSessionManager deviceSessionManager;
     private final OtaProgressStore otaProgressStore;
+
     public void pushState(DeviceRespVO data) {
-        broadcast("state", otaProgressStore.applyProgress(data));
+        Long storeId = data.getStoreId();
+        if (storeId == null) {
+            log.warn("pushState skipped: DeviceRespVO has no storeId, chipId={}", data.getChipId());
+            return;
+        }
+        broadcastToStore(storeId, "state", otaProgressStore.applyProgress(data));
     }
 
     public void pushStateToDevice(String chipId, DeviceRespVO data) {
@@ -46,55 +53,50 @@ public class WebSocketPushService {
             message.put("data", payload);
 
             String json = objectMapper.writeValueAsString(message);
-
             boolean sent = deviceSessionManager.sendToDevice(chipId, json);
 
             if (!sent) {
-                log.warn("设备状态下发失败，设备不在线或连接不可用，chipId={}, payload={}", chipId, json);
+                log.warn("Device state push failed, chipId={}, payload={}", chipId, json);
             } else {
-                log.info("设备状态已下发，chipId={}, payload={}", chipId, json);
+                log.info("Device state pushed, chipId={}, payload={}", chipId, json);
             }
         } catch (Exception e) {
-            log.error("设备状态下发异常，chipId={}", chipId, e);
+            log.error("Device state push error, chipId={}", chipId, e);
         }
     }
 
-    public void pushOnlineStatus(DeviceOnlineStatusRespVO data) {
-        broadcast("onlineStatus", data);
+    public void pushOnlineStatus(DeviceOnlineStatusRespVO data, Long storeId) {
+        broadcastToStore(storeId, "onlineStatus", data);
     }
 
-    public void pushDeviceDeleted(Long id) {
+    public void pushDeviceDeleted(Long id, Long storeId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", id);
-        broadcast("deviceDeleted", data);
+        broadcastToStore(storeId, "deviceDeleted", data);
     }
 
-    public void pushLux(LuxRespVO data) {
-        broadcast("lux", data);
+    public void pushLux(LuxRespVO data, Long storeId) {
+        broadcastToStore(storeId, "lux", data);
     }
 
-    public void pushDuration(DurationRespVO data) {
-        broadcast("durationUpdate", data);
+    public void pushDuration(DurationRespVO data, Long storeId) {
+        broadcastToStore(storeId, "durationUpdate", data);
     }
 
-    public void pushFabricRecognize(String chipId, String filename, FabricRecognizeRespVO result) {
+    public void pushFabricRecognize(String chipId, String filename, FabricRecognizeRespVO result, Long storeId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("chipId", chipId);
         data.put("filename", filename);
-
         data.put("label", result.getLabel());
         data.put("confidence", result.getConfidence());
-
         data.put("mainColorRgb", result.getMainColorRgb());
         data.put("recommendedBrightness", result.getRecommendedBrightness());
         data.put("recommendedTemp", result.getRecommendedTemp());
-
         data.put("clothDetected", result.getClothDetected());
         data.put("clothX", result.getClothX());
         data.put("clothY", result.getClothY());
         data.put("clothW", result.getClothW());
         data.put("clothH", result.getClothH());
-
         data.put("originalImagePath", result.getOriginalImagePath());
         data.put("annotatedImagePath", result.getAnnotatedImagePath());
         data.put("combinedImagePath", result.getCombinedImagePath());
@@ -102,10 +104,10 @@ public class WebSocketPushService {
         data.put("annotatedImageUrl", result.getAnnotatedImageUrl());
         data.put("combinedImageUrl", result.getCombinedImageUrl());
 
-        broadcast("fabricRecognize", data);
+        broadcastToStore(storeId, "fabricRecognize", data);
     }
 
-    public void pushPersonDetect(String chipId, String filename, PersonDetectRespVO result) {
+    public void pushPersonDetect(String chipId, String filename, PersonDetectRespVO result, Long storeId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("chipId", chipId);
         data.put("filename", filename);
@@ -113,40 +115,60 @@ public class WebSocketPushService {
         data.put("confidence", result.getConfidence());
         data.put("timestamp", result.getTimestamp());
         data.put("processingTime", result.getProcessingTime());
-        broadcast("personDetection", data);
+        broadcastToStore(storeId, "personDetection", data);
     }
 
-    public void pushAnnounce(String chipId, String ip, String deviceType, Boolean added) {
+    public void pushAnnounce(String chipId, String ip, String deviceType, Boolean added, Long storeId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("chipId", chipId);
         data.put("ip", ip);
         data.put("deviceType", deviceType);
         data.put("added", added);
-        broadcast("announce", data);
-    }
 
-    public void pushLightEffectState(LightEffectStateRespVO data) {
-        broadcast("lightEffectState", data);
-    }
-
-    private void broadcast(String type, Object data) {
-        try {
-            String payload = objectMapper.writeValueAsString(WsMessage.of(type, data));
-            sessionManager.broadcast(payload);
-        } catch (Exception e) {
-            log.error("WebSocket broadcast failed, type={}", type, e);
+        if (storeId != null) {
+            broadcastToStore(storeId, "announce", data);
+            return;
         }
+
+        try {
+            String payload = objectMapper.writeValueAsString(WsMessage.of("announce", data));
+            sessionManager.broadcastAll(payload);
+        } catch (Exception e) {
+            log.error("WebSocket broadcastAll failed, type=announce (unbound device)", e);
+        }
+    }
+
+    @Deprecated
+    public void pushLightEffectState(LightEffectStateRespVO data) {
+        log.warn("pushLightEffectState skipped: use pushLightEffectStateToStore(storeId, data)");
+    }
+
+    public void pushLightEffectStateToStore(Long storeId, LightEffectStateRespVO data) {
+        broadcastToStore(storeId, "lightEffectState", data);
     }
 
     public boolean pushRawToDevice(String chipId, String message) {
         boolean sent = deviceSessionManager.sendToDevice(chipId, message);
 
         if (!sent) {
-            log.warn("设备指令下发失败，设备不在线或连接不可用，chipId={}, message={}", chipId, message);
+            log.warn("Device command push failed, chipId={}, message={}", chipId, message);
         } else {
-            log.info("设备指令已下发，chipId={}, message={}", chipId, message);
+            log.info("Device command pushed, chipId={}, message={}", chipId, message);
         }
 
         return sent;
+    }
+
+    private void broadcastToStore(Long storeId, String type, Object data) {
+        if (storeId == null) {
+            log.warn("broadcastToStore skipped: storeId is null, type={}", type);
+            return;
+        }
+        try {
+            String payload = objectMapper.writeValueAsString(WsMessage.of(type, data));
+            sessionManager.broadcastToStore(storeId, payload);
+        } catch (Exception e) {
+            log.error("WebSocket broadcastToStore failed, type={} storeId={}", type, storeId, e);
+        }
     }
 }
