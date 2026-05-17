@@ -9,8 +9,11 @@ interface CommonResult<T> {
 export interface LightEffectState {
   effect: 'wave' | string
   enabled: boolean
+  minTemp?: number
+  maxTemp?: number
   baseTemp: number
   range: number
+  amplitude?: number
   speed: number
   brightness: number
   phaseIndex: number

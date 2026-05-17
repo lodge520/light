@@ -24,11 +24,11 @@
 
       <div class="store-toolbar-actions">
         <button type="button" class="btn-primary" @click="toggleMode">
-          {{ isNightMode ? '切换到日间模式' : '切换到夜间模式' }}
+          {{ isNightMode ? '日间模式' : '夜间模式' }}
         </button>
 
         <button type="button" class="btn-secondary" @click="handleOpenStoreSettings">
-          进入店铺设置
+          店铺设置
         </button>
 
         <button type="button" class="btn-logout" @click="handleLogout">
@@ -194,17 +194,19 @@ function handleOpenStoreSettings() {
   }
 
   .meta-chip {
-    min-height: 36px;
-    padding: 0 12px;
-    gap: 8px;
+    flex: 1 1 0;
+    min-height: 28px;
+    padding: 0 8px;
+    gap: 5px;
+    justify-content: center;
   }
 
   .meta-key {
-    font-size: 12px;
+    font-size: 10px;
   }
 
   .meta-value {
-    font-size: 13px;
+    font-size: 11px;
   }
 
   .store-toolbar-actions {
@@ -215,10 +217,10 @@ function handleOpenStoreSettings() {
   .store-toolbar-actions .btn-primary,
   .store-toolbar-actions .btn-secondary,
   .store-toolbar-actions .btn-logout {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
-    padding: 8px 10px;
-    font-size: 12px;
+    padding: 7px 10px;
+    font-size: 13px;
     white-space: nowrap;
   }
 }

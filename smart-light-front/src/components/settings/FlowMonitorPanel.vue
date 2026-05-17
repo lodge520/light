@@ -233,6 +233,10 @@ function getDetectTime(device: DeviceItem) {
 }
 
 @media (max-width: 768px) {
+  .settings-title {
+    font-size: 16px;
+  }
+
   .flow-list {
     grid-template-columns: 1fr;
     gap: 10px;

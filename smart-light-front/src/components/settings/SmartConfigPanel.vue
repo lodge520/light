@@ -713,7 +713,7 @@ button:disabled {
   }
 
   .smart-title {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .smart-desc {

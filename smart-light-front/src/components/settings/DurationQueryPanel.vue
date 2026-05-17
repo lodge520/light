@@ -22,13 +22,9 @@
     </div>
 
     <div class="query-actions">
-      <button class="btn-primary" :disabled="loading" @click="handleQuery">
+      <button class="btn-primary" :class="{ shake: shaking }" :disabled="loading" @click="handleQuery">
         {{ loading ? '查询中...' : '查询' }}
       </button>
-    </div>
-
-    <div v-if="errorText" class="error-text">
-      {{ errorText }}
     </div>
 
     <div class="result-block">
@@ -59,6 +55,11 @@ import { ref } from 'vue'
 import { getDurationSummary } from '../../api/duration'
 import type { DurationSummaryItem } from '../../types/duration'
 import BaseSelect from '../common/BaseSelect.vue'
+import { useToast } from '../../composables/useToast'
+import { useShake } from '../../composables/useShake'
+
+const toast = useToast()
+const { shaking, trigger: doShake } = useShake()
 
 const recentDayOptions = [
   { label: '不使用', value: '' },
@@ -115,11 +116,15 @@ async function handleQuery() {
 
   if (!range.startDate || !range.endDate) {
     errorText.value = '请选择开始和结束日期，或者选择最近天数'
+    toast.show('请选择开始和结束日期，或者选择最近天数', 'error')
+    doShake()
     return
   }
 
   if (range.startDate > range.endDate) {
     errorText.value = '开始日期不能晚于结束日期'
+    toast.show('开始日期不能晚于结束日期', 'error')
+    doShake()
     return
   }
 
@@ -184,6 +189,7 @@ async function handleQuery() {
 
   .settings-title {
     grid-column: 1 / -1;
+    font-size: 16px;
   }
 
   .form-row:nth-child(2),
@@ -193,7 +199,6 @@ async function handleQuery() {
 
   .form-row:nth-child(4),
   .query-actions,
-  .error-text,
   .result-block {
     grid-column: 1 / -1;
   }
@@ -202,15 +207,25 @@ async function handleQuery() {
     flex-direction: column;
     align-items: stretch;
     gap: 6px;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .form-row label {
     min-width: auto;
+    font-size: 12px;
   }
 
   .date-input {
     width: 100%;
     min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: 12px;
+  }
+
+  .form-row :deep(.select-trigger) {
+    font-size: 12px;
   }
 
   .query-actions .btn-primary {

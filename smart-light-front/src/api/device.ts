@@ -36,8 +36,20 @@ export async function createDevice(payload: DeviceCreatePayload): Promise<number
   return res.data.data
 }
 
-export async function updateDevice(id: number, payload: DeviceCreatePayload): Promise<boolean> {
-  const res = await http.put<CommonResult<boolean>>(`/admin/device/update/${id}`, payload)
+export interface UpdateDeviceOptions {
+  lightControl?: boolean
+}
+
+export async function updateDevice(
+  id: number,
+  payload: DeviceCreatePayload,
+  options: UpdateDeviceOptions = {},
+): Promise<boolean> {
+  const res = await http.put<CommonResult<boolean>>(
+    `/admin/device/update/${id}`,
+    payload,
+    options.lightControl ? { params: { lightControl: true } } : undefined,
+  )
   return res.data.data
 }
 
@@ -87,8 +99,11 @@ export async function locateDevice(chipId: string): Promise<boolean> {
 export interface LightEffectPayload {
   effect: 'wave'
   enabled: boolean
+  minTemp?: number
+  maxTemp?: number
   baseTemp?: number
   range?: number
+  amplitude?: number
   speed?: number
   brightness?: number
   phaseIndex?: number

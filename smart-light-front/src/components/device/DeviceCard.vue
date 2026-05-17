@@ -1,4 +1,5 @@
 <template>
+  <div class="device-card-wrapper">
   <div class="lamp-card">
     <div class="card-header clickable-header" @click="handleHeaderClick">
       <div class="device-title-block">
@@ -303,6 +304,7 @@
     </div>
   </Transition>
 </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -331,7 +333,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'update-realtime', value: { id: number; payload: DeviceCreatePayload }): void
+  (e: 'update-realtime', value: { id: number; payload: DeviceCreatePayload; lightControl?: boolean }): void
   (e: 'delete', id: number): void
 }>()
 
@@ -993,9 +995,10 @@ function resetForm() {
   syncFromProps()
 }
 
-function emitRealtimeUpdate() {
+function emitRealtimeUpdate(lightControl = false) {
   emit('update-realtime', {
     id: props.device.id,
+    lightControl,
     payload: {
       chipId: localForm.chipId,
       ip: localForm.ip || '',
@@ -1018,18 +1021,18 @@ function handleBrightnessInput(event: Event) {
   if (localForm.autoMode) return
   const target = event.target as HTMLInputElement
   localForm.brightness = Number(target.value)
-  emitRealtimeUpdate()
+  emitRealtimeUpdate(true)
 }
 
 function handleTempInput(event: Event) {
   if (localForm.autoMode) return
   const target = event.target as HTMLInputElement
   localForm.temp = Number(target.value)
-  emitRealtimeUpdate()
+  emitRealtimeUpdate(true)
 }
 
 function handleAutoModeChange() {
-  emitRealtimeUpdate()
+  emitRealtimeUpdate(true)
 }
 
 function openFabricUpload() {
@@ -1241,11 +1244,17 @@ const textColor = computed(() => {
 .status-badge.online {
   background: #e8f7ed;
   color: #18a058;
+  animation: breathe 2s ease-in-out infinite;
 }
 
 .status-badge.offline {
   background: #fef0f0;
   color: #f56c6c;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(1.08); }
 }
 
 

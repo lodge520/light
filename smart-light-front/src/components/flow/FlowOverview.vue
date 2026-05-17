@@ -34,19 +34,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import HeatmapCard from './HeatmapCard.vue'
 import LuxTrendCard from './LuxTrendCard.vue'
 import TempPeopleTrendCard from './TempPeopleTrendCard.vue'
 import StrategyCompareCard from './StrategyCompareCard.vue'
 import DistributionChartCard from './DistributionChartCard.vue'
-import { getDurationSummary } from '../../api/duration'
-import { getMultiLux } from '../../api/lux'
-import { getStrategyCompare, getTempPeopleTrend } from '../../api/analytics'
 import type { DeviceItem } from '../../types/device'
 import type { DurationSummaryItem } from '../../types/duration'
-import type { MultiLuxRespVO } from '../../api/lux'
-import type { StrategyCompareData, TempPeopleTrendData } from '../../types/analytics'
 
 const props = defineProps<{
   devices: DeviceItem[]
@@ -54,57 +49,25 @@ const props = defineProps<{
   currentArea: number
   durationRefreshKey?: number
   luxRefreshKey?: number
+  flowCache?: any
+  flowDataReady?: boolean
+  flowLoading?: boolean
 }>()
 
 const durationRows = ref<DurationSummaryItem[]>([])
-const luxTrendData = ref<MultiLuxRespVO | null>(null)
-const tempPeopleData = ref<TempPeopleTrendData | null>(null)
-const strategyData = ref<StrategyCompareData | null>(null)
+const luxTrendData = ref<any>(null)
+const tempPeopleData = ref<any>(null)
+const strategyData = ref<any>(null)
 
-const analyticsChipId = computed(() => {
-  return props.devices.find(item => item.chipId)?.chipId
-})
-
-function pad(n: number) {
-  return String(n).padStart(2, '0')
+function applyCache() {
+  if (!props.flowCache) return
+  if (props.flowCache.durationSummary) durationRows.value = props.flowCache.durationSummary
+  if (props.flowCache.luxTrend) luxTrendData.value = props.flowCache.luxTrend
+  if (props.flowCache.tempPeopleTrend) tempPeopleData.value = props.flowCache.tempPeopleTrend
+  if (props.flowCache.strategyCompare) strategyData.value = props.flowCache.strategyCompare
 }
 
-function formatDate(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-function getDateRange() {
-  const end = new Date()
-  const start = new Date()
-  start.setDate(end.getDate() - 6)
-
-  return {
-    startDate: formatDate(start),
-    endDate: formatDate(end),
-  }
-}
-
-async function loadDurationSummary() {
-  try {
-    const range = getDateRange()
-    durationRows.value = await getDurationSummary(range.startDate, range.endDate)
-  } catch (error) {
-    console.error('loadDurationSummary error =', error)
-    durationRows.value = []
-  }
-}
-
-async function loadMultiLux() {
-  luxTrendData.value = await getMultiLux()
-}
-
-async function loadTempPeopleTrend() {
-  tempPeopleData.value = await getTempPeopleTrend(analyticsChipId.value)
-}
-
-async function loadStrategyCompare() {
-  strategyData.value = await getStrategyCompare(analyticsChipId.value)
-}
+watch(() => props.flowCache, () => applyCache(), { deep: true, immediate: true })
 
 const luxLabels = computed(() => luxTrendData.value?.labels || [])
 const luxDatasets = computed(() => luxTrendData.value?.datasets || [])
@@ -125,36 +88,5 @@ const avgBrightness = computed(() => {
   if (props.devices.length === 0) return 0
   const sum = props.devices.reduce((acc, item) => acc + (item.brightness ?? 0), 0)
   return Math.round(sum / props.devices.length)
-})
-
-watch(
-  () => props.durationRefreshKey,
-  () => {
-    loadDurationSummary()
-  },
-)
-
-watch(
-  () => props.luxRefreshKey,
-  () => {
-    loadMultiLux()
-  },
-)
-
-watch(
-  analyticsChipId,
-  (chipId, oldChipId) => {
-    if (chipId && chipId !== oldChipId) {
-      loadTempPeopleTrend()
-      loadStrategyCompare()
-    }
-  },
-)
-
-onMounted(() => {
-  loadDurationSummary()
-  loadMultiLux()
-  loadTempPeopleTrend()
-  loadStrategyCompare()
 })
 </script>

@@ -38,10 +38,10 @@
         </div>
 
         <div class="tag-group">
-          <span>女装店</span>
-          <span>橱窗展示</span>
-          <span>暖调风格</span>
-          <span>智能推荐</span>
+          <span>服装门店</span>
+          <span>分区管理</span>
+          <span>色温调节</span>
+          <span>智能联动</span>
         </div>
       </div>
 
@@ -59,6 +59,7 @@
                 v-model.trim="form.username"
                 type="text"
                 placeholder="请输入用户名"
+                :class="{ shake: shakingUsername }"
               />
             </div>
 
@@ -68,6 +69,7 @@
                 v-model="form.password"
                 type="password"
                 placeholder="请输入密码"
+                :class="{ shake: shakingPassword }"
               />
             </div>
 
@@ -98,10 +100,15 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { loginApi } from '../api/auth'
+import { useToast } from '../composables/useToast'
+import { useShake } from '../composables/useShake'
 
 const router = useRouter()
 const loading = ref(false)
 const rememberMe = ref(false)
+const toast = useToast()
+const { shaking: shakingUsername, trigger: shakeUser } = useShake()
+const { shaking: shakingPassword, trigger: shakePwd } = useShake()
 
 const form = reactive({
   username: '',
@@ -110,11 +117,13 @@ const form = reactive({
 
 function validateForm() {
   if (!form.username) {
-    alert('请输入用户名')
+    toast.show('请输入用户名', 'error')
+    shakeUser()
     return false
   }
   if (!form.password) {
-    alert('请输入密码')
+    toast.show('请输入密码', 'error')
+    shakePwd()
     return false
   }
   return true
@@ -410,6 +419,98 @@ onMounted(() => {
 
   .auth-main {
     padding: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-side {
+    padding: 28px 20px;
+  }
+
+  .brand-badge {
+    font-size: 10px;
+    padding: 4px 10px;
+    margin-bottom: 12px;
+  }
+
+  .brand h1 {
+    font-size: 20px;
+  }
+
+  .brand p {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .feature-item h3 {
+    font-size: 13px;
+  }
+
+  .feature-item p {
+    font-size: 11px;
+  }
+
+  .feature-list {
+    gap: 14px;
+    margin: 24px 0;
+  }
+
+  .tag-group {
+    gap: 6px;
+  }
+
+  .tag-group span {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .auth-main {
+    padding: 16px;
+  }
+
+  .form-card {
+    padding: 24px 20px;
+  }
+
+  .form-header h2 {
+    font-size: 20px;
+  }
+
+  .form-header p {
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+
+  .form-item {
+    margin-bottom: 14px;
+  }
+
+  .form-item label {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .form-item input {
+    height: 40px;
+    font-size: 13px;
+    border-radius: 10px;
+    padding: 0 10px;
+  }
+
+  .form-extra {
+    font-size: 11px;
+    margin-bottom: 16px;
+  }
+
+  .primary-btn {
+    height: 42px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+
+  .form-footer {
+    font-size: 12px;
+    margin-top: 14px;
   }
 }
 </style>

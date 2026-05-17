@@ -73,6 +73,7 @@
        :class="{
           active: draggingKey === getKey(device),
           selected: selectedDeviceId === device.id,
+          'no-animate': zoneDragging,
         }"
         :style="getNodeStyle(device, index)"
         @pointerdown="handleLampPointerDown($event, device)"
@@ -145,6 +146,7 @@ const deviceState = ref<Record<number, LocalDeviceState>>({})
 const zones = ref<Zone[]>([])
 const draggingKey = ref('')
 const activeZoneId = ref('')
+const zoneDragging = ref(false)
 const saving = ref(false)
 const selectedDeviceId = ref<number | null>(null)
 
@@ -258,18 +260,18 @@ function loadZones() {
     {
       id: createId(),
       name: '新品展示区',
-      x: 8,
-      y: 12,
-      width: 36,
-      height: 34,
+      x: 4,
+      y: 6,
+      width: 44,
+      height: 42,
     },
     {
       id: createId(),
       name: '主通道区',
-      x: 54,
-      y: 18,
-      width: 36,
-      height: 30,
+      x: 52,
+      y: 6,
+      width: 42,
+      height: 40,
     },
   ]
 
@@ -294,15 +296,118 @@ function initDeviceState() {
   deviceState.value = nextState
 }
 
+let freeSpotScanY = 6
+let freeSpotScanX = 4
+
+function findFreeSpot(): { x: number; y: number } {
+  const stepX = 10
+  const stepY = 12
+  const maxX = 80
+  const maxY = 88
+
+  for (let row = 0; row < 10; row++) {
+    for (let col = 0; col < 10; col++) {
+      const x = (freeSpotScanX + col * stepX) % maxX
+      const y = (freeSpotScanY + row * stepY) % maxY
+      const MARGIN = 6
+      const inZone = zones.value.some(z =>
+        x >= z.x - MARGIN && x <= z.x + z.width + MARGIN &&
+        y >= z.y - MARGIN && y <= z.y + z.height + MARGIN,
+      )
+      if (!inZone) {
+        freeSpotScanX = x + stepX
+        freeSpotScanY = y
+        if (freeSpotScanX > maxX) { freeSpotScanX = 4; freeSpotScanY += stepY }
+        return { x, y }
+      }
+    }
+  }
+
+  freeSpotScanY = (freeSpotScanY + stepY) % maxY
+  return { x: freeSpotScanX, y: freeSpotScanY }
+}
+
+function layoutZoneLamps(zoneName: string, devices?: DeviceItem[]) {
+  const zone = zones.value.find(z => z.name === zoneName)
+  if (!zone) return
+
+  const list = devices ?? layoutDevices.value.filter(
+    d => deviceState.value[d.id]?.zoneName === zoneName,
+  )
+
+  list.sort((a, b) => {
+    const posA = positions.value[getKey(a)] || { x: 0, y: 0 }
+    const posB = positions.value[getKey(b)] || { x: 0, y: 0 }
+    if (Math.abs(posA.y - posB.y) > 5) return posA.y - posB.y
+    return posA.x - posB.x
+  })
+
+  if (list.length === 0) return
+
+  const stage = stageRef.value
+  const stageW = stage ? stage.clientWidth : 700
+  const stageH = stage ? stage.clientHeight : 400
+
+  const cols = 1
+  const rows = Math.ceil(list.length / cols)
+
+  const LAMP_W_PX = stageW <= 500 ? 120 : 190
+  const LAMP_H_PX = stageW <= 500 ? 48 : 56
+  const NAME_H_PX = 44
+  const GAP_PX = stageW <= 500 ? 6 : 10
+  const BOTTOM_PAD_PX = stageW <= 500 ? 12 : 18
+
+  const needWPx = cols * LAMP_W_PX + (cols + 1) * GAP_PX
+  const needHPx = NAME_H_PX + rows * LAMP_H_PX + (rows + 1) * GAP_PX + BOTTOM_PAD_PX
+
+  const needW = (needWPx / stageW) * 100
+  const needH = (needHPx / stageH) * 100
+
+  if (zone.width < needW) zone.width = Math.min(needW, 95 - zone.x)
+  if (zone.height < needH) zone.height = Math.min(needH, 95 - zone.y)
+
+  const lampAreaY = zone.y + (NAME_H_PX / stageH) * 100
+  const lampAreaH = zone.height - (NAME_H_PX / stageH) * 100
+  const cellW = zone.width / cols
+  const cellH = lampAreaH / rows
+
+  list.forEach((device, i) => {
+    const key = getKey(device)
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    positions.value[key] = {
+      x: zone.x + cellW * (col + 0.5),
+      y: lampAreaY + cellH * (row + 0.5),
+    }
+  })
+
+  refreshZoneOrder(zoneName)
+  saveZones()
+  savePositions()
+}
+
 function initDefaultPositions() {
-  layoutDevices.value.forEach((device, index) => {
+  const zoneGroups = new Map<string, DeviceItem[]>()
+  const unzoned: DeviceItem[] = []
+
+  for (const device of layoutDevices.value) {
+    const zoneName = (device.displayName || '').trim()
+    if (zoneName && zoneName !== '未分区' && zoneName !== '-') {
+      if (!zoneGroups.has(zoneName)) zoneGroups.set(zoneName, [])
+      zoneGroups.get(zoneName)!.push(device)
+    } else {
+      unzoned.push(device)
+    }
+  }
+
+  for (const [zoneName, devices] of zoneGroups) {
+    layoutZoneLamps(zoneName, devices)
+  }
+
+  unzoned.forEach((device) => {
     const key = getKey(device)
     if (positions.value[key]) return
-
-    positions.value[key] = {
-      x: 18 + (index % 3) * 26,
-      y: 22 + Math.floor(index / 3) * 24,
-    }
+    positions.value[key] = findFreeSpot()
   })
 
   savePositions()
@@ -319,15 +424,43 @@ function getZoneStyle(zone: Zone) {
 
 function getNodeStyle(device: DeviceItem, index: number) {
   const key = getKey(device)
-  const pos = positions.value[key] || {
-    x: 18 + (index % 3) * 26,
-    y: 24 + Math.floor(index / 3) * 22,
+  if (positions.value[key]) {
+    return {
+      left: `${positions.value[key].x}%`,
+      top: `${positions.value[key].y}%`,
+    }
   }
 
-  return {
-    left: `${pos.x}%`,
-    top: `${pos.y}%`,
+  const zoneName = (device.displayName || '').trim()
+  if (zoneName && zoneName !== '未分区' && zoneName !== '-') {
+    const zone = zones.value.find(z => z.name === zoneName)
+    if (zone) {
+      const zoneDevices = layoutDevices.value.filter(
+        d => (d.displayName || '').trim() === zoneName && !positions.value[getKey(d)],
+      )
+      const zi = zoneDevices.indexOf(device)
+      const nameH = 10
+      const gap = 6
+      return {
+        left: `${zone.x + zone.width * 0.5}%`,
+        top: `${zone.y + nameH + gap + zi * 12}%`,
+      }
+    }
   }
+
+  if (zoneDragging.value || draggingKey.value) {
+    const unzonedList = layoutDevices.value.filter(
+      d => !(d.displayName || '').trim() || (d.displayName || '').trim() === '未分区' || (d.displayName || '').trim() === '-',
+    )
+    const idx = unzonedList.indexOf(device)
+    return {
+      left: `${72}%`,
+      top: `${6 + (idx >= 0 ? idx : index) * 12}%`,
+    }
+  }
+  const spot = findFreeSpot()
+  positions.value[getKey(device)] = spot
+  return { left: `${spot.x}%`, top: `${spot.y}%` }
 }
 
 function getLampTitle(device: DeviceItem, index: number) {
@@ -405,11 +538,11 @@ function getDevicesByZone(zoneName: string) {
       const posA = positions.value[getKey(a)] || { x: 0, y: 0 }
       const posB = positions.value[getKey(b)] || { x: 0, y: 0 }
 
-      if (Math.abs(posA.x - posB.x) > 5) {
-        return posA.x - posB.x
+      if (Math.abs(posA.y - posB.y) > 5) {
+        return posA.y - posB.y
       }
 
-      return posA.y - posB.y
+      return posA.x - posB.x
     })
 }
 
@@ -438,8 +571,8 @@ function addZone() {
     name: `分区${index}`,
     x: 16 + ((index - 1) % 3) * 18,
     y: 16 + Math.floor((index - 1) / 3) * 18,
-    width: 30,
-    height: 26,
+    width: 40,
+    height: 36,
   }
 
   zones.value.push(zone)
@@ -452,6 +585,7 @@ function handleZonePointerDown(event: PointerEvent, zone: Zone) {
   if (!stage) return
 
   activeZoneId.value = zone.id
+  zoneDragging.value = true
 
   const rect = stage.getBoundingClientRect()
   const startX = ((event.clientX - rect.left) / rect.width) * 100
@@ -463,8 +597,8 @@ function handleZonePointerDown(event: PointerEvent, zone: Zone) {
   const originZoneX = zone.x
   const originZoneY = zone.y
 
-  // 关键：记录分区内灯具的初始位置
-  const affectedDevices = getDevicesInZone(zone)
+  // 关键：记录分区内灯具的初始位置（仅按 deviceState 判断）
+  const affectedDevices = getDevicesByZone(zone.name)
   const affectedStartPositions: Record<string, Position> = {}
 
   affectedDevices.forEach(device => {
@@ -501,7 +635,10 @@ function handleZonePointerDown(event: PointerEvent, zone: Zone) {
   }
 
   function up() {
+    zoneDragging.value = false
     refreshZoneOrder(zone.name)
+    layoutZoneLamps(zone.name)
+    repositionUnzoned()
     saveZones()
     savePositions()
 
@@ -511,6 +648,18 @@ function handleZonePointerDown(event: PointerEvent, zone: Zone) {
 
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', up)
+}
+
+function repositionUnzoned() {
+  freeSpotScanX = 4
+  freeSpotScanY = 6
+  for (const device of layoutDevices.value) {
+    const zoneName = (device.displayName || '').trim()
+    if (zoneName && zoneName !== '未分区' && zoneName !== '-') continue
+    const key = getKey(device)
+    positions.value[key] = findFreeSpot()
+  }
+  savePositions()
 }
 
 function handleZoneResize(event: PointerEvent, zone: Zone) {
@@ -532,6 +681,8 @@ function handleZoneResize(event: PointerEvent, zone: Zone) {
   }
 
   function up() {
+    layoutZoneLamps(zone.name)
+    repositionUnzoned()
     saveZones()
 
     window.removeEventListener('pointermove', move)
@@ -578,11 +729,21 @@ function handleLampPointerDown(event: PointerEvent, device: DeviceItem) {
           deviceNo: deviceState.value[device.id]?.deviceNo || '',
         }
 
-        refreshZoneOrder(zone.name)
+        layoutZoneLamps(zone.name)
 
         if (oldZoneName && oldZoneName !== zone.name) {
-          refreshZoneOrder(oldZoneName)
+          layoutZoneLamps(oldZoneName)
         }
+      } else {
+        deviceState.value[device.id] = {
+          zoneName: '未分区',
+          deviceNo: '',
+        }
+        if (oldZoneName && oldZoneName !== '未分区') {
+          layoutZoneLamps(oldZoneName)
+        }
+        positions.value[key] = findFreeSpot()
+        savePositions()
       }
     }
 
@@ -959,6 +1120,8 @@ onMounted(() => {
   user-select: none;
   touch-action: none;
   transition:
+    left 0.35s ease,
+    top 0.35s ease,
     transform 0.18s ease,
     box-shadow 0.18s ease,
     border-color 0.18s ease,
@@ -967,6 +1130,13 @@ onMounted(() => {
 
 .lamp-node.active {
   cursor: grabbing;
+  transition:
+    left 0s,
+    top 0s,
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
   transform: translate(-50%, -50%) scale(1.08);
   background: #ffffff;
   border-color: rgba(245, 158, 11, 0.95);
@@ -974,6 +1144,16 @@ onMounted(() => {
     0 0 0 5px rgba(245, 158, 11, 0.22),
     0 20px 44px rgba(15, 23, 42, 0.34);
   z-index: 20;
+}
+
+.lamp-node.no-animate {
+  transition:
+    left 0s,
+    top 0s,
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
 }
 
 .lamp-icon {
@@ -1133,9 +1313,9 @@ onMounted(() => {
   .reset-layout-btn,
   .save-layout-btn,
   .locate-btn {
-    padding: 7px 11px;
-    min-height: 32px;
-    font-size: 12px;
+    padding: 6px 9px;
+    min-height: 28px;
+    font-size: 10px;
   }
 
   .locate-btn {
@@ -1171,26 +1351,26 @@ onMounted(() => {
   }
 
   .lamp-node {
-    min-width: 90px;
-    padding: 6px 8px;
-    gap: 5px;
+    min-width: 78px;
+    padding: 5px 7px;
+    gap: 4px;
   }
 
   .lamp-icon {
-    width: 26px;
-    height: 26px;
-    flex-basis: 26px;
-    font-size: 13px;
+    width: 22px;
+    height: 22px;
+    flex-basis: 22px;
+    font-size: 11px;
   }
 
   .lamp-info strong {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .lamp-info span {
     display: block;
-    font-size: 9px;
-    margin-top: 2px;
+    font-size: 8px;
+    margin-top: 1px;
   }
 
   .zone-name-input {

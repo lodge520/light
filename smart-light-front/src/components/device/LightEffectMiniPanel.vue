@@ -34,7 +34,7 @@
     <div class="effect-brightness-control">
       <div class="effect-brightness-header">
         <span class="mini-label">灯效亮度</span>
-        <strong>{{ effectBrightness }}%</strong>
+        <strong :class="{ 'brightness-active': effectBrightnessInteracting }">{{ effectBrightness }}%</strong>
       </div>
       <input
         class="effect-brightness-slider"
@@ -122,7 +122,7 @@
                 class="mini-input"
                 type="number"
                 min="0"
-                max="1200"
+                max="1900"
               />
             </label>
 
@@ -138,11 +138,14 @@
             </label>
 
             <label class="form-field">
-              <span class="mini-label">速度</span>
+              <div class="effect-brightness-header">
+                <span class="mini-label">速度</span>
+                <strong>{{ speed.toFixed(1) }}</strong>
+              </div>
               <input
                 v-model.number="speed"
-                class="mini-input"
-                type="number"
+                class="effect-brightness-slider"
+                type="range"
                 min="0.2"
                 max="5"
                 step="0.1"
@@ -214,12 +217,12 @@ type ActiveEffect = 'warm' | 'neutral' | 'cool' | 'auto' | 'loop' | null
 type QuickActionKey = NonNullable<ActiveEffect> | 'settings'
 
 const selectedScope = ref('all')
-const baseTemp = ref(3800)
-const range = ref(500)
+const baseTemp = ref(4600)
+const range = ref(1900)
 const brightness = ref(70)
 const effectBrightness = ref(70)
-const minTemp = ref(3300)
-const maxTemp = ref(4300)
+const minTemp = ref(2700)
+const maxTemp = ref(6500)
 const speed = ref(1)
 const phaseIndex = ref(0)
 const phaseGap = ref(0.8)
@@ -517,8 +520,10 @@ function buildWavePayload(enabled = activeEffect.value === 'loop') {
   return {
     effect: 'wave',
     enabled,
+    minTemp: clamp(minTemp.value, 2700, 6500),
+    maxTemp: clamp(maxTemp.value, 2700, 6500),
     baseTemp: clamp(baseTemp.value, 2700, 6500),
-    range: clamp(range.value, 0, 1200),
+    range: clamp(range.value, 0, 1900),
     speed: clamp(speed.value, 0.2, 5),
     brightness: clamp(effectBrightness.value, 0, 100),
     phaseIndex: phaseIndex.value,
@@ -532,9 +537,19 @@ function applyLightEffectState(state?: LightEffectState | null) {
 
   applyingServerState.value = true
   selectedScope.value = state.selectedScope || 'all'
-  baseTemp.value = clamp(Number(state.baseTemp ?? 3800), 2700, 6500)
-  range.value = clamp(Number(state.range ?? 500), 0, 1200)
-  setTempRangeFromBaseAndRange(baseTemp.value, range.value)
+  const stateMinTemp = Number(state.minTemp)
+  const stateMaxTemp = Number(state.maxTemp)
+  if (Number.isFinite(stateMinTemp) && Number.isFinite(stateMaxTemp)) {
+    const low = clamp(Math.min(stateMinTemp, stateMaxTemp), TEMP_MIN, TEMP_MAX - TEMP_GAP_MIN)
+    const high = clamp(Math.max(stateMinTemp, stateMaxTemp), TEMP_MIN + TEMP_GAP_MIN, TEMP_MAX)
+    minTemp.value = Math.round(Math.min(low, high - TEMP_GAP_MIN))
+    maxTemp.value = Math.round(Math.max(high, minTemp.value + TEMP_GAP_MIN))
+    syncWaveBaseFromTempRange()
+  } else {
+    baseTemp.value = clamp(Number(state.baseTemp ?? 4600), 2700, 6500)
+    range.value = clamp(Number(state.amplitude ?? state.range ?? 1900), 0, 1900)
+    setTempRangeFromBaseAndRange(baseTemp.value, range.value)
+  }
   speed.value = clamp(Number(state.speed ?? 1), 0.2, 5)
   phaseIndex.value = Number(state.phaseIndex ?? 0)
   phaseGap.value = clamp(Number(state.phaseGap ?? 0.8), 0, 3)
@@ -640,9 +655,14 @@ async function applyDeviceMode(
   submitting.value = true
 
   try {
+    if (activeEffect.value === 'loop') {
+      const state = await closeLightEffectState()
+      applyLightEffectState(state)
+    }
+
     for (const device of targetDevices.value) {
       if (!device.id) continue
-      await updateDevice(device.id, buildDevicePayload(device, next))
+      await updateDevice(device.id, buildDevicePayload(device, next), { lightControl: true })
       if (typeof next.temp === 'number') device.temp = next.temp
       if (typeof next.brightness === 'number') device.brightness = next.brightness
       if (typeof next.autoMode === 'boolean') device.autoMode = next.autoMode
@@ -803,6 +823,7 @@ async function submitEffectBrightness(value: number) {
           brightness: value,
           recommendedBrightness: value,
         }),
+        { lightControl: true },
       )
       device.brightness = value
       device.recommendedBrightness = value
@@ -1177,6 +1198,12 @@ onBeforeUnmount(() => {
   color: #2563eb;
   font-size: 13px;
   font-weight: 900;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.effect-brightness-header strong.brightness-active {
+  transform: scale(1.4);
+  color: #1d4ed8;
 }
 
 .effect-brightness-slider {
@@ -1394,15 +1421,6 @@ onBeforeUnmount(() => {
 
 .effect-form > .form-field:nth-child(6) > .mini-label {
   font-size: 0;
-}
-
-.effect-form > .form-field:nth-child(5) > .mini-label {
-  font-size: 0;
-}
-
-.effect-form > .form-field:nth-child(5) > .mini-label::after {
-  content: "速度";
-  font-size: 12px;
 }
 
 .effect-form > .form-field:nth-child(6) > .mini-label::after {
@@ -1682,45 +1700,59 @@ onBeforeUnmount(() => {
   }
 
   .effect-action-btn {
-    min-height: 66px;
-    padding: 10px 12px;
+    min-height: 56px;
+    padding: 8px 10px;
     border-radius: 14px;
   }
 
   .effect-action-btn strong {
-    font-size: 13px;
+    font-size: 11px;
   }
 
   .effect-action-btn span {
-    margin-top: 4px;
-    font-size: 10px;
+    margin-top: 3px;
+    font-size: 9px;
   }
 
   .effect-action-btn.active::before {
+    right: 5px;
+    bottom: 4px;
+    padding: 1px 4px;
+    font-size: 7px;
+  }
+
+  .effect-auto::after {
     right: 6px;
-    bottom: 5px;
-    padding: 1px 5px;
+    top: 6px;
+    padding: 1px 4px;
     font-size: 8px;
   }
 
+  .effect-loop::after {
+    right: 8px;
+    top: 10px;
+    width: 14px;
+    height: 14px;
+  }
+
   .effect-brightness-control {
-    margin-top: 10px;
-    padding: 10px;
+    margin-top: 8px;
+    padding: 8px;
     border-radius: 14px;
   }
 
   .effect-brightness-header strong {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .effect-brightness-hint {
-    font-size: 10px;
-    margin-top: 3px;
+    font-size: 9px;
+    margin-top: 2px;
   }
 
   .mini-status {
     margin-top: 6px;
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .effect-modal-card {

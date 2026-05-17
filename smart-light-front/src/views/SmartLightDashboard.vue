@@ -3,7 +3,7 @@
     <SidebarNav v-model="activeTab" />
 
     <div class="main-content">
-      <section v-show="activeTab === 'main'" class="page-section">
+      <section v-if="activeTab === 'main'" class="page-section">
         <div class="dashboard-top-status">
           <div class="current-time">{{ currentTime }}</div>
           <div class="weather-status-row">
@@ -52,15 +52,21 @@
             <div class="stat-grid">
               <div class="stat-item">
                 <span class="stat-label">温度</span>
-                <strong class="stat-value">{{ formatWeatherMetric(envInfo.temp, '℃') }}</strong>
+                <strong class="stat-value">
+                  <OdometerRoll :value="hasWeatherData ? envInfo.temp : null" :decimals="1" suffix="℃" />
+                </strong>
               </div>
               <div class="stat-item">
                 <span class="stat-label">体感</span>
-                <strong class="stat-value">{{ formatWeatherMetric(envInfo.apparentTemp, '℃') }}</strong>
+                <strong class="stat-value">
+                  <OdometerRoll :value="hasWeatherData ? envInfo.apparentTemp : null" :decimals="1" suffix="℃" />
+                </strong>
               </div>
               <div class="stat-item">
                 <span class="stat-label">湿度</span>
-                <strong class="stat-value">{{ formatWeatherMetric(envInfo.humidity, '%') }}</strong>
+                <strong class="stat-value">
+                  <OdometerRoll :value="hasWeatherData ? envInfo.humidity : null" :decimals="0" suffix="%" />
+                </strong>
               </div>
               <div class="stat-item">
                 <span class="stat-label">人流量</span>
@@ -85,8 +91,26 @@
               </div>
             </div>
             <div id="luxDisplay" class="lux-display">
-              <span class="lux-full">{{ latestLuxText }}</span>
-              <span class="lux-short">{{ latestLuxShortText }}</span>
+              <span class="lux-label">
+                <span class="lux-label-web">光照值：</span>
+                <span class="lux-label-mobile">光照</span>
+              </span>
+              <OdometerRoll
+                v-if="latestLux != null"
+                class="lux-odometer-web"
+                :value="latestLux"
+                :decimals="0"
+                suffix=" lux"
+              />
+              <OdometerRoll
+                v-if="latestLux != null"
+                class="lux-odometer-mobile"
+                :value="latestLux"
+                :decimals="0"
+                :digit-height="16"
+                suffix=" lux"
+              />
+              <span v-if="latestLux == null" class="lux-placeholder">-- lux</span>
             </div>
           </div>
         </div>
@@ -186,17 +210,20 @@
     @submit="handleCreateDevice"
   />
 
-      <section v-show="activeTab === 'flow'" class="page-section">
+      <section v-else-if="activeTab === 'flow'" class="page-section">
         <FlowOverview
           :devices="devices"
           :latest-lux="latestLux"
           :current-area="envInfo.area"
           :duration-refresh-key="durationRefreshKey"
           :lux-refresh-key="luxRefreshKey"
+          :flow-cache="flowCache"
+          :flow-data-ready="flowDataReady"
+          :flow-loading="flowDataLoading"
         />
       </section>
 
-    <section v-show="activeTab === 'settings'" class="page-section">
+    <section v-else-if="activeTab === 'settings'" class="page-section">
       <div class="settings-layout">
         <StoreSettingsPanel
           v-model="storeSettings"
@@ -221,7 +248,7 @@
        <SmartConfigPanel class="settings-full-card" />
     </section>
 
-    <section v-show="activeTab === 'firmware'" class="page-section">
+    <section v-else-if="activeTab === 'firmware'" class="page-section">
       <FirmwareManagePanel />
     </section>
     </div>
@@ -247,7 +274,9 @@ import {
   getOnlineList,
   updateDevice,
 } from '../api/device'
-import { getLatestLux } from '../api/lux'
+import { getMultiLux } from '../api/lux'
+import { getDurationSummary } from '../api/duration'
+import { getStrategyCompare, getTempPeopleTrend } from '../api/analytics'
 import type { LightEffectState } from '../api/lightEffect'
 import { getCurrentStoreApi } from '../api/store'
 import { getCurrentWeather } from '../api/weather'
@@ -263,6 +292,7 @@ import StoreSettingsPanel from '../components/settings/StoreSettingsPanel.vue'
 import type { StoreSettingsValue } from '../components/settings/StoreSettingsPanel.vue'
 import FlowOverview from '../components/flow/FlowOverview.vue'
 import FirmwareManagePanel from '../components/firmware/FirmwareManagePanel.vue'
+import OdometerRoll from '../components/common/OdometerRoll.vue'
 import { regions } from '../constants/china-region'
 import { STORE_STYLE_MAP } from '../constants/store'
 import { getErrorMessage } from '../utils/error'
@@ -453,10 +483,14 @@ onMounted(async () => {
   const ok = await loadCurrentStore()
   if (!ok) return
   await loadDevices()
+  void preloadFlowData(false)
 })
 
 function removeScannedDevice(chipId: string) {
-  scannedDevices.value = scannedDevices.value.filter(item => item.chipId !== chipId)
+  const targetChipId = normalizeChipId(chipId)
+  scannedDevices.value = scannedDevices.value.filter(
+    item => normalizeChipId(item.chipId) !== targetChipId,
+  )
 
   if (scanning.value) {
     updateScanningStatusText()
@@ -486,13 +520,93 @@ const holidayInfo = ref('是否节假日：否')
 const workdayInfo = ref('是否工作日：是')
 const latestLuxText = ref('光照值等待更新中...')
 const latestLux = ref<number | null>(null)
-const latestLuxShortText = computed(() => latestLuxText.value.replace('光照值：', ''))
 const durationRefreshKey = ref(0)
 const luxRefreshKey = ref(0)
 const currentStoreCityName = ref('')
 const FLOW_REFRESH_THROTTLE_MS = 5000
+const FLOW_DATA_CACHE_MS = 60 * 1000
 let lastDurationRefreshAt = 0
 let lastLuxTrendRefreshAt = 0
+
+const flowDataReady = ref(false)
+const flowDataLoading = ref(false)
+const lastFlowDataLoadedAt = ref(0)
+const flowCache = ref<{
+  durationSummary: any[] | null
+  luxTrend: any | null
+  tempPeopleTrend: any | null
+  strategyCompare: any | null
+}>({
+  durationSummary: null,
+  luxTrend: null,
+  tempPeopleTrend: null,
+  strategyCompare: null,
+})
+
+let flowPreloadPromise: Promise<void> | null = null
+
+function pad(n: number) { return String(n).padStart(2, '0') }
+function flowFormatDate(date: Date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` }
+
+function getFlowDateRange() {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(end.getDate() - 6)
+  return { startDate: flowFormatDate(start), endDate: flowFormatDate(end) }
+}
+
+function getFlowChipId() {
+  return devices.value.find(d => d.chipId)?.chipId
+}
+
+function hasRequiredFlowCache() {
+  const chipId = getFlowChipId()
+  const hasDuration = flowCache.value.durationSummary != null
+  const hasLux = flowCache.value.luxTrend != null
+  const hasChipTrend = !chipId || flowCache.value.tempPeopleTrend != null
+  const hasStrategy = !chipId || flowCache.value.strategyCompare != null
+  return hasDuration && hasLux && hasChipTrend && hasStrategy
+}
+
+async function preloadFlowData(force = false) {
+  const now = Date.now()
+  if (flowDataLoading.value) return
+  if (flowPreloadPromise) return flowPreloadPromise
+
+  if (!force && hasRequiredFlowCache() && now - lastFlowDataLoadedAt.value < FLOW_DATA_CACHE_MS) return
+
+  flowDataLoading.value = true
+  flowPreloadPromise = (async () => {
+    try {
+      const range = getFlowDateRange()
+      const chipId = getFlowChipId()
+
+      const needLux = force || flowCache.value.luxTrend == null
+
+      const [durRes, luxRes, trendRes, stratRes] = await Promise.allSettled([
+        getDurationSummary(range.startDate, range.endDate),
+        needLux ? getMultiLux() : Promise.resolve(flowCache.value.luxTrend),
+        chipId ? getTempPeopleTrend(chipId) : Promise.resolve(null),
+        chipId ? getStrategyCompare(chipId) : Promise.resolve(null),
+      ])
+
+      if (durRes.status === 'fulfilled' && durRes.value) flowCache.value.durationSummary = durRes.value
+      if (needLux && luxRes.status === 'fulfilled' && luxRes.value) flowCache.value.luxTrend = luxRes.value
+      if (trendRes.status === 'fulfilled' && trendRes.value) flowCache.value.tempPeopleTrend = trendRes.value
+      if (stratRes.status === 'fulfilled' && stratRes.value) flowCache.value.strategyCompare = stratRes.value
+
+      flowDataReady.value = true
+      lastFlowDataLoadedAt.value = Date.now()
+    } catch (e) {
+      console.error('preloadFlowData error:', e)
+    } finally {
+      flowDataLoading.value = false
+      flowPreloadPromise = null
+    }
+  })()
+
+  return flowPreloadPromise
+}
 const envInfo = ref({
   temp: null as number | null,
   apparentTemp: null as number | null,
@@ -514,13 +628,6 @@ const weatherIconType = computed(() => mapOpenMeteoCodeToWeatherIcon(envInfo.val
 function extractInfoValue(value: string) {
   const parts = value.split(/[：:]/)
   return (parts.length > 1 ? parts[parts.length - 1] : value).trim() || '--'
-}
-
-function formatWeatherMetric(value: number | null | undefined, unit: string) {
-  if (!hasWeatherData.value || value === null || value === undefined || Number.isNaN(Number(value))) {
-    return '暂无'
-  }
-  return `${Number(value).toFixed(1)}${unit}`
 }
 
 function buildWeatherSummary() {
@@ -650,6 +757,12 @@ watch(
     }
   },
 )
+watch(activeTab, (tab) => {
+  if (tab === 'flow') {
+    void preloadFlowData(false)
+  }
+})
+
 function normalizeChipId(value?: string) {
   return String(value || '').trim().toUpperCase()
 }
@@ -700,30 +813,39 @@ async function loadDevices() {
 
 async function loadLatestLux() {
   try {
-    if (devices.value.length === 0) {
-      latestLux.value = null
-      latestLuxText.value = '光照值等待更新中...'
-      return
-    }
+    const trend = await getMultiLux()
 
-    for (const device of devices.value) {
-      try {
-        const record = await getLatestLux(device.chipId)
-
-        if (record && record.luxValue != null) {
-          latestLux.value = record.luxValue
-          latestLuxText.value = `光照值：${record.luxValue} lux`
-          return
-        }
-      } catch (error) {
-        console.warn(`device ${device.chipId} has no lux record`)
+    // 写入 flowCache，避免 preloadFlowData 重复请求 multi-trend
+    if (trend) {
+      flowCache.value.luxTrend = trend
+      if (!flowDataReady.value) {
+        lastFlowDataLoadedAt.value = Date.now()
       }
     }
 
-    latestLux.value = null
-    latestLuxText.value = '暂无光照数据'
+    const datasets = trend?.datasets || []
+
+    const latestValues = datasets
+      .map(item => {
+        const arr = item.data || []
+        return arr.length > 0 ? Number(arr[arr.length - 1]) : null
+      })
+      .filter((value): value is number => value != null && !Number.isNaN(value))
+
+    if (latestValues.length === 0) {
+      latestLux.value = null
+      latestLuxText.value = '暂无光照数据'
+      return
+    }
+
+    const avgLux = latestValues.reduce((sum, val) => sum + val, 0) / latestValues.length
+    const roundedLux = Math.round(avgLux)
+
+    latestLux.value = roundedLux
+    latestLuxText.value = `光照值：${roundedLux} lux`
   } catch (error) {
     console.error('loadLatestLux error =', error)
+    latestLux.value = null
     latestLuxText.value = '光照数据加载失败'
   }
 }
@@ -831,16 +953,33 @@ function closeAddDeviceModal() {
 async function handleCreateDevice(payload: DeviceCreatePayload) {
   creating.value = true
   try {
-    await createDevice(payload)
+    const result = await createDevice(payload)
 
     showAddDeviceModal.value = false
     pendingScannedDevice.value = null
 
+    const createdChipId = normalizeChipId(payload.chipId)
     scannedDevices.value = scannedDevices.value.filter(
-      item => item.chipId !== payload.chipId,
+      item => normalizeChipId(item.chipId) !== createdChipId,
     )
 
-    await loadDevices()
+    // 本地插入新设备，WS 的 state 消息会补充完整数据
+    devices.value.push({
+      id: String(result),
+      chipId: payload.chipId || '',
+      ip: payload.ip || '',
+      displayName: payload.displayName || '',
+      deviceType: payload.deviceType || '',
+      deviceNo: payload.deviceNo || '',
+      brightness: payload.brightness ?? 50,
+      temp: payload.temp ?? 4000,
+      autoMode: payload.autoMode ?? false,
+      recommendedBrightness: payload.recommendedBrightness ?? 50,
+      recommendedTemp: payload.recommendedTemp ?? 4000,
+      fabric: payload.fabric || '',
+      mainColorRgb: payload.mainColorRgb || '',
+      online: false,
+    } as unknown as DeviceItem)
   } catch (error) {
     console.error('createDevice error =', error)
     alert(getErrorMessage(error, '添加设备失败'))
@@ -851,7 +990,15 @@ async function handleCreateDevice(payload: DeviceCreatePayload) {
 
 const updateTimerMap = new Map<number, number>()
 
-function handleRealtimeUpdate({ id, payload }: { id: number; payload: DeviceCreatePayload }) {
+function handleRealtimeUpdate({
+  id,
+  payload,
+  lightControl,
+}: {
+  id: number
+  payload: DeviceCreatePayload
+  lightControl?: boolean
+}) {
   const oldTimer = updateTimerMap.get(id)
   if (oldTimer) {
     window.clearTimeout(oldTimer)
@@ -859,9 +1006,9 @@ function handleRealtimeUpdate({ id, payload }: { id: number; payload: DeviceCrea
 
   const timer = window.setTimeout(async () => {
     try {
-      await updateDevice(id, payload)
+      await updateDevice(id, payload, { lightControl })
 
-      const index = devices.value.findIndex(item => item.id === id)
+      const index = devices.value.findIndex(item => String(item.id) === String(id))
       if (index >= 0) {
         devices.value[index] = {
           ...devices.value[index],
@@ -882,7 +1029,12 @@ async function handleDeleteDevice(id: number) {
   deletingId.value = id
   try {
     await deleteDevice(id)
-    await loadDevices()
+    // 从本地数组中移除，触发 TransitionGroup 离场动画
+    const delId = String(id)
+    const idx = devices.value.findIndex(d => String(d.id) === delId)
+    if (idx >= 0) {
+      devices.value.splice(idx, 1)
+    }
   } catch (error) {
     console.error('deleteDevice error =', error)
     alert(getErrorMessage(error, '删除设备失败'))
@@ -893,16 +1045,18 @@ async function handleDeleteDevice(id: number) {
 
 function updateDeviceByIncoming(incoming: Partial<DeviceItem>) {
   const index = devices.value.findIndex(item => {
-    if (incoming.id != null && item.id === incoming.id) return true
-    if (incoming.chipId && item.chipId === incoming.chipId) return true
+    if (incoming.id != null && String(item.id) === String(incoming.id)) return true
+    if (incoming.chipId && String(item.chipId) === String(incoming.chipId)) return true
     return false
   })
 
-  if (index < 0) return
-
-  devices.value[index] = {
-    ...devices.value[index],
-    ...incoming,
+  if (index >= 0) {
+    devices.value[index] = {
+      ...devices.value[index],
+      ...incoming,
+    }
+  } else {
+    devices.value.push(incoming as DeviceItem)
   }
 }
 
@@ -911,6 +1065,7 @@ function requestDurationSummaryRefresh() {
   if (now - lastDurationRefreshAt < FLOW_REFRESH_THROTTLE_MS) return
   lastDurationRefreshAt = now
   durationRefreshKey.value += 1
+  void preloadFlowData(true)
 }
 
 function requestLuxTrendRefresh() {
@@ -918,6 +1073,7 @@ function requestLuxTrendRefresh() {
   if (now - lastLuxTrendRefreshAt < FLOW_REFRESH_THROTTLE_MS) return
   lastLuxTrendRefreshAt = now
   luxRefreshKey.value += 1
+  void preloadFlowData(true)
 }
 
 function handleWsMessage(message: any) {
@@ -967,8 +1123,15 @@ function handleWsMessage(message: any) {
     return
   }
 
-  if (message.type === 'deviceDeleted' && message.data?.id) {
-    devices.value = devices.value.filter(item => item.id !== message.data.id)
+  if (message.type === 'deviceDeleted' && message.data) {
+    const deletedId = message.data.id
+    const deletedChipId = message.data.chipId
+
+    devices.value = devices.value.filter(item => {
+      if (deletedId != null && String(item.id) === String(deletedId)) return false
+      if (deletedChipId && normalizeChipId(item.chipId) === normalizeChipId(deletedChipId)) return false
+      return true
+    })
     return
   }
 
@@ -1026,13 +1189,18 @@ function handleWsMessage(message: any) {
 
     if (!chipId) return
 
-    const alreadyAdded = devices.value.some(item => item.chipId === chipId)
+    const normalizedChipId = normalizeChipId(chipId)
+    const alreadyAdded = devices.value.some(
+      item => normalizeChipId(item.chipId) === normalizedChipId,
+    )
     if (alreadyAdded) return
 
     const added = Boolean(message.data.added)
     if (added) return
 
-    const exists = scannedDevices.value.some(item => item.chipId === chipId)
+    const exists = scannedDevices.value.some(
+      item => normalizeChipId(item.chipId) === normalizedChipId,
+    )
     if (exists) return
 
     scannedDevices.value = [
@@ -1058,7 +1226,6 @@ watch(connected, (val) => {
 
   if (val) {
     scanStatus.value = '实时连接已建立'
-    loadDevices()
   } else {
     scanStatus.value = 'WebSocket 未连接'
   }
@@ -1101,6 +1268,7 @@ onBeforeUnmount(() => {
   filter: blur(8px);
   transform: scale(1.02);
   pointer-events: none;
+  transition: opacity 0.5s ease, filter 0.5s ease;
 }
 
 .app-container::after {
@@ -1116,6 +1284,7 @@ onBeforeUnmount(() => {
       rgba(245, 248, 252, 0.02) 100%
     );
   pointer-events: none;
+  transition: background 0.5s ease;
 }
 
 .app-container.night-mode::before {
@@ -1135,6 +1304,18 @@ onBeforeUnmount(() => {
 
 .page-section {
   position: relative;
+  animation: tabFadeIn 0.25s ease both;
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dashboard-top-status {
@@ -1334,10 +1515,6 @@ onBeforeUnmount(() => {
   row-gap: 6px;
 }
 
-.lux-short {
-  display: none;
-}
-
 .lux-display {
   margin-top: 10px;
   padding: 10px 12px;
@@ -1346,6 +1523,42 @@ onBeforeUnmount(() => {
   min-height: 44px;
   display: flex;
   align-items: center;
+  gap: 4px;
+}
+
+.lux-label {
+  font-weight: 600;
+  color: #475569;
+}
+
+.lux-label-web {
+  display: inline;
+}
+
+.lux-label-mobile {
+  display: none;
+}
+
+.lux-odometer-mobile {
+  display: none;
+}
+
+.lux-odometer-web {
+  display: inline-flex;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+:deep(.lux-odometer-web .odometer-num),
+:deep(.lux-odometer-web .odometer-suffix) {
+  font-weight: 600;
+}
+
+.lux-placeholder {
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .page-section > h1 {
@@ -1439,10 +1652,22 @@ onBeforeUnmount(() => {
 .night-mode {
   background: linear-gradient(180deg, #1f2329 0%, #14181f 100%);
   color: #e5eaf3;
+  transition: background 0.5s ease, color 0.5s ease;
 }
 
 .night-mode .main-content {
   background: transparent;
+}
+
+.app-container :deep(.env-card),
+.app-container :deep(.lamp-card),
+.app-container :deep(.settings-card),
+.app-container :deep(.layout-card),
+.app-container :deep(.light-effect-mini-card),
+.app-container :deep(.sidebar),
+.app-container :deep(.chart-card),
+.app-container :deep(#controls) {
+  transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease, color 0.5s ease;
 }
 
 /* 夜间模式：基础文字 */
@@ -2381,12 +2606,12 @@ onBeforeUnmount(() => {
   }
 
   .stat-label {
-    font-size: 12px;
-    margin-bottom: 3px;
+    font-size: 10px;
+    margin-bottom: 2px;
   }
 
   .stat-value {
-    font-size: 15px;
+    font-size: 13px;
   }
 
   .meta-grid {
@@ -2403,41 +2628,50 @@ onBeforeUnmount(() => {
     border-right: 1px solid rgba(203, 213, 225, 0.4);
   }
 
-  .lux-full {
-    display: none;
-  }
-
-  .lux-short {
-    display: block;
-  }
-
   .lux-display {
     flex: 1 1 0;
     margin-top: 0;
-    padding: 4px 4px;
+    padding: 4px 8px;
     min-height: 0;
-    font-size: 15px;
-    font-weight: 800;
-    color: #0f172a;
-    text-align: center;
     background: transparent;
     border-radius: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    gap: 2px;
+    text-align: center;
+    border-right: none;
+  }
+
+  .lux-label {
+    display: block;
+    font-weight: 400;
+    line-height: 1.2;
+  }
+
+  .lux-label-web {
+    display: none;
+  }
+
+  .lux-label-mobile {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: #64748b;
+    line-height: 1.2;
     white-space: nowrap;
   }
 
-  .lux-display::before {
-    content: "光照";
-    display: block;
-    font-size: 12px;
-    font-weight: 400;
-    color: #64748b;
-    margin-bottom: 3px;
-    white-space: nowrap;
+  .lux-odometer-web {
+    display: none;
+  }
+
+  .lux-odometer-mobile {
+    display: inline-flex;
+    font-size: 13px;
+    line-height: 1.25;
+    font-weight: 800;
   }
 
   .page-section > h1 {
@@ -2457,14 +2691,14 @@ onBeforeUnmount(() => {
   }
 
   #controls > button {
-    padding: 8px 12px;
-    min-height: 36px;
-    font-size: 13px;
+    padding: 6px 10px;
+    min-height: 30px;
+    font-size: 11px;
     flex-shrink: 0;
   }
 
   #controls label {
-    flex: 1 1 0;
+    flex: 1 1 100%;
     min-width: 0;
     display: inline-flex;
     align-items: center;

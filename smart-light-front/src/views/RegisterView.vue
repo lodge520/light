@@ -21,18 +21,12 @@
             <p>注册成功后再填写店铺名称、面积、城市、风格</p>
           </div>
 
-          <div class="scene-card">
-            <h3>方便后续扩展</h3>
-            <p>后面还能继续补充经营场景、联系人、设备信息</p>
-          </div>
         </div>
 
         <div class="tag-group">
-          <span>轻量注册</span>
-          <span>门店初始化</span>
-          <span>两步流程</span>
-          <span>智能照明</span>
-          <span>系统配置</span>
+          <span>快速注册</span>
+          <span>两步完成</span>
+          <span>安全登录</span>
         </div>
       </div>
 
@@ -226,7 +220,7 @@ function goLogin() {
 
 .scene-card-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
   margin: 36px 0;
 }
@@ -369,6 +363,98 @@ function goLogin() {
 
   .auth-main {
     padding: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-side {
+    padding: 28px 20px;
+  }
+
+  .brand-badge {
+    font-size: 10px;
+    padding: 4px 10px;
+    margin-bottom: 12px;
+  }
+
+  .register-side h1 {
+    font-size: 20px;
+  }
+
+  .side-desc {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .scene-card-list {
+    gap: 10px;
+    margin: 20px 0;
+  }
+
+  .scene-card {
+    padding: 14px;
+  }
+
+  .scene-card h3 {
+    font-size: 13px;
+  }
+
+  .scene-card p {
+    font-size: 11px;
+  }
+
+  .tag-group {
+    gap: 6px;
+  }
+
+  .tag-group span {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .auth-main {
+    padding: 16px;
+  }
+
+  .form-card {
+    padding: 24px 20px;
+  }
+
+  .form-header h2 {
+    font-size: 20px;
+  }
+
+  .form-header p {
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+
+  .form-item {
+    margin-bottom: 14px;
+  }
+
+  .form-item label {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .form-item input {
+    height: 40px;
+    font-size: 13px;
+    border-radius: 10px;
+    padding: 0 10px;
+  }
+
+  .primary-btn {
+    height: 42px;
+    font-size: 14px;
+    border-radius: 10px;
+    margin-top: 4px;
+  }
+
+  .form-footer {
+    font-size: 12px;
+    margin-top: 14px;
   }
 }
 </style>

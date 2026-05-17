@@ -34,8 +34,7 @@
           <span>门店配置</span>
           <span>风格适配</span>
           <span>场景推荐</span>
-          <span>智能照明</span>
-          <span>设备管理</span>
+          <span>策略定制</span>
         </div>
       </div>
 
@@ -551,6 +550,94 @@ function handleSkip() {
   .primary-btn,
   .secondary-btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .setup-side {
+    padding: 28px 20px;
+  }
+
+  .brand-badge {
+    font-size: 10px;
+    padding: 4px 10px;
+    margin-bottom: 12px;
+  }
+
+  .setup-side h1 {
+    font-size: 20px;
+  }
+
+  .side-desc {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .feature-list {
+    gap: 10px;
+    margin: 20px 0;
+  }
+
+  .feature-card {
+    padding: 14px;
+  }
+
+  .feature-card h3 {
+    font-size: 13px;
+  }
+
+  .feature-card p {
+    font-size: 11px;
+  }
+
+  .tag-group {
+    gap: 6px;
+  }
+
+  .tag-group span {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .setup-main {
+    padding: 16px;
+  }
+
+  .form-card {
+    padding: 24px 20px;
+  }
+
+  .form-header h2 {
+    font-size: 20px;
+  }
+
+  .form-header p {
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+
+  .form-item {
+    margin-bottom: 14px;
+  }
+
+  .form-item label {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .form-item input,
+  .form-item select {
+    height: 40px;
+    font-size: 13px;
+    border-radius: 10px;
+    padding: 0 10px;
+  }
+
+  .primary-btn,
+  .secondary-btn {
+    height: 42px;
+    font-size: 13px;
+    border-radius: 10px;
   }
 }
 </style>

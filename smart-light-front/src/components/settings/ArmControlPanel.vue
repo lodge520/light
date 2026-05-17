@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-card gimbal-panel">
+  <div class="settings-card gimbal-panel" :class="{ shake: shaking }">
     <div class="panel-header">
       <div>
         <h2 class="settings-title">🎯 云台控制</h2>
@@ -136,8 +136,7 @@
     </div>
 
     <div class="result-block">
-      <div v-if="errorText" class="error-text">{{ errorText }}</div>
-      <div v-else class="device-meta">{{ statusText }}</div>
+      <div class="device-meta">{{ statusText }}</div>
     </div>
   </div>
 </template>
@@ -148,6 +147,11 @@ import { armControl, type ArmControlSpeed } from '../../api/device'
 import type { DeviceItem } from '../../types/device'
 import { getErrorMessage } from '../../utils/error'
 import BaseSelect from '../common/BaseSelect.vue'
+import { useToast } from '../../composables/useToast'
+import { useShake } from '../../composables/useShake'
+
+const toast = useToast()
+const { shaking, trigger: doShake } = useShake()
 
 const props = defineProps<{
   devices: DeviceItem[]
@@ -315,6 +319,8 @@ async function send(action: string, position?: number) {
 
   if (!selectedDevice.value || !selectedDeviceCode.value) {
     errorText.value = '请先选择设备'
+    toast.show('请先选择设备', 'error')
+    doShake()
     return
   }
 
@@ -327,7 +333,10 @@ async function send(action: string, position?: number) {
     statusText.value = `已发送：${selectedDeviceTypeText.value} / ${getActionText(action)} / ${speed.value}${positionText}`
   } catch (error) {
     console.error('gimbal control error =', error)
-    errorText.value = getErrorMessage(error, '发送云台控制指令失败')
+    const msg = getErrorMessage(error, '发送云台控制指令失败')
+    errorText.value = msg
+    toast.show(msg, 'error')
+    doShake()
   } finally {
     submitting.value = false
   }
@@ -616,11 +625,6 @@ async function sendSliderPosition() {
   margin-top: 14px;
 }
 
-.error-text {
-  color: #f53f3f;
-  font-size: 13px;
-}
-
 .device-meta {
   color: #64748b;
   font-size: 13px;
@@ -630,6 +634,10 @@ async function sendSliderPosition() {
   .panel-header {
     flex-direction: column;
     gap: 8px;
+  }
+
+  .settings-title {
+    font-size: 16px;
   }
 
   .panel-desc {
@@ -730,25 +738,25 @@ async function sendSliderPosition() {
   }
 
   .preset-btn {
-    min-height: 56px;
-    padding: 10px;
+    min-height: 46px;
+    padding: 8px;
   }
 
   .preset-btn strong {
-    font-size: 13px;
+    font-size: 11px;
   }
 
   .preset-btn span {
     margin-top: 2px;
-    font-size: 11px;
+    font-size: 9px;
   }
 
   .slider-card {
-    padding: 10px;
+    padding: 8px;
   }
 
   .slider-card-header {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .speed-tabs {
@@ -762,8 +770,8 @@ async function sendSliderPosition() {
 
   .compact-btn,
   .shortcut-btn {
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 5px 8px;
+    font-size: 10px;
   }
 
   .result-block {

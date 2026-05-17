@@ -8,7 +8,7 @@
     <div v-if="loading" class="empty-block">设备加载中...</div>
     <div v-else-if="devices.length === 0" class="empty-block">暂无设备</div>
 
-    <div v-else id="deviceContainer">
+    <TransitionGroup v-else name="card-list" tag="div" id="deviceContainer">
       <DeviceCard
         v-for="device in devices"
         :key="device.id"
@@ -18,7 +18,7 @@
         @update-realtime="$emit('update-realtime', $event)"
         @delete="$emit('delete', $event)"
       />
-    </div>
+    </TransitionGroup>
   </div>
 </template>
 
@@ -34,7 +34,22 @@ defineProps<{
 
 defineEmits<{
   (e: 'refresh'): void
-  (e: 'update-realtime', value: { id: number; payload: DeviceCreatePayload }): void
+  (e: 'update-realtime', value: { id: number; payload: DeviceCreatePayload; lightControl?: boolean }): void
   (e: 'delete', id: number): void
 }>()
 </script>
+
+<style>
+.card-list-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.card-list-leave-to {
+  opacity: 0;
+  transform: scale(0.85);
+}
+
+.card-list-move {
+  transition: transform 0.3s ease;
+}
+</style>
