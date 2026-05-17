@@ -19,6 +19,7 @@ import com.genius.smartlight.vo.device.DeviceOtaStartReqVO;
 import com.genius.smartlight.websocket.DeviceSessionManager;
 import com.genius.smartlight.websocket.WebSocketPushService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class DeviceOtaServiceImpl implements DeviceOtaService {
 
@@ -128,6 +130,8 @@ public class DeviceOtaServiceImpl implements DeviceOtaService {
         otaProgressStore.setProgress(chipId, 0);
         deviceMapper.updateById(device);
         webSocketPushService.pushState(DeviceConvert.convert(device));
+        log.info("OTA start, chipId={}, version={}, versionCode={}, channel={}",
+                chipId, firmware.getVersion(), firmware.getVersionCode(), targetChannel);
 
         return buildCheckResp(device, firmware, currentChannel, targetChannel);
     }

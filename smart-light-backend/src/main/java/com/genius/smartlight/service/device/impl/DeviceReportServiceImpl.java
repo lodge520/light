@@ -31,7 +31,7 @@ public class DeviceReportServiceImpl implements DeviceReportService {
     @Override
     public void reportState(DeviceStateReportReqVO reqVO) {
         String chipId = reqVO.getChipId();
-        log.info("设备状态上报 chipId={} ip={} brightness={} temp={} autoMode={}",
+        log.debug("Device state report, chipId={} ip={} brightness={} temp={} autoMode={}",
                 chipId, reqVO.getIp(), reqVO.getBrightness(), reqVO.getTemp(), reqVO.getAutoMode());
 
         DeviceDO device = deviceMapper.selectOne(
@@ -115,6 +115,9 @@ public class DeviceReportServiceImpl implements DeviceReportService {
 
         if ("success".equals(newStatus)) {
             otaProgressStore.setProgress(chipId, 100);
+            if (!"success".equals(oldStatus)) {
+                log.info("OTA success, chipId={}, progress=100", chipId);
+            }
             return;
         }
         if ("idle".equals(newStatus)) {
@@ -124,6 +127,10 @@ public class DeviceReportServiceImpl implements DeviceReportService {
         if ("failed".equals(newStatus)) {
             if (otaProgressStore.getProgress(chipId) == null) {
                 otaProgressStore.setProgress(chipId, 0);
+            }
+            if (!"failed".equals(oldStatus)) {
+                log.warn("OTA failed, chipId={}, progress={}, status={}",
+                        chipId, otaProgressStore.getProgress(chipId), newStatus);
             }
             return;
         }

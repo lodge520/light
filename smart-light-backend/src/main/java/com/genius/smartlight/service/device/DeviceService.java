@@ -11,7 +11,7 @@ public interface DeviceService {
 
     Long createDevice(DeviceSaveReqVO reqVO);
 
-    void updateDevice(Long id, DeviceSaveReqVO reqVO);
+    void updateDevice(Long id, DeviceSaveReqVO reqVO, boolean lightControl);
 
     void deleteDevice(Long id);
 

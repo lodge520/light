@@ -226,6 +226,53 @@ public class DeviceOtaFirmwareServiceImpl implements DeviceOtaFirmwareService {
         );
     }
 
+    @Override
+    @Transactional
+    public DeviceOtaFirmwareRespVO updateFirmware(Long id, String version, Integer versionCode,
+                                                   String changelog, String md5, String fileUrl) {
+        OtaFirmwareDO fw = otaFirmwareMapper.selectById(id);
+        if (fw == null) throw new ServiceException("固件不存在");
+        if (version != null && !version.isBlank()) fw.setVersion(version.trim());
+        if (versionCode != null && versionCode > 0) fw.setVersionCode(versionCode);
+        if (changelog != null) fw.setChangelog(blankToNull(changelog));
+        if (md5 != null) fw.setMd5(blankToNull(md5));
+        if (fileUrl != null && !fileUrl.isBlank()) fw.setFileUrl(fileUrl.trim());
+        fw.setUpdateTime(LocalDateTime.now());
+        otaFirmwareMapper.updateById(fw);
+        return toRespVO(fw);
+    }
+
+    @Override
+    @Transactional
+    public void deleteFirmware(Long id) {
+        OtaFirmwareDO fw = otaFirmwareMapper.selectById(id);
+        if (fw == null) throw new ServiceException("固件不存在");
+        otaFirmwareMapper.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public DeviceOtaFirmwareRespVO enableFirmware(Long id) {
+        OtaFirmwareDO fw = otaFirmwareMapper.selectById(id);
+        if (fw == null) throw new ServiceException("固件不存在");
+        fw.setEnabled(true);
+        fw.setUpdateTime(LocalDateTime.now());
+        otaFirmwareMapper.updateById(fw);
+        disableOtherFirmware(fw.getDeviceType(), fw.getChannel(), fw.getId(), fw.getUpdateTime());
+        return toRespVO(fw);
+    }
+
+    @Override
+    @Transactional
+    public DeviceOtaFirmwareRespVO disableFirmware(Long id) {
+        OtaFirmwareDO fw = otaFirmwareMapper.selectById(id);
+        if (fw == null) throw new ServiceException("固件不存在");
+        fw.setEnabled(false);
+        fw.setUpdateTime(LocalDateTime.now());
+        otaFirmwareMapper.updateById(fw);
+        return toRespVO(fw);
+    }
+
     private DeviceOtaFirmwareRespVO toRespVO(OtaFirmwareDO firmware) {
         DeviceOtaFirmwareRespVO respVO = new DeviceOtaFirmwareRespVO();
         respVO.setId(firmware.getId());

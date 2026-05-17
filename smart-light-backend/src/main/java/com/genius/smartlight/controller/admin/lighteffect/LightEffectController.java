@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Light Effect", description = "Backend-saved wave light effect state and scheduler")
+@Tag(name = "Light Effect", description = "Backend-saved wave light effect state")
 @RestController
 @RequestMapping("/admin/light-effect")
 @RequiredArgsConstructor

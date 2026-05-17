@@ -1,33 +1,30 @@
 package com.genius.smartlight.service.lighteffect.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.genius.smartlight.common.ServiceException;
-import com.genius.smartlight.convert.device.DeviceConvert;
 import com.genius.smartlight.dal.dataobject.DeviceDO;
 import com.genius.smartlight.dal.dataobject.StoreDO;
 import com.genius.smartlight.dal.mysql.DeviceMapper;
 import com.genius.smartlight.dal.mysql.StoreMapper;
 import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.lighteffect.LightEffectService;
-import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.lighteffect.LightEffectStateReqVO;
 import com.genius.smartlight.vo.lighteffect.LightEffectStateRespVO;
 import com.genius.smartlight.websocket.WebSocketPushService;
-import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -38,23 +35,15 @@ public class LightEffectServiceImpl implements LightEffectService {
     private static final String SCOPE_ALL = "all";
     private static final int MIN_TEMP = 2700;
     private static final int MAX_TEMP = 6500;
-    private static final int MIN_INTERVAL_MS = 1000;
-    private static final int MAX_INTERVAL_MS = 6000;
-    private static final int BASE_INTERVAL_MS = 2500;
 
     private final DeviceMapper deviceMapper;
     private final StoreMapper storeMapper;
     private final WebSocketPushService webSocketPushService;
+    private final ObjectMapper objectMapper;
 
     private final Object lock = new Object();
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread thread = new Thread(r, "light-effect-wave-scheduler");
-        thread.setDaemon(true);
-        return thread;
-    });
-
-    private final Map<Long, ScheduledFuture<?>> waveFutures = new ConcurrentHashMap<>();
     private final Map<Long, LightEffectStateRespVO> storeStates = new ConcurrentHashMap<>();
+    private final Map<Long, Set<String>> waveTargetChipIds = new ConcurrentHashMap<>();
 
     @Override
     public LightEffectStateRespVO getState() {
@@ -67,21 +56,24 @@ public class LightEffectServiceImpl implements LightEffectService {
     @Override
     public LightEffectStateRespVO saveState(LightEffectStateReqVO reqVO) {
         Long storeId = getCurrentStoreId();
+        LightEffectStateRespVO oldState;
         LightEffectStateRespVO nextState;
+        Set<String> previousTargets;
         boolean shouldRunWave;
 
         synchronized (lock) {
+            oldState = copyState(getStoreState(storeId));
             LightEffectStateRespVO state = mergeState(getStoreState(storeId), reqVO);
             storeStates.put(storeId, state);
             nextState = copyState(state);
+            previousTargets = copyTargets(storeId);
             shouldRunWave = Boolean.TRUE.equals(state.getEnabled()) && EFFECT_WAVE.equals(state.getEffect());
         }
 
         if (shouldRunWave) {
-            applyWaveTick(storeId);
-            restartWaveScheduler(storeId, nextState.getSpeed());
+            syncWaveTargets(storeId, oldState, nextState, previousTargets);
         } else {
-            stopWaveScheduler(storeId);
+            disableWaveTargetsAndClear(storeId, oldState, previousTargets);
         }
 
         LightEffectStateRespVO latest;
@@ -94,119 +86,203 @@ public class LightEffectServiceImpl implements LightEffectService {
 
     @Override
     public LightEffectStateRespVO close() {
-        Long storeId = getCurrentStoreId();
+        return closeWaveForStore(getCurrentStoreId(), true);
+    }
+
+    @Override
+    public LightEffectStateRespVO closeForLightControl(Long storeId) {
+        if (storeId == null) {
+            return defaultState();
+        }
+        return closeWaveForStore(storeId, false);
+    }
+
+    private LightEffectStateRespVO closeWaveForStore(Long storeId, boolean forceBroadcast) {
+        LightEffectStateRespVO oldState;
+        Set<String> previousTargets;
+        boolean wasRunning;
+
+        synchronized (lock) {
+            oldState = copyState(getStoreState(storeId));
+            previousTargets = copyTargets(storeId);
+            wasRunning = Boolean.TRUE.equals(oldState.getEnabled()) && EFFECT_WAVE.equals(oldState.getEffect());
+        }
+
+        if (wasRunning) {
+            disableWaveTargetsAndClear(storeId, oldState, previousTargets);
+        }
+
         LightEffectStateRespVO closed;
-
         synchronized (lock) {
             LightEffectStateRespVO state = getStoreState(storeId);
-            state.setEnabled(false);
-            state.setUpdateTime(LocalDateTime.now());
-            storeStates.put(storeId, state);
-            closed = copyState(state);
-        }
-
-        stopWaveScheduler(storeId);
-        webSocketPushService.pushLightEffectStateToStore(storeId, closed);
-        return closed;
-    }
-
-    @PreDestroy
-    public void destroy() {
-        synchronized (lock) {
-            waveFutures.values().forEach(future -> future.cancel(false));
-            waveFutures.clear();
-        }
-        scheduler.shutdownNow();
-    }
-
-    private void restartWaveScheduler(Long storeId, Double speed) {
-        synchronized (lock) {
-            stopWaveSchedulerLocked(storeId);
-            int intervalMs = resolveIntervalMs(speed);
-            ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
-                    () -> safeApplyWaveTick(storeId),
-                    intervalMs,
-                    intervalMs,
-                    TimeUnit.MILLISECONDS
-            );
-            waveFutures.put(storeId, future);
-        }
-    }
-
-    private void stopWaveScheduler(Long storeId) {
-        synchronized (lock) {
-            stopWaveSchedulerLocked(storeId);
-        }
-    }
-
-    private void stopWaveSchedulerLocked(Long storeId) {
-        ScheduledFuture<?> future = waveFutures.remove(storeId);
-        if (future != null) {
-            future.cancel(false);
-        }
-    }
-
-    private void safeApplyWaveTick(Long storeId) {
-        try {
-            LightEffectStateRespVO latest = applyWaveTick(storeId);
-            if (Boolean.TRUE.equals(latest.getEnabled()) && EFFECT_WAVE.equals(latest.getEffect())) {
-                webSocketPushService.pushLightEffectStateToStore(storeId, latest);
-            }
-        } catch (Exception e) {
-            log.error("Wave light effect tick failed, storeId={}", storeId, e);
-        }
-    }
-
-    private LightEffectStateRespVO applyWaveTick(Long storeId) {
-        LightEffectStateRespVO snapshot;
-        synchronized (lock) {
-            LightEffectStateRespVO state = getStoreState(storeId);
-            if (!Boolean.TRUE.equals(state.getEnabled()) || !EFFECT_WAVE.equals(state.getEffect())) {
-                return copyState(state);
-            }
-            snapshot = copyState(state);
-        }
-
-        List<DeviceDO> devices = findTargetDevices(storeId, snapshot.getSelectedScope());
-        int brightness = clamp(snapshot.getBrightness(), 0, 100);
-        double phaseIndex = safeDouble(snapshot.getPhaseIndex(), 0D);
-        double phaseGap = safeDouble(snapshot.getPhaseGap(), 0.8D);
-
-        for (int index = 0; index < devices.size(); index++) {
-            DeviceDO device = devices.get(index);
-            int temp = resolveWaveTemp(snapshot, phaseIndex, index, phaseGap);
-
-            device.setBrightness(brightness);
-            device.setTemp(temp);
-            device.setAutoMode(false);
-            device.setRecommendedBrightness(brightness);
-            device.setRecommendedTemp(temp);
-            device.setUpdateTime(LocalDateTime.now());
-            deviceMapper.updateById(device);
-
-            DeviceRespVO respVO = DeviceConvert.convert(device);
-            webSocketPushService.pushState(respVO);
-            if (device.getChipId() != null && !device.getChipId().isBlank()) {
-                webSocketPushService.pushStateToDevice(device.getChipId(), respVO);
-            }
-        }
-
-        synchronized (lock) {
-            LightEffectStateRespVO state = getStoreState(storeId);
-            if (Boolean.TRUE.equals(state.getEnabled()) && EFFECT_WAVE.equals(state.getEffect())) {
-                state.setPhaseIndex(safeDouble(state.getPhaseIndex(), 0D) + 1D);
+            if (wasRunning || Boolean.TRUE.equals(state.getEnabled())) {
+                state.setEnabled(false);
                 state.setUpdateTime(LocalDateTime.now());
                 storeStates.put(storeId, state);
             }
-            return copyState(state);
+            waveTargetChipIds.remove(storeId);
+            closed = copyState(state);
+        }
+
+        if (forceBroadcast || wasRunning) {
+            webSocketPushService.pushLightEffectStateToStore(storeId, closed);
+        }
+        return closed;
+    }
+
+    private void syncWaveTargets(
+            Long storeId,
+            LightEffectStateRespVO oldState,
+            LightEffectStateRespVO nextState,
+            Set<String> previousTargets
+    ) {
+        Set<String> oldTargets = resolvePreviousTargets(storeId, oldState, previousTargets);
+        List<DeviceDO> targetDevices = findTargetDevices(storeId, nextState.getSelectedScope());
+        Set<String> nextTargets = new LinkedHashSet<>();
+
+        Set<String> removedTargets = new LinkedHashSet<>(oldTargets);
+        Set<String> configuredTargets = targetChipIds(targetDevices);
+        removedTargets.removeAll(configuredTargets);
+        sendWaveDisabled(removedTargets);
+
+        double phaseIndex = safeDouble(nextState.getPhaseIndex(), 0D);
+        double phaseGap = safeDouble(nextState.getPhaseGap(), 0.8D);
+        int baseTemp = clamp(nextState.getBaseTemp(), MIN_TEMP, MAX_TEMP);
+        int amplitude = clamp(nextState.getAmplitude(), 0, 1900);
+        int brightness = clamp(nextState.getBrightness(), 0, 100);
+        double speed = clamp(safeDouble(nextState.getSpeed(), 1D), 0.2D, 5D);
+        int minTemp = clamp(nextState.getMinTemp(), MIN_TEMP, MAX_TEMP);
+        int maxTemp = clamp(nextState.getMaxTemp(), MIN_TEMP, MAX_TEMP);
+
+        if (targetDevices.isEmpty()) {
+            log.warn("Wave target empty, storeId={}, selectedScope={}", storeId, nextState.getSelectedScope());
+        }
+        log.info("Wave enabled, storeId={}, selectedScope={}, targetCount={}, minTemp={}, maxTemp={}, speed={}, brightness={}",
+                storeId, nextState.getSelectedScope(), targetDevices.size(), minTemp, maxTemp, speed, brightness);
+
+        for (int index = 0; index < targetDevices.size(); index++) {
+            DeviceDO device = targetDevices.get(index);
+            String chipId = normalizeChipId(device.getChipId());
+            if (chipId == null) {
+                continue;
+            }
+
+            double phaseOffset = phaseIndex + index * phaseGap;
+            int initialTemp = clamp(
+                    (int) Math.round(baseTemp + Math.sin(phaseOffset) * amplitude),
+                    MIN_TEMP,
+                    MAX_TEMP
+            );
+
+            boolean sent = sendWaveEnabled(
+                    chipId,
+                    baseTemp,
+                    amplitude,
+                    minTemp,
+                    maxTemp,
+                    speed,
+                    phaseOffset,
+                    initialTemp,
+                    brightness
+            );
+            nextTargets.add(chipId);
+            if (!sent) {
+                log.warn("Wave effect config send failed, chipId={}", chipId);
+            }
+        }
+
+        synchronized (lock) {
+            if (nextTargets.isEmpty()) {
+                waveTargetChipIds.remove(storeId);
+            } else {
+                waveTargetChipIds.put(storeId, nextTargets);
+            }
         }
     }
 
-    private int resolveWaveTemp(LightEffectStateRespVO snapshot, double phaseIndex, int deviceIndex, double phaseGap) {
-        int baseTemp = clamp(snapshot.getBaseTemp(), MIN_TEMP, MAX_TEMP);
-        int range = clamp(snapshot.getRange(), 0, 1200);
-        double value = baseTemp + Math.sin(phaseIndex + deviceIndex * phaseGap) * range;
-        return clamp((int) Math.round(value), MIN_TEMP, MAX_TEMP);
+    private void disableWaveTargetsAndClear(
+            Long storeId,
+            LightEffectStateRespVO oldState,
+            Set<String> previousTargets
+    ) {
+        Set<String> targets = resolvePreviousTargets(storeId, oldState, previousTargets);
+        sendWaveDisabled(targets);
+        if (!targets.isEmpty()
+                || (oldState != null && Boolean.TRUE.equals(oldState.getEnabled()) && EFFECT_WAVE.equals(oldState.getEffect()))) {
+            log.info("Wave disabled, storeId={}, targetCount={}", storeId, targets.size());
+        }
+        synchronized (lock) {
+            waveTargetChipIds.remove(storeId);
+        }
+    }
+
+    private Set<String> resolvePreviousTargets(
+            Long storeId,
+            LightEffectStateRespVO oldState,
+            Set<String> previousTargets
+    ) {
+        if (previousTargets != null && !previousTargets.isEmpty()) {
+            return new LinkedHashSet<>(previousTargets);
+        }
+        if (oldState != null
+                && Boolean.TRUE.equals(oldState.getEnabled())
+                && EFFECT_WAVE.equals(oldState.getEffect())) {
+            return targetChipIds(findTargetDevices(storeId, oldState.getSelectedScope()));
+        }
+        return new LinkedHashSet<>();
+    }
+
+    private boolean sendWaveEnabled(
+            String chipId,
+            int baseTemp,
+            int amplitude,
+            int minTemp,
+            int maxTemp,
+            double speed,
+            double phaseOffset,
+            int initialTemp,
+            int brightness
+    ) {
+        ObjectNode msg = objectMapper.createObjectNode();
+        msg.put("type", "effect");
+        msg.put("effect", EFFECT_WAVE);
+        msg.put("enabled", true);
+        msg.put("baseTemp", baseTemp);
+        msg.put("amplitude", amplitude);
+        msg.put("minTemp", minTemp);
+        msg.put("maxTemp", maxTemp);
+        msg.put("speed", speed);
+        msg.put("phaseOffset", phaseOffset);
+        msg.put("initialTemp", initialTemp);
+        msg.put("brightness", brightness);
+        return webSocketPushService.pushRawToDevice(chipId, msg.toString());
+    }
+
+    private void sendWaveDisabled(Set<String> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return;
+        }
+
+        ObjectNode msg = objectMapper.createObjectNode();
+        msg.put("type", "effect");
+        msg.put("effect", EFFECT_WAVE);
+        msg.put("enabled", false);
+        String payload = msg.toString();
+
+        for (String chipId : targets) {
+            webSocketPushService.pushRawToDevice(chipId, payload);
+        }
+    }
+
+    private Set<String> targetChipIds(List<DeviceDO> devices) {
+        Set<String> result = new LinkedHashSet<>();
+        for (DeviceDO device : devices) {
+            String chipId = normalizeChipId(device.getChipId());
+            if (chipId != null) {
+                result.add(chipId);
+            }
+        }
+        return result;
     }
 
     private List<DeviceDO> findTargetDevices(Long storeId, String selectedScope) {
@@ -243,6 +319,11 @@ public class LightEffectServiceImpl implements LightEffectService {
         return storeStates.computeIfAbsent(storeId, ignored -> defaultState());
     }
 
+    private Set<String> copyTargets(Long storeId) {
+        Set<String> targets = waveTargetChipIds.get(storeId);
+        return targets == null ? new LinkedHashSet<>() : new LinkedHashSet<>(targets);
+    }
+
     private boolean isLightDevice(DeviceDO device) {
         String deviceType = device.getDeviceType();
         if (deviceType == null) {
@@ -263,12 +344,33 @@ public class LightEffectServiceImpl implements LightEffectService {
         if (reqVO.getEnabled() != null) {
             next.setEnabled(reqVO.getEnabled());
         }
-        if (reqVO.getBaseTemp() != null) {
-            next.setBaseTemp(clamp(reqVO.getBaseTemp(), MIN_TEMP, MAX_TEMP));
+
+        boolean hasBounds = reqVO.getMinTemp() != null || reqVO.getMaxTemp() != null;
+        boolean hasLegacyTemp = !hasBounds
+                && (reqVO.getBaseTemp() != null || reqVO.getRange() != null || reqVO.getAmplitude() != null);
+
+        if (hasBounds) {
+            if (reqVO.getMinTemp() != null) {
+                next.setMinTemp(clamp(reqVO.getMinTemp(), MIN_TEMP, MAX_TEMP));
+            }
+            if (reqVO.getMaxTemp() != null) {
+                next.setMaxTemp(clamp(reqVO.getMaxTemp(), MIN_TEMP, MAX_TEMP));
+            }
+            normalizeTemperatureFromBounds(next);
+        } else if (hasLegacyTemp) {
+            if (reqVO.getBaseTemp() != null) {
+                next.setBaseTemp(clamp(reqVO.getBaseTemp(), MIN_TEMP, MAX_TEMP));
+            }
+            Integer amplitude = reqVO.getAmplitude() != null ? reqVO.getAmplitude() : reqVO.getRange();
+            if (amplitude != null) {
+                next.setAmplitude(clamp(amplitude, 0, 1900));
+                next.setRange(clamp(amplitude, 0, 1900));
+            }
+            normalizeTemperatureFromBaseAmplitude(next);
+        } else {
+            normalizeTemperatureFromBounds(next);
         }
-        if (reqVO.getRange() != null) {
-            next.setRange(clamp(reqVO.getRange(), 0, 1200));
-        }
+
         if (reqVO.getSpeed() != null) {
             next.setSpeed(clamp(reqVO.getSpeed(), 0.2D, 5D));
         }
@@ -289,12 +391,38 @@ public class LightEffectServiceImpl implements LightEffectService {
         return next;
     }
 
+    private void normalizeTemperatureFromBounds(LightEffectStateRespVO state) {
+        int minTemp = clamp(state.getMinTemp(), MIN_TEMP, MAX_TEMP);
+        int maxTemp = clamp(state.getMaxTemp(), MIN_TEMP, MAX_TEMP);
+        int low = Math.min(minTemp, maxTemp);
+        int high = Math.max(minTemp, maxTemp);
+        int baseTemp = Math.round((low + high) / 2.0F);
+        int amplitude = Math.round((high - low) / 2.0F);
+
+        state.setMinTemp(low);
+        state.setMaxTemp(high);
+        state.setBaseTemp(baseTemp);
+        state.setAmplitude(amplitude);
+        state.setRange(amplitude);
+    }
+
+    private void normalizeTemperatureFromBaseAmplitude(LightEffectStateRespVO state) {
+        int baseTemp = clamp(state.getBaseTemp(), MIN_TEMP, MAX_TEMP);
+        int amplitude = clamp(state.getAmplitude() == null ? state.getRange() : state.getAmplitude(), 0, 1900);
+        state.setMinTemp(clamp(baseTemp - amplitude, MIN_TEMP, MAX_TEMP));
+        state.setMaxTemp(clamp(baseTemp + amplitude, MIN_TEMP, MAX_TEMP));
+        normalizeTemperatureFromBounds(state);
+    }
+
     private LightEffectStateRespVO defaultState() {
         LightEffectStateRespVO respVO = new LightEffectStateRespVO();
         respVO.setEffect(EFFECT_WAVE);
         respVO.setEnabled(false);
-        respVO.setBaseTemp(3800);
-        respVO.setRange(500);
+        respVO.setMinTemp(2700);
+        respVO.setMaxTemp(6500);
+        respVO.setBaseTemp(4600);
+        respVO.setRange(1900);
+        respVO.setAmplitude(1900);
         respVO.setSpeed(1D);
         respVO.setBrightness(70);
         respVO.setPhaseIndex(0D);
@@ -308,8 +436,11 @@ public class LightEffectServiceImpl implements LightEffectService {
         LightEffectStateRespVO target = new LightEffectStateRespVO();
         target.setEffect(source.getEffect());
         target.setEnabled(source.getEnabled());
+        target.setMinTemp(source.getMinTemp());
+        target.setMaxTemp(source.getMaxTemp());
         target.setBaseTemp(source.getBaseTemp());
         target.setRange(source.getRange());
+        target.setAmplitude(source.getAmplitude());
         target.setSpeed(source.getSpeed());
         target.setBrightness(source.getBrightness());
         target.setPhaseIndex(source.getPhaseIndex());
@@ -333,9 +464,12 @@ public class LightEffectServiceImpl implements LightEffectService {
         return scope.trim().toLowerCase(Locale.ROOT);
     }
 
-    private int resolveIntervalMs(Double speed) {
-        double normalizedSpeed = speed == null || speed <= 0 ? 1D : speed;
-        return clamp((int) Math.round(BASE_INTERVAL_MS / normalizedSpeed), MIN_INTERVAL_MS, MAX_INTERVAL_MS);
+    private String normalizeChipId(String chipId) {
+        if (chipId == null) {
+            return null;
+        }
+        String value = chipId.trim();
+        return value.isEmpty() ? null : value;
     }
 
     private double safeDouble(Double value, double fallback) {

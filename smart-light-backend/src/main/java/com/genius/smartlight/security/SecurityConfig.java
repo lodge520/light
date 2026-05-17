@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final com.genius.smartlight.opsadmin.OpsAdminAuthFilter opsAdminAuthFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -39,12 +40,15 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/register",
+                                "/ops-admin/auth/login",
                                 "/v3/api-docs",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/admin/device/ping"
                         ).permitAll()
+
+                        .requestMatchers("/ops-admin/**").hasRole("OPS_ADMIN")
 
                         // 设备端 WebSocket：必须放在 /ws/** 前面
                         .requestMatchers("/ws/device").permitAll()
@@ -68,7 +72,8 @@ public class SecurityConfig {
                         // 其余全部要求用户登录
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(opsAdminAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

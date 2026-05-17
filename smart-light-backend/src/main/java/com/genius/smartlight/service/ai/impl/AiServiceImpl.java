@@ -51,15 +51,17 @@ public class AiServiceImpl implements AiService {
         long fileSize = file == null ? 0L : file.getSize();
         log.info("fabricRecognize start chipId={} filename={} fileSize={}", chipId, filename, fileSize);
 
+        boolean validated = false;
         try {
             validateFile(file);
+            validated = true;
 
             long pythonStart = System.currentTimeMillis();
             FabricRecognizeRespVO result;
             try {
                 result = fabricAiClient.recognize(file, chipId);
             } finally {
-                log.info("fabricRecognize cost step=pythonRecognize chipId={} filename={} fileSize={} costMs={}",
+                log.debug("fabricRecognize cost step=pythonRecognize chipId={} filename={} fileSize={} costMs={}",
                         chipId, filename, fileSize, System.currentTimeMillis() - pythonStart);
             }
 
@@ -78,7 +80,7 @@ public class AiServiceImpl implements AiService {
                         chipId, filename, fileSize, e);
                 colorResult = new MainColorResult("128,128,128", 60, 4500);
             } finally {
-                log.info("fabricRecognize cost step=mainColorExtract chipId={} filename={} fileSize={} costMs={}",
+                log.debug("fabricRecognize cost step=mainColorExtract chipId={} filename={} fileSize={} costMs={}",
                         chipId, filename, fileSize, System.currentTimeMillis() - mainColorStart);
             }
 
@@ -97,7 +99,7 @@ public class AiServiceImpl implements AiService {
                     }
                 }
             } finally {
-                log.info("fabricRecognize cost step=updateDeviceAndPushState chipId={} filename={} fileSize={} costMs={} skipped={}",
+                log.debug("fabricRecognize cost step=updateDeviceAndPushState chipId={} filename={} fileSize={} costMs={} skipped={}",
                         chipId, filename, fileSize, System.currentTimeMillis() - updateStart,
                         chipId == null || chipId.isBlank());
             }
@@ -106,12 +108,18 @@ public class AiServiceImpl implements AiService {
             try {
                 webSocketPushService.pushFabricRecognize(chipId, file.getOriginalFilename(), result, deviceStoreId);
             } finally {
-                log.info("fabricRecognize cost step=pushFabricRecognize chipId={} filename={} fileSize={} costMs={}",
+                log.debug("fabricRecognize cost step=pushFabricRecognize chipId={} filename={} fileSize={} costMs={}",
                         chipId, filename, fileSize, System.currentTimeMillis() - wsStart);
             }
 
             result.setClothMaskedPngBase64(null);
             return result;
+        } catch (RuntimeException e) {
+            if (validated) {
+                log.error("fabricRecognize failed, chipId={}, filename={}, reason={}",
+                        chipId, filename, e.getMessage(), e);
+            }
+            throw e;
         } finally {
             log.info("fabricRecognize cost step=total chipId={} filename={} fileSize={} costMs={}",
                     chipId, filename, fileSize, System.currentTimeMillis() - totalStart);
@@ -120,12 +128,26 @@ public class AiServiceImpl implements AiService {
 
     @Override
     public PersonDetectRespVO personDetect(String chipId, MultipartFile file) {
-        validateFile(file);
-        PersonDetectRespVO result = personDetectClient.detect(file);
+        long start = System.currentTimeMillis();
+        String filename = file == null ? "" : file.getOriginalFilename();
+        boolean validated = false;
+        try {
+            validateFile(file);
+            validated = true;
+            PersonDetectRespVO result = personDetectClient.detect(file);
 
-        Long storeId = resolveDeviceStoreIdIfOwned(chipId);
-        webSocketPushService.pushPersonDetect(chipId, file.getOriginalFilename(), result, storeId);
-        return result;
+            Long storeId = resolveDeviceStoreIdIfOwned(chipId);
+            webSocketPushService.pushPersonDetect(chipId, file.getOriginalFilename(), result, storeId);
+            log.info("personDetect completed, chipId={}, filename={}, count={}, costMs={}",
+                    chipId, filename, result.getCount(), System.currentTimeMillis() - start);
+            return result;
+        } catch (RuntimeException e) {
+            if (validated) {
+                log.error("personDetect failed, chipId={}, filename={}, reason={}",
+                        chipId, filename, e.getMessage(), e);
+            }
+            throw e;
+        }
     }
 
     private Long resolveDeviceStoreIdIfOwned(String chipId) {

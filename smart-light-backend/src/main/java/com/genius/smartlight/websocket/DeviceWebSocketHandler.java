@@ -32,7 +32,8 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        log.info("Device websocket connected: sessionId={}", session.getId());
+        log.info("[ws] event=connected, wsType=device, sessionId={}, clientIp={}",
+                session.getId(), getRemoteAddr(session));
     }
 
     @Override
@@ -48,7 +49,8 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
                     log.warn("Device register missing chipId, sessionId={}", session.getId());
                     return;
                 }
-                log.info("设备注册: chipId={}, sessionId={}, 当前在线设备列表={}", chipId, session.getId(), deviceSessionManager.getOnlineChipIds());
+                log.info("[ws] event=device_registered, wsType=device, chipId={}, sessionId={}, clientIp={}",
+                        chipId, session.getId(), getRemoteAddr(session));
                 deviceSessionManager.registerDevice(chipId, session);
                 syncFirmwareInfo(chipId, node);
                 deviceOnlinePushService.pushIfChanged(chipId);
@@ -66,9 +68,11 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
-            log.info("Unknown device ws message: {}", message.getPayload());
+            log.debug("Unknown device ws message: {}", preview(message.getPayload()));
         } catch (Exception e) {
-            log.warn("Invalid device websocket message: {}", message.getPayload(), e);
+            log.warn("Invalid device websocket message: sessionId={}, errorType={}",
+                    session.getId(), e.getClass().getSimpleName());
+            log.debug("Invalid device websocket payload preview: {}", preview(message.getPayload()), e);
         }
     }
 
@@ -194,11 +198,36 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         return null;
     }
 
+    private String preview(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= 300 ? value : value.substring(0, 300) + "...";
+    }
+
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String chipId = deviceSessionManager.removeBySession(session);
+        boolean abnormal = status != null && !CloseStatus.NORMAL.equals(status);
+        if (abnormal) {
+            log.warn("[ws] event=disconnected, wsType=device, sessionId={}, chipId={}, closeStatus={}, closeReason={}",
+                    session.getId(), chipId != null ? chipId : "-",
+                    status != null ? status.getCode() : "-",
+                    status != null && status.getReason() != null ? status.getReason() : "");
+        } else {
+            log.info("[ws] event=disconnected, wsType=device, sessionId={}, chipId={}",
+                    session.getId(), chipId != null ? chipId : "-");
+        }
         if (chipId != null) {
             deviceOnlinePushService.pushIfChanged(chipId);
         }
+    }
+
+    private String getRemoteAddr(WebSocketSession session) {
+        if (session.getRemoteAddress() != null) {
+            String addr = session.getRemoteAddress().toString();
+            return addr.startsWith("/") ? addr.substring(1) : addr;
+        }
+        return "unknown";
     }
 }

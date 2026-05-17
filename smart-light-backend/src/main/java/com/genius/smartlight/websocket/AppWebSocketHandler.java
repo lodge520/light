@@ -27,7 +27,7 @@ public class AppWebSocketHandler extends TextWebSocketHandler {
         Long userId = readLongAttribute(session, AppWebSocketHandshakeInterceptor.ATTR_USER_ID);
         String username = readStringAttribute(session, AppWebSocketHandshakeInterceptor.ATTR_USERNAME);
         if (storeId == null) {
-            log.warn("App WebSocket session missing store binding, close connection: sessionId={}, userId={}, username={}",
+            log.warn("[ws] event=connected, wsType=browser, sessionId={}, userId={}, username={}, storeId=missing, action=closed",
                     session.getId(), userId, username);
             session.close(CloseStatus.NOT_ACCEPTABLE.withReason("storeId required"));
             return;
@@ -36,8 +36,8 @@ public class AppWebSocketHandler extends TextWebSocketHandler {
         sessionManager.addSession(session);
         sessionManager.registerStore(session.getId(), storeId);
         sessionManager.registerUser(session.getId(), userId);
-        log.info("App WebSocket session {} bound to storeId={}, userId={}, username={}",
-                session.getId(), storeId, userId, username);
+        log.info("[ws] event=connected, wsType=browser, sessionId={}, userId={}, username={}, storeId={}",
+                session.getId(), userId, username, storeId);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("sessionId", session.getId());
@@ -61,12 +61,26 @@ public class AppWebSocketHandler extends TextWebSocketHandler {
                 sessionManager.send(session, objectMapper.writeValueAsString(WsMessage.of("auth", "already_authenticated")));
             }
         } catch (Exception e) {
-            log.warn("Ignore invalid websocket message: {}", message.getPayload());
+            log.warn("Ignore invalid websocket message, sessionId={}, errorType={}",
+                    session.getId(), e.getClass().getSimpleName());
+            log.debug("Invalid app websocket payload preview: {}", preview(message.getPayload()), e);
         }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        Long userId = readLongAttribute(session, AppWebSocketHandshakeInterceptor.ATTR_USER_ID);
+        Long storeId = readLongAttribute(session, AppWebSocketHandshakeInterceptor.ATTR_STORE_ID);
+        boolean abnormal = status != null && !CloseStatus.NORMAL.equals(status);
+        if (abnormal) {
+            log.warn("[ws] event=disconnected, wsType=browser, sessionId={}, userId={}, storeId={}, closeStatus={}, closeReason={}",
+                    session.getId(), userId, storeId,
+                    status != null ? status.getCode() : "-",
+                    status != null && status.getReason() != null ? status.getReason() : "");
+        } else {
+            log.info("[ws] event=disconnected, wsType=browser, sessionId={}, userId={}, storeId={}",
+                    session.getId(), userId, storeId);
+        }
         sessionManager.removeSession(session);
     }
 
@@ -84,5 +98,12 @@ public class AppWebSocketHandler extends TextWebSocketHandler {
     private String readStringAttribute(WebSocketSession session, String key) {
         Object value = session.getAttributes().get(key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private String preview(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= 300 ? value : value.substring(0, 300) + "...";
     }
 }

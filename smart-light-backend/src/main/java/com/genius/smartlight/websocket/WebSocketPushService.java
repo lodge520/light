@@ -56,9 +56,10 @@ public class WebSocketPushService {
             boolean sent = deviceSessionManager.sendToDevice(chipId, json);
 
             if (!sent) {
-                log.warn("Device state push failed, chipId={}, payload={}", chipId, json);
+                log.warn("Device state push failed, chipId={}, messageType=state", chipId);
+                log.debug("Device state push failed payload preview, chipId={}, payload={}", chipId, preview(json));
             } else {
-                log.info("Device state pushed, chipId={}, payload={}", chipId, json);
+                log.debug("Device state pushed, chipId={}, payload={}", chipId, preview(json));
             }
         } catch (Exception e) {
             log.error("Device state push error, chipId={}", chipId, e);
@@ -69,9 +70,10 @@ public class WebSocketPushService {
         broadcastToStore(storeId, "onlineStatus", data);
     }
 
-    public void pushDeviceDeleted(Long id, Long storeId) {
+    public void pushDeviceDeleted(Long id, String chipId, Long storeId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", id);
+        data.put("chipId", chipId);
         broadcastToStore(storeId, "deviceDeleted", data);
     }
 
@@ -151,9 +153,10 @@ public class WebSocketPushService {
         boolean sent = deviceSessionManager.sendToDevice(chipId, message);
 
         if (!sent) {
-            log.warn("Device command push failed, chipId={}, message={}", chipId, message);
+            log.warn("Device command push failed, chipId={}", chipId);
+            log.debug("Device command push failed message preview, chipId={}, message={}", chipId, preview(message));
         } else {
-            log.info("Device command pushed, chipId={}, message={}", chipId, message);
+            log.debug("Device command pushed, chipId={}, message={}", chipId, preview(message));
         }
 
         return sent;
@@ -170,5 +173,12 @@ public class WebSocketPushService {
         } catch (Exception e) {
             log.error("WebSocket broadcastToStore failed, type={} storeId={}", type, storeId, e);
         }
+    }
+
+    private String preview(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= 300 ? value : value.substring(0, 300) + "...";
     }
 }

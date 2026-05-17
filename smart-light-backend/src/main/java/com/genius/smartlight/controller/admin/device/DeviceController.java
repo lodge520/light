@@ -54,8 +54,9 @@ public class DeviceController {
     @PutMapping("/update/{id}")
     public CommonResult<Boolean> updateDevice(
             @Parameter(description = "设备主键ID", example = "1") @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean lightControl,
             @Valid @RequestBody DeviceSaveReqVO reqVO) {
-        deviceService.updateDevice(id, reqVO);
+        deviceService.updateDevice(id, reqVO, lightControl);
         return CommonResult.success(true);
     }
 

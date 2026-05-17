@@ -10,4 +10,6 @@ public interface LightEffectService {
     LightEffectStateRespVO saveState(LightEffectStateReqVO reqVO);
 
     LightEffectStateRespVO close();
+
+    LightEffectStateRespVO closeForLightControl(Long storeId);
 }

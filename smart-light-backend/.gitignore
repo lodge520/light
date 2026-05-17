@@ -31,3 +31,14 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Project-specific ###
+src/main/resources/application.yaml
+data/
+logs/
+*.log
+*.jar
+.env
+.env.*
+uploads/
+.DS_Store

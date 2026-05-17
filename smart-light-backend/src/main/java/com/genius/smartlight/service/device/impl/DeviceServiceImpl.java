@@ -10,6 +10,7 @@ import com.genius.smartlight.dal.mysql.StoreMapper;
 import com.genius.smartlight.security.SecurityUtils;
 import com.genius.smartlight.service.device.DeviceService;
 import com.genius.smartlight.service.device.OtaProgressStore;
+import com.genius.smartlight.service.lighteffect.LightEffectService;
 import com.genius.smartlight.vo.device.DeviceRespVO;
 import com.genius.smartlight.vo.device.DeviceSaveReqVO;
 import com.genius.smartlight.vo.device.LightEffectReqVO;
@@ -38,6 +39,7 @@ public class DeviceServiceImpl implements DeviceService {
     private final StoreMapper storeMapper;
     private final ObjectMapper objectMapper;
     private final OtaProgressStore otaProgressStore;
+    private final LightEffectService lightEffectService;
 
     /**
      * 获取当前登录用户对应的店铺 ID。
@@ -127,6 +129,7 @@ public class DeviceServiceImpl implements DeviceService {
             DeviceRespVO respVO = toResp(exist);
             webSocketPushService.pushState(respVO);
 
+            log.info("Device created, id={}, chipId={}, storeId={}", exist.getId(), exist.getChipId(), exist.getStoreId());
             return exist.getId();
         }
 
@@ -140,12 +143,17 @@ public class DeviceServiceImpl implements DeviceService {
         DeviceRespVO respVO = toResp(device);
         webSocketPushService.pushState(respVO);
 
+        log.info("Device created, id={}, chipId={}, storeId={}", device.getId(), device.getChipId(), device.getStoreId());
         return device.getId();
     }
 
     @Override
-    public void updateDevice(Long id, DeviceSaveReqVO reqVO) {
+    public void updateDevice(Long id, DeviceSaveReqVO reqVO, boolean lightControl) {
         DeviceDO device = getDeviceByIdForCurrentStore(id);
+
+        if (lightControl) {
+            lightEffectService.closeForLightControl(device.getStoreId());
+        }
 
         if (!device.getChipId().equals(reqVO.getChipId())) {
             DeviceDO exist = deviceMapper.selectOne(
@@ -175,6 +183,8 @@ public class DeviceServiceImpl implements DeviceService {
 
         webSocketPushService.pushState(respVO);
         webSocketPushService.pushStateToDevice(updateObj.getChipId(), respVO);
+        log.info("Device updated, id={}, chipId={}, storeId={}, lightControl={}",
+                updateObj.getId(), updateObj.getChipId(), updateObj.getStoreId(), lightControl);
     }
 
     @Override
@@ -183,8 +193,10 @@ public class DeviceServiceImpl implements DeviceService {
 
         notifyDeviceResumeBroadcast(device);
         Long storeId = device.getStoreId();
+        String chipId = device.getChipId();
         deviceMapper.deleteById(id);
-        webSocketPushService.pushDeviceDeleted(id, storeId);
+        webSocketPushService.pushDeviceDeleted(id, chipId, storeId);
+        log.info("Device deleted, id={}, chipId={}, storeId={}", id, chipId, storeId);
     }
 
     private void notifyDeviceResumeBroadcast(DeviceDO device) {
@@ -197,7 +209,7 @@ public class DeviceServiceImpl implements DeviceService {
         }
 
         boolean online = deviceSessionManager.isOnline(chipId);
-        log.info("设备在线状态: chipId={}, online={}", chipId, online);
+        log.debug("Device online state before resume_broadcast, chipId={}, online={}", chipId, online);
 
         if (!online) {
             log.warn("设备离线，无法发送恢复广播指令, chipId={}", chipId);
@@ -212,7 +224,7 @@ public class DeviceServiceImpl implements DeviceService {
             msg.put("resumeBroadcast", true);
 
             String json = msg.toString();
-            log.info("发送恢复广播指令, chipId={}, message={}", chipId, json);
+            log.debug("Sending resume_broadcast command, chipId={}, cmd=resume_broadcast", chipId);
 
             boolean sent = deviceSessionManager.sendToDevice(chipId, json);
 
