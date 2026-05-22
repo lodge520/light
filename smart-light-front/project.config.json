@@ -1,4 +1,4 @@
-{
+﻿{
   "setting": {
     "es6": true,
     "postcss": true,
@@ -20,6 +20,6 @@
     "ignore": [],
     "include": []
   },
-  "appid": "your_wechat_app_id",
+  "appid": "touristappid",
   "editorSetting": {}
 }

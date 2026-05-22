@@ -1,0 +1,10 @@
+# SmartLight project-specific ignores
+smart-light-backend/src/main/resources/application.yaml
+smart-light-backend/src/main/resources/application-example.yaml
+smart-light-front/.env
+smart-light-front/CLAUDE.md
+smart-light-front/public/backgrounds/bg-day.png
+smart-light-front/public/backgrounds/bg-night.png
+smart-light-front/public/backgrounds/store-layout.png
+*.backup
+*.backup2

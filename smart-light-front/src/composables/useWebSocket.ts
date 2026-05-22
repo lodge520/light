@@ -78,7 +78,6 @@ export function useWebSocket(urlSource: UrlSource, onMessage?: MessageHandler, p
 
     ws.onopen = () => {
       connected.value = true
-      console.log('WS connected:', url)
     }
 
     ws.onmessage = (event) => {

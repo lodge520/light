@@ -45,21 +45,20 @@ public class MultiLuxServiceImpl implements MultiLuxService {
                     new LambdaQueryWrapper<LuxRecordDO>()
                             .eq(LuxRecordDO::getChipId, device.getChipId())
                             .eq(LuxRecordDO::getStoreId, currentStoreId)
-                            .orderByAsc(LuxRecordDO::getCollectTime)
-                            .orderByAsc(LuxRecordDO::getCreateTime)
+                            .orderByDesc(LuxRecordDO::getCollectTime)
+                            .orderByDesc(LuxRecordDO::getCreateTime)
+                            .last("LIMIT 12")
             );
 
             if (luxList == null || luxList.isEmpty()) {
                 continue;
             }
 
-            List<LuxRecordDO> lastLuxList = luxList.size() > 12
-                    ? luxList.subList(luxList.size() - 12, luxList.size())
-                    : luxList;
+            Collections.reverse(luxList);
 
-            deviceLuxMap.put(device.getChipId(), lastLuxList);
+            deviceLuxMap.put(device.getChipId(), luxList);
 
-            for (LuxRecordDO lux : lastLuxList) {
+            for (LuxRecordDO lux : luxList) {
                 labelSet.add(formatLabel(lux));
             }
         }

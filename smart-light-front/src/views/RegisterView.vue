@@ -31,7 +31,7 @@
       </div>
 
       <div class="auth-main">
-        <div class="form-card">
+        <div class="form-card" :class="{ shake: shakingFormCard }">
           <div class="form-header">
             <h2>欢迎注册</h2>
             <p>请填写基础信息，创建你的系统账号</p>
@@ -40,22 +40,22 @@
           <form class="form-body" @submit.prevent="handleRegister">
             <div class="form-item">
               <label>用户名</label>
-              <input v-model.trim="form.username" type="text" placeholder="请输入用户名" />
+              <input v-model.trim="form.username" type="text" placeholder="请输入用户名" :class="{ shake: shakingUsername }" />
             </div>
 
             <div class="form-item">
               <label>手机号</label>
-              <input v-model.trim="form.phone" type="tel" maxlength="11" placeholder="请输入手机号" />
+              <input v-model.trim="form.phone" type="tel" maxlength="11" placeholder="请输入手机号" :class="{ shake: shakingPhone }" />
             </div>
 
             <div class="form-item">
               <label>密码</label>
-              <input v-model="form.password" type="password" placeholder="请输入密码" />
+              <input v-model="form.password" type="password" placeholder="请输入密码" :class="{ shake: shakingPassword }" />
             </div>
 
             <div class="form-item">
               <label>确认密码</label>
-              <input v-model="form.confirmPassword" type="password" placeholder="请再次输入密码" />
+              <input v-model="form.confirmPassword" type="password" placeholder="请再次输入密码" :class="{ shake: shakingConfirmPwd }" />
             </div>
 
             <button class="primary-btn" type="submit" :disabled="loading">
@@ -78,9 +78,17 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import http from '../api/http'
 import { loginApi } from '../api/auth'
+import { useToast } from '../composables/useToast'
+import { useShake } from '../composables/useShake'
 
 const router = useRouter()
 const loading = ref(false)
+const toast = useToast()
+const { shaking: shakingUsername, trigger: shakeUsername } = useShake()
+const { shaking: shakingPhone, trigger: shakePhone } = useShake()
+const { shaking: shakingPassword, trigger: shakePassword } = useShake()
+const { shaking: shakingConfirmPwd, trigger: shakeConfirmPwd } = useShake()
+const { shaking: shakingFormCard, trigger: shakeFormCard } = useShake()
 
 const form = reactive({
   username: '',
@@ -91,27 +99,33 @@ const form = reactive({
 
 function validateForm() {
   if (!form.username) {
-    alert('请输入用户名')
+    toast.show('请输入用户名', 'error')
+    shakeUsername()
     return false
   }
   if (!form.phone) {
-    alert('请输入手机号')
+    toast.show('请输入手机号', 'error')
+    shakePhone()
     return false
   }
   if (!/^1[3-9]\d{9}$/.test(form.phone)) {
-    alert('手机号格式不正确')
+    toast.show('手机号格式不正确', 'error')
+    shakePhone()
     return false
   }
   if (!form.password) {
-    alert('请输入密码')
+    toast.show('请输入密码', 'error')
+    shakePassword()
     return false
   }
   if (!form.confirmPassword) {
-    alert('请再次输入密码')
+    toast.show('请再次输入密码', 'error')
+    shakeConfirmPwd()
     return false
   }
   if (form.password !== form.confirmPassword) {
-    alert('两次输入的密码不一致')
+    toast.show('两次输入的密码不一致', 'error')
+    shakeConfirmPwd()
     return false
   }
   return true
@@ -146,7 +160,8 @@ async function handleRegister() {
     router.push('/store-setup')
   } catch (error: any) {
     console.error(error)
-    alert(error.message || '注册失败，请稍后重试')
+    toast.show(error.message || '注册失败，请稍后重试', 'error')
+    shakeFormCard()
   } finally {
     loading.value = false
   }

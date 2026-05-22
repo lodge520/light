@@ -28,12 +28,21 @@ body,
   overflow-x: hidden;
 }
 
+html {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 body {
   font-family: 'Helvetica Neue', sans-serif;
   background: var(--bg);
   color: var(--text-color);
 }
-
 
 button,
 input {
@@ -178,13 +187,6 @@ input {
   border: 1px solid #dcdfe6;
   border-radius: 8px;
 }
-
-.error-text {
-  color: #f56c6c;
-  margin-top: 8px;
-}
-
-
 
 .selector-box {
   display: flex;
